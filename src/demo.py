@@ -14,7 +14,7 @@ REAL_UA = (
 
 with open('config.yaml', 'r') as file:
 	config = yaml.safe_load(file)
-correo_usuario = config["email"]["user"]
+
 username = config["user"]
 password = config["password"]
 url = config["url"]
@@ -34,9 +34,6 @@ print(df["Informes"])
 for index, row in df.iterrows():
 	terminos.append(row['Informes'])
 
-# correo_clave = config["email"]["password"]
-smtp_servidor = config["smtp"]["server"]
-smtp_puerto = config["smtp"]["port"]
 
 
 def login(page: Page):
@@ -53,6 +50,7 @@ def login(page: Page):
 
 		page.get_by_label("Correo electrónico").fill(username)
 		page.get_by_label("Contraseña").fill(password)
+
 		# <input type="submit" value="Entrar" class="g-recaptcha signup-button" id="login-button" data-sitekey="6LeOaagZAAAAADEGihAZSe2cFNNTWgxfUM5NET9Z" data-callback="onSubmit" data-action="submit">
 		with page.expect_navigation(wait_until="domcontentloaded"):
 			page.get_by_role("button", name="Entrar").click()
@@ -67,14 +65,13 @@ def login(page: Page):
             # Espera a que aparezca el enlace a informes
 			page.wait_for_selector("a[href*='/reports']", timeout=20000)
 
-	page.click("a[href*='/reports']")
-	page.wait_for_load_state("networkidle")
+	
 
 def main():
 	with sync_playwright() as p:
 		browser = p.chromium.launch(
 			headless=False,
-			slow_mo=120,
+			# slow_mo=120,
 			args=[
                 "--disable-blink-features=AutomationControlled",
                 "--no-sandbox",
@@ -90,11 +87,12 @@ def main():
         )
 		
 		context.set_default_timeout(30000)
-		context.set_default_navigation_timeout(60000)
+		context.set_default_navigation_timeout(120000)
 		page = context.new_page()
 		page.goto(url)
 		
 		login(page)
+		context.storage_state(path="data/storage_state.json")
 
 		# page.get_by_role("link", name="Entra2").click()
 
@@ -105,6 +103,8 @@ def main():
 		# bg-color-white-1 border-radius-03 padding-left-32 padding-right-32 font-size-13 font-color-darkblue-1 line-height-20" value="">
 		buscador = page.get_by_placeholder("Buscar informe");
 		for termino in terminos:
+			page.click("a[href*='/reports']")
+
 			buscador.fill("");
 			buscador.fill(termino)
 			page.keyboard.press("Enter")
@@ -159,29 +159,56 @@ def main():
 			page.get_by_role('link', name="Seguimiento url's").click()
 
 			# Click en el botón de los tres puntos (ícono)
-			page.locator('div.dropleft >> div.dropdown-toggle').click()
+			# page.locator('div.dropleft >> div.dropdown-toggle').click()
+			fil = page.locator('ul').filter(has=page.locator("span", has_text="Han hecho clic"))
+			# print(fil.inner_html())
+			prueb = fil.locator('li').nth(1)
+			# print(prueb.inner_html())
+			prueb2 = prueb.locator('div.dropleft')
+			# print(prueb2.inner_html())
+			prueb2.click()
+			# <div aria-expanded="true" aria-haspopup="true" class="dropdown-toggle am-button squared height-32 bg-color-white-1 transition-02" data-toggle="dropdown">
+            #       <a class="font-color-grey-3 font-size-13 font-weight-400 transition-02 font-align-center cursor-pointer">
+            #           <i class="am-icon am-icon-16 am-icon-more display-block position-relative"></i>
+            #       </a>
+            #   </div>
 
-			time.sleep(5)
+			# time.sleep(5)
 
 			# <a class="font-size-13 font-weight-400 font-color-grey-3 line-height-32 display-inline-block width-100 padding-left-20 padding-right-20 transition-02" href="/report/campaign/click/837253076/details/">Detalles</a>
-			# page.get_by_role('link', name="Detalles").click()
+			prueb.get_by_role('link', name="Detalles").click()
 			# page.locator('a:has-text("Detalles")').click()
-			page.locator('a[href^="/report/campaign/click/"][href$="/details/"]').click()
+			# page.locator('a[href^="/report/campaign/click/"][href$="/details/"]').click()
 
-			tabla_clics = page.locator('ul').filter(has=page.locator("li", has_text="Suscriptores que han hecho clic"))
+		# 	<span class="font-size-11 font-weight-400 line-height-18 font-color-grey-3 font-uppercase">
+        #     Suscriptores que han hecho clic
+        # </span>
+			tabla_clics = page.locator('ul').filter(has=page.locator("span", has_text="Suscriptores que han hecho clic"))
 			
+			# print(tabla_clics.inner_html())
+
 			clics = tabla_clics.locator('li')
 
-			count3 = suscriptores.count()
+			count3 = clics.count()
 
 			for k in range(1, count3):  # empieza en 1 → segundo elemento
 				email = clics.nth(k).inner_text()
 				for detalle in informe_detallado:
-					if detalle[1] == email:
+					print(f"Correo es {email} {detalle[1]}")
+					if detalle[1].strip() == email.strip():
+						# Remove existing "si" if present to avoid duplicates
+						if len(detalle) == 9:
+							detalle.pop()
 						detalle.append("si")
+					elif len(detalle) < 9:
+						# Add empty string for non-matching emails
+						detalle.append("")
 
 			# for suscriptor in range(s):
-			page.click("a[href*='/reports']")
+			print("Haciendo clic para volver a la paginas de reportes")
+			page.get_by_role('link', name='Emails').click()
+			# page.get_by_role('link', name='Informes')
+			# page.click("a[href*='/reports']")
 
 
 		# Crear un libro y una hoja
@@ -219,6 +246,7 @@ def main():
 		ws['I1'] = "Seguimiento url"
 
 		for fila in informe_detallado:
+			print(fila)
 			ws.append(fila)
 			
 		# ws.append(["Luis", 30])
@@ -226,7 +254,6 @@ def main():
 		# Guardar archivo
 		wb.save(archivo_informes)
 
-		context.storage_state(path="data/storage_state.json")
 		browser.close()
 if __name__ == "__main__":
 	main()
