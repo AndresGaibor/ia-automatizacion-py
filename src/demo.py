@@ -1,259 +1,294 @@
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeoutError, Page
+from datetime import datetime
+from autentificacion import login
+from utils import cargar_terminos_busqueda, crear_contexto_navegador, configurar_navegador, navegar_a_reportes, navegar_siguiente_pagina, obtener_total_paginas
 import yaml
 from openpyxl import Workbook, load_workbook
 import pandas as pd
 import time
 
+# Lectura de archivo de configuracion YAML
+with open('config.yaml', 'r') as file:
+	config = yaml.safe_load(file)
 
+url = config["url"]
+url_base = config["url_base"]
+extraccion_oculta = config["headless"] or False
+
+archivo_busqueda = "./data/Busqueda.xlsx"
+archivo_informes = "./data/informes"
 
 REAL_UA = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 15_6) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
 )
 
-
-with open('config.yaml', 'r') as file:
-	config = yaml.safe_load(file)
-
-username = config["user"]
-password = config["password"]
-url = config["url"]
-archivo_busqueda = config["archivo_busqueda"]
-archivo_informes = config["archivo_informes"]
-
-terminos = []
-df = pd.read_excel(archivo_busqueda, engine="openpyxl")
-
-# Mostrar contenido
-print(df)
-
-# Acceder a una columna
-print(df["Informes"])
-
-# Iterar por filas
-for index, row in df.iterrows():
-	terminos.append(row['Informes'])
-
-
-
-def login(page: Page):
-	# page.wait_for_load_state("domcontentloaded")
-
-	if(page.url != url):
-		print("no es igual")
+def buscar_campania_por_termino(page: Page, termino: list[str], buscador) -> list[str]:
+	"""
+	Busca una campaña específica por término y retorna sus datos
+	"""
+	navegar_a_reportes(page)
+	
+	buscador.fill("")
+	buscador.fill(termino[0])
+	page.keyboard.press("Enter")
+	
+	page.wait_for_load_state('networkidle')
+	
+	tabla_reporte = page.locator('#newsletter-reports')
+	
+	# Esperar a que la tabla esté disponible
+	tabla_reporte.locator('> li').first.wait_for(timeout=60000)
+	
+	tds = tabla_reporte.locator('> li')
+	cantidad_reportes = tds.count()
+	
+	divs = None
+	for g in range(0, cantidad_reportes):
 		try:
-			page.get_by_role("button", name="Aceptar todas").click();
-		except PWTimeoutError:
-			pass
+			td = tds.nth(g)
+			div = td.locator('> div')
+			
+			# Verificar que el elemento existe antes de acceder al texto
+			if div.first.count() == 0:
+				continue
+				
+			nombre_txt = div.first.inner_text()
+			if div.nth(3).count() == 0:
+				continue
+			listas = div.nth(3).inner_text()
+			
+			if(nombre_txt.strip() == termino[0] and listas.strip() == termino[1]):
+				divs = td.locator('> div')
+				break
+		except Exception as e:
+			print(f"Error procesando elemento {g}: {e}")
+			continue
+	
+	if divs is None:
+		raise Exception(f"No se encontró la campaña: {termino[0]} - {termino[1]}")
+	
+	# Extraer datos de la campaña
+	# nombre_txt = divs.first.inner_text()
+	# tipo = divs.nth(1).inner_text()
+	# fecha_envio = divs.nth(2).inner_text()
+	# listas = divs.nth(3).inner_text()
+	# emails = divs.nth(4).inner_text()
+	# abiertos = divs.nth(5).inner_text()
+	# clics = divs.nth(6).inner_text()
+	
+	campos = [divs.nth(i).inner_text() for i in range(7)]
+	
+	# Hacer clic en la campaña
+	divs.locator('a').first.click()
+	
+	# Obtener URL del correo
+	url_correo = page.get_by_role('link', name="Ver email")
+	href_correo = url_correo.get_attribute('href') or ""
+	campos.append(href_correo)
+	return campos
 
-		page.get_by_role("link", name="Entra").click()
+def obtener_detalles_suscriptores(page: Page, nombre_campania: str, lista: str) -> list[list[str]]:
+	"""
+	Obtiene los detalles de todos los suscriptores de una campaña
+	"""
+	informe_detallado = []
+	
+	page.get_by_role('link', name="Detalles suscriptores").click()
 
-		page.get_by_label("Correo electrónico").fill(username)
-		page.get_by_label("Contraseña").fill(password)
+	paginas_totales = obtener_total_paginas(page)
 
-		# <input type="submit" value="Entrar" class="g-recaptcha signup-button" id="login-button" data-sitekey="6LeOaagZAAAAADEGihAZSe2cFNNTWgxfUM5NET9Z" data-callback="onSubmit" data-action="submit">
-		with page.expect_navigation(wait_until="domcontentloaded"):
-			page.get_by_role("button", name="Entrar").click()
+	for numero_pagina in range(1, paginas_totales + 1):
+		tabla_suscriptores = page.locator('ul').filter(has=page.locator("li", has_text="Correo electrónico"))
+		suscriptores = tabla_suscriptores.locator('> li')
+		cantidad_suscriptores = suscriptores.count()
+		
+		for i in range(1, cantidad_suscriptores):  # empieza en 1 → segundo elemento
+			datos_suscriptor = suscriptores.nth(i).locator('> div')
+			
+			correo = datos_suscriptor.nth(0).inner_text()
+			fecha_apertura = datos_suscriptor.nth(1).inner_text()
+			pais_apertura = datos_suscriptor.nth(2).inner_text()
+			aperturas = datos_suscriptor.nth(3).inner_text()
+			lista = datos_suscriptor.nth(4).inner_text()
+			estado = datos_suscriptor.nth(5).inner_text()
+			calidad = datos_suscriptor.nth(6).inner_text()
+			
+			informe_detallado.append([
+				nombre_campania, lista, correo, fecha_apertura, pais_apertura, aperturas, lista, estado, calidad
+			])
+
+		if numero_pagina < paginas_totales:
+			if not navegar_siguiente_pagina(page, numero_pagina):
+				break
+	
+	
+	
+	
+	return informe_detallado
+
+def procesar_seguimiento_urls(page: Page, informe_detallado: list[list[str]]):
+	"""
+	Procesa el seguimiento de URLs y marca los clics en el informe detallado
+	"""
+	page.get_by_role('link', name="Seguimiento url's").click()
+	page.wait_for_load_state('networkidle')
+	
+	# Inicializar todos los registros con cadena vacía para seguimiento URL
+	for detalle in informe_detallado:
+		if len(detalle) < 9:
+			detalle.append("")
 	
 	try:
-		page.wait_for_selector("a[href*='/reports']", timeout=10000)
-		print("Login OK")
-	except PWTimeoutError:
-			print("Parece que no se completó el login (¿captcha?).")
-			print("Resuelve el captcha manualmente en la ventana y presiona Enter aquí…")
-			input()
-            # Espera a que aparezca el enlace a informes
-			page.wait_for_selector("a[href*='/reports']", timeout=20000)
+		tabla_urls_seguimiento = page.locator('ul').filter(has=page.locator("span", has_text="Han hecho clic"))
+		urls_seguimiento = tabla_urls_seguimiento.locator('> li')
+		cantidad_url_seguimiento = urls_seguimiento.count()
+		
+		for z in range(1, cantidad_url_seguimiento):
+			try:
+				tabla_urls_seguimiento = page.locator('ul').filter(has=page.locator("span", has_text="Han hecho clic"))
+				urls_seguimiento = tabla_urls_seguimiento.locator('> li')
+				
+				col_acciones = urls_seguimiento.nth(z).locator('> div')
+				btn_menu = col_acciones.last.locator('a').first
+				btn_menu.click()
 
+				urls_seguimiento.nth(z).get_by_role('link', name="Detalles").click()
+
+				# vamos a recorrer cada pagina de clics de cada url de seguimiento
+				paginas_totales = obtener_total_paginas(page)
+				
+				for numero_pagina in range(1, paginas_totales + 1):
+					tabla_clics = page.locator('ul').filter(has=page.locator("span", has_text="Suscriptores que han hecho clic"))
+					clics = tabla_clics.locator('> li')
+					cantidad_clics = clics.count()
+					
+					for k in range(1, cantidad_clics):  # empieza en 1 → segundo elemento
+						email = clics.nth(k).inner_text()
+						for detalle in informe_detallado:
+							if detalle[2].strip() == email.strip():
+								# Marcar como "SI" si ya no está marcado
+								if len(detalle) >= 10:
+									detalle[9] = "SI"
+								else:
+									detalle.append("SI")
+					# Navegar a siguiente página si no es la última
+					if numero_pagina < paginas_totales:
+						if not navegar_siguiente_pagina(page, numero_pagina):
+							break
+				
+				page.go_back(wait_until='networkidle')
+			except Exception as e:
+				print(f"Error procesando seguimiento URL {z}: {e}")
+				continue
+	except Exception as e:
+		print(f"Error general en seguimiento URLs: {e}")
+
+def crear_archivo_excel(informe_detalle: list[list[str]], informe_detallado: list[list[str]]):
+	"""
+	Crea el archivo Excel con los informes recopilados
+	"""
+	# Crear un libro y una hoja
+	wb = Workbook()
+	ws = wb.active
+	if ws is not None:
+		ws.title = "Hoja1"
+	else:
+		ws = wb.create_sheet(title="Hoja1")
 	
+	# Escribir datos de la primera hoja
+	ws['A1'] = "Nombre"
+	ws['B1'] = "Tipo"
+	ws['C1'] = "Fecha envio"
+	ws['D1'] = "Listas"
+	ws['E1'] = "Emails"
+	ws['F1'] = "Abiertos"
+	ws['G1'] = "Clics"
+	ws['H1'] = "URL de Correo"
+	
+	for fila in informe_detalle:
+		ws.append(fila)
+	
+	# Crear segunda hoja
+	ws = wb.create_sheet(title="Hoja2")
+	
+	ws['A1'] = "Proyecto"
+	ws['B1'] = "Lista"
+	ws['C1'] = "Correo"
+	ws['D1'] = "Fecha apertura"
+	ws['E1'] = "Pais apertura"
+	ws['F1'] = "Aperturas"
+	ws['G1'] = "Lista"
+	ws['H1'] = "Estado"
+	ws['I1'] = "Calidad"
+	ws['J1'] = "Seguimiento url"
+	
+	for fila in informe_detallado:
+		ws.append(fila)
+	
+	# Guardar archivo
+	ahora = datetime.now()
+	fecha_texto = ahora.strftime("%Y%m%d%H%M")
+	nombre_archivo = f"{archivo_informes}_{fecha_texto}.xlsx"
+	wb.save(nombre_archivo)
+	print(f"Termine, revisar archivo informes_{fecha_texto}.xlsx")
+	return nombre_archivo
+
 
 def main():
+	# Cargar términos de búsqueda
+	terminos = cargar_terminos_busqueda(archivo_busqueda)
+	
+	if not terminos:
+		print("No se encontraron términos de búsqueda marcados con 'x' o 'X'")
+		return
+	
 	with sync_playwright() as p:
-		browser = p.chromium.launch(
-			headless=False,
-			# slow_mo=120,
-			args=[
-                "--disable-blink-features=AutomationControlled",
-                "--no-sandbox",
-            ],
-			) # headless=False para ver
-		context = browser.new_context(
-            viewport={"width": 1400, "height": 900},
-            user_agent=REAL_UA,
-            locale="es-ES",
-            timezone_id="Europe/Madrid",
-            ignore_https_errors=True,
-			storage_state="data/storage_state.json"
-        )
+		browser = configurar_navegador(p, extraccion_oculta)
+		context = crear_contexto_navegador(browser, extraccion_oculta)
 		
-		context.set_default_timeout(30000)
-		context.set_default_navigation_timeout(120000)
 		page = context.new_page()
-		page.goto(url)
+		
+		page.goto(url_base, wait_until="domcontentloaded", timeout=30000)
+		page.goto(url, wait_until="domcontentloaded", timeout=60000)
 		
 		login(page)
 		context.storage_state(path="data/storage_state.json")
 
-		# page.get_by_role("link", name="Entra2").click()
-
 		informe_detalle: list[list[str]] = []
 		informe_detallado: list[list[str]] = []
-		# <input placeholder="Buscar informe" type="text" 
-		# name="search_word" class="height-32 bordered 
-		# bg-color-white-1 border-radius-03 padding-left-32 padding-right-32 font-size-13 font-color-darkblue-1 line-height-20" value="">
-		buscador = page.get_by_placeholder("Buscar informe");
-		for termino in terminos:
-			page.click("a[href*='/reports']")
-
-			buscador.fill("");
-			buscador.fill(termino)
-			page.keyboard.press("Enter")
-
-			tabla_reporte = page.locator('#newsletter-reports')
-
-			tabla_reporte.locator("a").first.wait_for(timeout=10000)
-
-			td = tabla_reporte.locator('li').nth(1)
-
-			divs = td.locator('div')
-
-			nombre = divs.nth(0)
-			nombre_txt = nombre.nth(0).inner_text()
-			tipo = divs.nth(1).inner_text()
-			fecha_envio = divs.nth(2).inner_text()
-			listas = divs.nth(3).inner_text()
-			emails = divs.nth(4).inner_text()
-			abiertos = divs.nth(5).inner_text()
-			clics = divs.nth(6).inner_text()
-
-			informe_detalle.append([
-				nombre_txt, tipo, fecha_envio, listas, emails, abiertos, clics
-			])
-
-			nombre.locator('a').click()
-			page.wait_for_load_state("networkidle")
-			page.get_by_role('link', name="Detalles suscriptores").click()
-
-			tabla_suscriptores = page.locator('ul').filter(has=page.locator("li", has_text="Correo electrónico"))
-
-			suscriptores = tabla_suscriptores.locator('li')
-
-			count = suscriptores.count()
-
-			for i in range(1, count):  # empieza en 1 → segundo elemento
-				datos_suscriptor = suscriptores.nth(i).locator('div')
-
-				correo = datos_suscriptor.nth(0).inner_text()
-				fecha_apertura = datos_suscriptor.nth(1).inner_text()
-				pais_apertura = datos_suscriptor.nth(2).inner_text()
-				aperturas = datos_suscriptor.nth(3).inner_text()
-				lista = datos_suscriptor.nth(4).inner_text()
-				estado = datos_suscriptor.nth(5).inner_text()
-				calidad = datos_suscriptor.nth(6).inner_text()
-
-				informe_detallado.append([
-					nombre_txt, correo, fecha_apertura, pais_apertura, aperturas, lista, estado, calidad
-				])
-
-			# <a class="font-size-13 transition-02 line-height-18 display-block font-color-grey-3 font-weight-400" href="/report/campaign/3331731/url/" onclick="trackAmplitudeEvent(&quot;campaign report item clicked&quot;, {&quot;item&quot;: &quot;url tracking&quot;})">Seguimiento url's</a>
-			page.get_by_role('link', name="Seguimiento url's").click()
-
-			# Click en el botón de los tres puntos (ícono)
-			# page.locator('div.dropleft >> div.dropdown-toggle').click()
-			fil = page.locator('ul').filter(has=page.locator("span", has_text="Han hecho clic"))
-			# print(fil.inner_html())
-			prueb = fil.locator('li').nth(1)
-			# print(prueb.inner_html())
-			prueb2 = prueb.locator('div.dropleft')
-			# print(prueb2.inner_html())
-			prueb2.click()
-			# <div aria-expanded="true" aria-haspopup="true" class="dropdown-toggle am-button squared height-32 bg-color-white-1 transition-02" data-toggle="dropdown">
-            #       <a class="font-color-grey-3 font-size-13 font-weight-400 transition-02 font-align-center cursor-pointer">
-            #           <i class="am-icon am-icon-16 am-icon-more display-block position-relative"></i>
-            #       </a>
-            #   </div>
-
-			# time.sleep(5)
-
-			# <a class="font-size-13 font-weight-400 font-color-grey-3 line-height-32 display-inline-block width-100 padding-left-20 padding-right-20 transition-02" href="/report/campaign/click/837253076/details/">Detalles</a>
-			prueb.get_by_role('link', name="Detalles").click()
-			# page.locator('a:has-text("Detalles")').click()
-			# page.locator('a[href^="/report/campaign/click/"][href$="/details/"]').click()
-
-		# 	<span class="font-size-11 font-weight-400 line-height-18 font-color-grey-3 font-uppercase">
-        #     Suscriptores que han hecho clic
-        # </span>
-			tabla_clics = page.locator('ul').filter(has=page.locator("span", has_text="Suscriptores que han hecho clic"))
+		
+		buscador = page.get_by_placeholder("Buscar informe")
+		
+		for i, termino in enumerate(terminos):
+			print(f"Procesando término {i+1}/{len(terminos)}: {termino[0]} - {termino[1]}")
 			
-			# print(tabla_clics.inner_html())
+			try:
+				# Buscar y obtener datos de la campaña
+				datos_campania = buscar_campania_por_termino(page, termino, buscador)
+				informe_detalle.append(datos_campania)
+				
+				# Obtener detalles de suscriptores
+				detalles_suscriptores = obtener_detalles_suscriptores(page, datos_campania[0], datos_campania[3])
+				informe_detallado.extend(detalles_suscriptores)
+				
+				# Procesar seguimiento de URLs
+				procesar_seguimiento_urls(page, detalles_suscriptores)
+				
+				# Volver a la página de reportes
+				print("Haciendo clic para volver a la paginas de reportes")
+				page.get_by_role('link', name='Emails').click()
+			
+			except Exception as e:
+				print(f"Error procesando término '{termino[0]} - {termino[1]}': {e}")
+				continue
 
-			clics = tabla_clics.locator('li')
-
-			count3 = clics.count()
-
-			for k in range(1, count3):  # empieza en 1 → segundo elemento
-				email = clics.nth(k).inner_text()
-				for detalle in informe_detallado:
-					print(f"Correo es {email} {detalle[1]}")
-					if detalle[1].strip() == email.strip():
-						# Remove existing "si" if present to avoid duplicates
-						if len(detalle) == 9:
-							detalle.pop()
-						detalle.append("si")
-					elif len(detalle) < 9:
-						# Add empty string for non-matching emails
-						detalle.append("")
-
-			# for suscriptor in range(s):
-			print("Haciendo clic para volver a la paginas de reportes")
-			page.get_by_role('link', name='Emails').click()
-			# page.get_by_role('link', name='Informes')
-			# page.click("a[href*='/reports']")
-
-
-		# Crear un libro y una hoja
-		wb = Workbook()
-		ws = wb.active
-		if ws is not None:
-			ws.title = "Hoja1"
+		# Crear archivo Excel con los resultados
+		if informe_detalle or informe_detallado:
+			crear_archivo_excel(informe_detalle, informe_detallado)
 		else:
-			ws = wb.create_sheet(title="Hoja1")
+			print("No se procesaron datos, no se creó archivo Excel")
 		
-
-
-		# Escribir datos
-		ws['A1'] = "Nombre"
-		ws['B1'] = "Tipo"
-		ws['C1'] = "Fecha envio"
-		ws['D1'] = "Listas"
-		ws['E1'] = "Emails"
-		ws['F1'] = "Abiertos"
-		ws['G1'] = "Clics"
-
-		for fila in informe_detalle:
-			ws.append(fila)
-		
-		ws = wb.create_sheet(title="Hoja2")
-
-		ws['A1'] = "Proyecto"
-		ws['B1'] = "Correo"
-		ws['C1'] = "Fecha apertura"
-		ws['D1'] = "Pais apertura"
-		ws['E1'] = "Aperturas"
-		ws['F1'] = "Lista"
-		ws['G1'] = "Estado"
-		ws['H1'] = "Calidad"
-		ws['I1'] = "Seguimiento url"
-
-		for fila in informe_detallado:
-			print(fila)
-			ws.append(fila)
-			
-		# ws.append(["Luis", 30])
-
-		# Guardar archivo
-		wb.save(archivo_informes)
-
 		browser.close()
 if __name__ == "__main__":
 	main()

@@ -1,3 +1,5 @@
 data/*
 config.yaml
+config2.yaml
+config3.yaml
 .venv
