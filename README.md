@@ -78,7 +78,7 @@ acumba-automation/
 ├── src/
 │   └── demo.py
 ├── data/
-│   └── storage_state.json
+│   datos_sesion.json
 ├── config.yaml
 ├── requirements.txt
 └── README.md

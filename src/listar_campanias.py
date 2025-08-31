@@ -1,18 +1,13 @@
 from playwright.sync_api import sync_playwright, Page
 from datetime import datetime
-from utils import configurar_navegador, crear_contexto_navegador, obtener_total_paginas, navegar_siguiente_pagina
-from autentificacion import login
+from .utils import configurar_navegador, crear_contexto_navegador, obtener_total_paginas, navegar_siguiente_pagina, load_config, data_path, storage_state_path, notify
+from .autentificacion import login
 import pandas as pd
-import yaml
 from openpyxl import Workbook, load_workbook
+import os
 
-# Configuración
-with open('config.yaml', 'r') as file:
-	config = yaml.safe_load(file)
-
-url = config["url"]
-url_base = config["url_base"]
-archivo_busqueda = "./data/Busqueda.xlsx"
+# Rutas
+ARCHIVO_BUSQUEDA = data_path("Busqueda.xlsx")
 
 def cargar_ultimo_termino_busqueda(archivo_busqueda: str) -> list[str]:
 	"""
@@ -181,8 +176,12 @@ def main():
 	"""
 	Función principal del programa de listado de campañas
 	"""
-	# Cargar términos de búsqueda
-	terminos = cargar_ultimo_termino_busqueda(archivo_busqueda)
+	# Cargar config fresca y términos de búsqueda
+	config = load_config()
+	url = config.get("url", "")
+	url_base = config.get("url_base", "")
+
+	terminos = cargar_ultimo_termino_busqueda(ARCHIVO_BUSQUEDA)
 	
 	# Si no hay términos válidos, buscar todas las campañas
 	if not terminos[0] or not terminos[1]:
@@ -204,16 +203,17 @@ def main():
 			
 			# Realizar login
 			login(page)
-			context.storage_state(path="data/storage_state.json")
+			context.storage_state(path=storage_state_path())
 
 			# Procesar búsqueda de campañas
 			informe_detalle = procesar_busqueda_campanias(page, terminos)
 
 			# Guardar resultados
 			if informe_detalle:
-				guardar_datos_en_excel(informe_detalle, archivo_busqueda)
+				guardar_datos_en_excel(informe_detalle, ARCHIVO_BUSQUEDA)
 			
 			browser.close()
+			notify("Proceso finalizado", f"Terminé de listar campañas. Revisar archivo: {ARCHIVO_BUSQUEDA}")
 			
 	except Exception as e:
 		print(f"Error crítico en el programa: {e}")

@@ -1,10 +1,11 @@
 """
-Funciones utilitarias compartidas para automatización de Acumba
+Funciones utilitarias compartidas para automatización de Acumba.
 """
 from playwright.sync_api import Page, TimeoutError as PWTimeoutError
 import pandas as pd
 import json
 import os
+import yaml
 
 REAL_UA = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 15_6) AppleWebKit/537.36 "
@@ -25,11 +26,42 @@ def cargar_terminos_busqueda(archivo_busqueda: str) -> list[list[str]]:
     
     return terminos
 
+def project_root() -> str:
+    """Directorio raíz del proyecto (carpeta que contiene app.py)."""
+    return os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
+def config_path() -> str:
+    return os.path.join(project_root(), "config.yaml")
+
+def data_path(name: str) -> str:
+    d = os.path.join(project_root(), "data")
+    os.makedirs(d, exist_ok=True)
+    return os.path.join(d, name)
+
+def load_config(defaults: dict | None = None) -> dict:
+    """Carga config.yaml desde el raíz del proyecto. Si no existe, lo crea con defaults (si se proveen)."""
+    path = config_path()
+    if os.path.exists(path):
+        with open(path, "r") as f:
+            return yaml.safe_load(f) or {}
+    if defaults is None:
+        defaults = {}
+    with open(path, "w") as f:
+        yaml.safe_dump(defaults, f, sort_keys=False)
+    return defaults
+
+def save_config(cfg: dict):
+    with open(config_path(), "w") as f:
+        yaml.safe_dump(cfg, f, sort_keys=False)
+
+## NOTA: se elimina la antigua función load_config basada en project_root,
+## ya que ahora toda configuración vive en app_data_dir (compatible con PyInstaller).
+
 def crear_contexto_navegador(browser, extraccion_oculta: bool = False):
     """
     Crea y configura el contexto del navegador
     """
-    storage_state_path = "data/storage_state.json"
+    storage_state_path = os.path.join(project_root(), "datos_sesion.json")
     if not os.path.exists(storage_state_path):
         with open(storage_state_path, "w") as f:
             json.dump({}, f)
@@ -44,6 +76,10 @@ def crear_contexto_navegador(browser, extraccion_oculta: bool = False):
     )
     
     return context
+
+def storage_state_path() -> str:
+    """Ruta al archivo de estado de sesión persistente."""
+    return os.path.join(project_root(), "datos_sesion.json")
 
 def configurar_navegador(p, extraccion_oculta: bool = False):
     """
@@ -120,4 +156,48 @@ def navegar_siguiente_pagina(page: Page, pagina_actual: int) -> bool:
 		print(f"⚠️ Advertencia al navegar a la página {siguiente_pagina}: {e}")
 		# print(f"No se pudo navegar a la página {siguiente_pagina}")
 		return False
+
+
+def notify(title: str, message: str, level: str = "info") -> bool:
+    """
+    Muestra una notificación segura:
+    - Si hay una UI Tk activa (o se puede crear en el hilo principal), usa messagebox.
+    - Si no, imprime en consola.
+
+    Retorna True si se mostró con Tk, False si se hizo fallback a print.
+    """
+    try:
+        import tkinter as tk  # type: ignore
+        from tkinter import messagebox  # type: ignore
+        import threading
+
+        root = getattr(tk, "_default_root", None)
+        created = False
+
+        if root is None:
+            # Solo crear una raíz si estamos en el hilo principal para evitar errores.
+            if threading.current_thread() is not threading.main_thread():
+                raise RuntimeError("No hay Tk root y no estamos en el hilo principal")
+            root = tk.Tk()
+            root.withdraw()
+            created = True
+
+        if level == "error":
+            messagebox.showerror(title, message)
+        elif level == "warning":
+            messagebox.showwarning(title, message)
+        else:
+            messagebox.showinfo(title, message)
+
+        if created:
+            # Cerrar la raíz temporal para no dejar ventanas ocultas vivas.
+            try:
+                root.destroy()
+            except Exception:
+                pass
+        return True
+    except Exception:
+        # Entornos headless o sin Tk: fallback a consola
+        print(f"{title}: {message}")
+        return False
 

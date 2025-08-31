@@ -1,15 +1,12 @@
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeoutError, Page
-import yaml
-
-# Lectura de archivo de configuracion YAML
-with open('config.yaml', 'r') as file:
-	config = yaml.safe_load(file)
-
-username = config["user"]
-password = config["password"]
-url = config["url"]
+from .utils import load_config
 
 def login(page: Page):
+	"""Realiza login leyendo la configuración fresca desde config.yaml."""
+	config = load_config()
+	username = config.get("user", "")
+	password = config.get("password", "")
+	url = config.get("url", "")
 	# Esperar a que la página se cargue completamente antes de verificar URL
 	try:
 		page.wait_for_load_state("domcontentloaded", timeout=30000)

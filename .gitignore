@@ -2,4 +2,27 @@ data/*
 config.yaml
 config2.yaml
 config3.yaml
+config4.yaml
 .venv
+datos_sesion.json
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+env/
+.ENV/
+.pytest_cache/
+.mypy_cache/
+
+# PyInstaller
+build/
+dist/
+# Si NO vas a editarla, puedes ignorar la .spec; si la personalizas, sí súbela
+# *.spec
+
+# Otros
+*.log
+.DS_Store
+.env

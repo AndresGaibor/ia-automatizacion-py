@@ -1,0 +1,169 @@
+from playwright.sync_api import sync_playwright, TimeoutError as PWTimeoutError, Page
+from .utils import cargar_terminos_busqueda, crear_contexto_navegador, configurar_navegador, navegar_a_reportes, navegar_siguiente_pagina, obtener_total_paginas, load_config, data_path, storage_state_path, notify
+from .autentificacion import login
+from .tipo_campo import field_type_label
+import pandas as pd
+import os
+archivo_busqueda = data_path("Lista_envio.xlsx")
+
+def listar_hojas(archivo: str) -> list[str]:
+	"""Devuelve la lista de hojas del archivo Excel."""
+	with pd.ExcelFile(archivo, engine="openpyxl") as xls:
+		return [str(n) for n in xls.sheet_names]
+
+def seleccionar_hoja(archivo: str) -> str:
+	"""Lista las hojas y permite al usuario seleccionar una."""
+	hojas = listar_hojas(archivo)
+	if not hojas:
+		raise ValueError("El archivo no contiene hojas.")
+
+	if len(hojas) == 1:
+		print(f"Usando única hoja: {hojas[0]}")
+		return hojas[0]
+
+	print("\nHojas disponibles en el Excel:")
+	for i, h in enumerate(hojas, 1):
+		print(f"  {i}) {h}")
+
+	while True:
+		op = input(f"Selecciona la hoja (1-{len(hojas)}) [1]: ").strip()
+		if op == "":
+			return hojas[0]
+		if op.isdigit():
+			idx = int(op)
+			if 1 <= idx <= len(hojas):
+				return hojas[idx - 1]
+		print("Opción inválida. Intenta nuevamente.")
+
+def cargar_columnas(archivo: str, nombre_hoja: str | None = None) -> tuple[list[str], list[str]]:
+	"""
+	Carga:
+	- columnas: [<nombre_hoja>, <col1>, <col2>, ...]
+	- segunda_fila: valores de la primera fila de datos (debajo del encabezado), alineados a columnas[1:]
+	"""
+	try:
+		with pd.ExcelFile(archivo, engine="openpyxl") as xls:
+			hoja = nombre_hoja or str(xls.sheet_names[0])
+			# Leemos como texto y reemplazamos NaN por vacío para evitar tipos mixtos
+			df = pd.read_excel(xls, sheet_name=hoja, dtype=str).fillna("")
+
+		columnas_sin_hoja: list[str] = [str(c) for c in df.columns.tolist()]
+		columnas: list[str] = [hoja] + columnas_sin_hoja
+
+		# “Segunda fila de datos”: primera fila de datos bajo el header
+		if len(df) > 0:
+			segunda_fila: list[str] = [str(v) for v in df.iloc[0].tolist()]
+		else:
+			segunda_fila = [""] * len(columnas_sin_hoja)
+
+		return columnas, segunda_fila
+	except Exception as e:
+		print(f"Error al cargar columnas: {e}")
+		return ["", ""], []
+
+print("Cargando último término de búsqueda...")
+
+REAL_UA = (
+	"Mozilla/5.0 (Macintosh; Intel Mac OS X 15_6) AppleWebKit/537.36 "
+	"(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+)
+
+def inicializar_navegacion_lista(page: Page):
+	"""
+	Navega a la sección de lista y espera a que cargue
+	"""
+	page.click("a[href*='/list']")
+	page.wait_for_load_state("domcontentloaded")
+
+def main():
+	config = load_config()
+	url = config.get("url", "")
+	url_base = config.get("url_base", "")
+	extraccion_oculta = bool(config.get("headless", False))
+	hoja_seleccionada = seleccionar_hoja(archivo_busqueda)
+	campos, segunda_fila = cargar_columnas(archivo_busqueda, hoja_seleccionada)
+
+	nombre_lista = campos[0]
+	# Ejemplo de uso: mostrar valor de ejemplo para cada columna a mapear
+	# for indice, columna in enumerate(campos[2:], start=2):
+	# 	valor_ejemplo = segunda_fila[indice - 1] if indice - 1 < len(segunda_fila) else ""
+	# 	print(f"Columna {indice}: {columna} | Ejemplo: {valor_ejemplo}")
+
+	with sync_playwright() as p:
+		browser = configurar_navegador(p, extraccion_oculta)
+		context = crear_contexto_navegador(browser, extraccion_oculta)
+		
+		page = context.new_page()
+		
+		page.goto(url_base, wait_until="domcontentloaded", timeout=30000)
+		page.goto(url, wait_until="domcontentloaded", timeout=60000)
+		
+		login(page)
+		context.storage_state(path=storage_state_path())
+
+		inicializar_navegacion_lista(page)
+
+		page.wait_for_load_state("networkidle")
+		
+		btn_nueva_lista = page.locator('a:has-text("Nueva Lista"):visible')
+
+		btn_nueva_lista.click()
+
+		page.wait_for_load_state("networkidle")
+
+		input_nombre_lista = page.locator('input#name')
+		input_nombre_lista.fill(nombre_lista)
+		# ahora = datetime.now()
+		# fecha_texto = ahora.strftime("%Y%m%d")
+		# input_nombre_lista.fill(f"{nombre_lista}_{fecha_texto}")
+
+		btn_crear_lista = page.locator('input:visible', has_text="Crear")
+		btn_crear_lista.click()
+
+		btn_agregar_suscriptores = page.locator('a#add-subscribers-link')
+		btn_agregar_suscriptores.click()
+
+		page.get_by_label("Archivo CSV/Excel").check()
+
+		input_archivo = page.locator('input#id_csv')
+		input_archivo.set_input_files(archivo_busqueda)
+
+		btn_aniadir = page.locator('a:visible', has_text="Añadir")
+		btn_aniadir.click()
+
+		page.wait_for_load_state("networkidle")
+
+		try:
+			btn_close_poup = page.locator('a', has_text="Aceptar")
+			btn_close_poup.click()
+		except PWTimeoutError:
+			print("No se mostró popup de error")
+		
+		for indice, columna in enumerate(campos[2:], start=2):
+			# print(f"Columna {indice}: {columna}")
+			# Si quieres usar el valor ejemplo:
+			# valor_ejemplo = segunda_fila[indice - 1] if indice - 1 < len(segunda_fila) else ""
+			# print(f"  Ejemplo: {valor_ejemplo}")
+			contenedor = page.locator("div.col", has_text=f"Columna {indice}")
+			selector = contenedor.locator("select")
+			selector.select_option(label="Crear nueva...")
+
+			contenedor_popup = page.locator(f"#add-field-popup-{indice}")
+
+			input_nombre = contenedor_popup.locator(f"#popup-field-name-{indice}")
+			input_nombre.fill(columna)
+			
+			tipo_campo = field_type_label(segunda_fila[indice - 1]) if indice - 1 < len(segunda_fila) else "Texto"
+			selector_tipo = contenedor_popup.locator("select")
+			selector_tipo.select_option(label=tipo_campo)
+
+			btn_aniadir = contenedor_popup.locator('input', has_text="Añadir")
+			btn_aniadir.click()
+		
+		btn_siguiente = page.locator('a:visible', has_text="Siguiente")
+		btn_siguiente.click()
+		
+		browser.close()
+		notify("Proceso finalizado", f"Terminé de crear la lista '{nombre_lista}'.")
+if __name__ == "__main__":
+	main()
