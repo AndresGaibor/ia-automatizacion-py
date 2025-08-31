@@ -259,6 +259,13 @@ def main(nombre_hoja: str | None = None):
 		btn_siguiente = page.locator('a:visible', has_text="Siguiente")
 		btn_siguiente.click()
 
+		try:
+			# Esperar a que aparezca el mensaje de éxito
+			page.wait_for_selector('text="Tus suscriptores se han importado con éxito"', timeout=30000)
+			print("Suscriptores importados con éxito")
+		except PWTimeoutError:
+			print("No se pudo confirmar la importación de suscriptores")
+
 		page.wait_for_load_state("networkidle")
 		
 		browser.close()
