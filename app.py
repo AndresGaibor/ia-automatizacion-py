@@ -1,6 +1,5 @@
 import tkinter as tk
 from tkinter import messagebox
-import yaml
 import os
 import pandas as pd
 import importlib
@@ -175,7 +174,7 @@ if __name__ == "__main__":
     btn_crear = tk.Button(root, text="Crear lista de suscriptores", command=lambda: run_crear_lista(btn_crear))
     btn_crear.pack(pady=8, fill="x", padx=20)
 
-    # Nuevo botón de configuración
+    # Botón limpiar sesión
     btn_clean = tk.Button(root, text="Limpiar sesión actual", command=limpiar_sesion)
     btn_clean.pack(pady=8, fill="x", padx=20)
 
