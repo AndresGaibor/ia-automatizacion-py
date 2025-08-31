@@ -393,7 +393,6 @@ def crear_archivo_excel(general: list[list[str]], informe_detallado: list[list[l
 	notify("Proceso finalizado", f"Lista de suscriptores obtenida")
 	return nombre_archivo
 
-
 def main():
 	# Config cargada en runtime y términos de búsqueda
 	config = load_config()
