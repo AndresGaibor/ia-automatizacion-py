@@ -287,7 +287,7 @@ def main(nombre_hoja: str | None = None):
 		page.wait_for_load_state("networkidle")
 		
 		browser.close()
-		notify("Proceso finalizado", f"Terminé de crear la lista '{nombre_lista}'.")
+		notify("Proceso finalizado", f"Lista '{nombre_lista}' cargada")
 	# Limpiar archivo temporal
 	try:
 		if tmp_subida and os.path.exists(tmp_subida):

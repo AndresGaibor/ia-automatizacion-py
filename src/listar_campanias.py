@@ -213,7 +213,7 @@ def main():
 				guardar_datos_en_excel(informe_detalle, ARCHIVO_BUSQUEDA)
 			
 			browser.close()
-			notify("Proceso finalizado", f"Terminé de listar campañas. Revisar archivo: {ARCHIVO_BUSQUEDA}")
+			notify("Proceso finalizado", f"Lista de campañas obtenida")
 			
 	except Exception as e:
 		print(f"Error crítico en el programa: {e}")

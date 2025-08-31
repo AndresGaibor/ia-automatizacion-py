@@ -390,7 +390,7 @@ def crear_archivo_excel(general: list[list[str]], informe_detallado: list[list[l
 	fecha_texto = ahora.strftime("%Y%m%d%H%M")
 	nombre_archivo = f"{ARCHIVO_INFORMES_PREFIX}_{fecha_texto}.xlsx"
 	wb.save(nombre_archivo)
-	notify("Proceso finalizado", f"Terminé, revisar archivo informes_{fecha_texto}.xlsx")
+	notify("Proceso finalizado", f"Lista de suscriptores obtenida")
 	return nombre_archivo
 
 
