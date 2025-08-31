@@ -1,44 +1,106 @@
-name: Build Windows EXE
+name: build-windows
 
 on:
   workflow_dispatch:
   push:
-    tags: ["v*"]   # opcional: al publicar un tag v1.0, etc.
+    tags:
+      - "v*"
 
 jobs:
-  win-build:
+  # Variante ONLINE: entregas solo app.exe. La primera vez descargará Chromium.
+  build-online:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11" # fija versión para builds reproducibles
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~\AppData\Local\pip\Cache
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          python -m pip install -U pip wheel
+          if (Test-Path requirements.txt) {
+            python -m pip install -r requirements.txt
+          }
+          python -m pip install pyinstaller playwright
+
+      - name: Build (onefile)
+        shell: pwsh
+        run: pyinstaller --onefile --collect-all playwright --windowed app.py
+
+      - name: Upload artifact (.exe)
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-win-online
+          path: dist/app.exe
+          if-no-files-found: error
+          retention-days: 14
+
+  # Variante OFFLINE: incluye navegadores en dist/ms-playwright (no requiere internet al primer uso).
+  build-offline:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Install deps
-        run: |
-          python -m pip install --upgrade pip
-          if (Test-Path requirements.txt) { pip install -r requirements.txt }
-          pip install pyinstaller
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~\AppData\Local\pip\Cache
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
 
-      - name: Build .exe
+      - name: Install dependencies
+        shell: pwsh
         run: |
-          # Ajusta el comando a tus necesidades (icono, datos, hidden-imports, etc.)
-          pyinstaller --onefile --name MiApp `
-            --add-data "defaults\config.yaml;defaults" `
-            app.py
+          python -m pip install -U pip wheel
+          if (Test-Path requirements.txt) {
+            python -m pip install -r requirements.txt
+          }
+          python -m pip install pyinstaller playwright
 
-      - name: Package artifact
+      - name: Build (onefile)
+        shell: pwsh
+        run: pyinstaller --onefile --collect-all playwright --windowed app.py
+
+      # Preinstala Chromium en la misma carpeta donde estará el .exe
+      - name: Pre-bundle Chromium into dist/ms-playwright
+        shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path dist_pkg | Out-Null
-          Copy-Item dist\MiApp.exe dist_pkg\
-          if (Test-Path .\config.yaml) { Copy-Item .\config.yaml dist_pkg\ }
-          if (Test-Path .\data) { Copy-Item .\data dist_pkg\data -Recurse }
-          Compress-Archive -Path dist_pkg\* -DestinationPath MiApp-windows-x64.zip
+          $dist = (Resolve-Path dist).Path
+          $env:PLAYWRIGHT_BROWSERS_PATH = "$dist\ms-playwright"
+          python -m playwright install chromium
+          Write-Host "Browsers installed in $env:PLAYWRIGHT_BROWSERS_PATH"
 
-      - name: Upload artifact
+      - name: Package ZIP (exe + ms-playwright)
+        shell: pwsh
+        run: |
+          Set-Location dist
+          if (Test-Path AcumbaAutomation-win64.zip) { Remove-Item AcumbaAutomation-win64.zip -Force }
+          Compress-Archive -Path app.exe, ms-playwright -DestinationPath AcumbaAutomation-win64.zip
+
+      - name: Upload artifact (offline zip)
         uses: actions/upload-artifact@v4
         with:
-          name: MiApp-windows-x64
-          path: MiApp-windows-x64.zip
+          name: app-win-offline
+          path: dist/AcumbaAutomation-win64.zip
+          if-no-files-found: error
+          retention-days: 14

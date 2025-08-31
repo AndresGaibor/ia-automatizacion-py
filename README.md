@@ -1,3 +1,8 @@
+## Compilacion (incluyendo playwright)
+```bash
+pyinstaller --onefile --collect-all playwright app.py
+```
+
 # Acumba Automation
 
 Automatización para obtener reportes de campañas de email marketing.

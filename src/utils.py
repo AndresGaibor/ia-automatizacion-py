@@ -1,10 +1,23 @@
 """
 Funciones utilitarias compartidas para automatización de Acumba.
 """
+
+import os
+import sys
+
+def _early_project_root() -> str:
+    if getattr(sys, "frozen", False):
+        return os.path.dirname(sys.executable)
+    return os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
+# Forzar ruta de navegadores de Playwright antes de importar la librería
+os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", os.path.join(_early_project_root(), "ms-playwright"))
+os.makedirs(os.environ["PLAYWRIGHT_BROWSERS_PATH"], exist_ok=True)
+
 from playwright.sync_api import Page, TimeoutError as PWTimeoutError
+from playwright._impl._errors import Error as PWError
 import pandas as pd
 import json
-import os
 import yaml
 
 REAL_UA = (
@@ -27,7 +40,12 @@ def cargar_terminos_busqueda(archivo_busqueda: str) -> list[list[str]]:
     return terminos
 
 def project_root() -> str:
-    """Directorio raíz del proyecto (carpeta que contiene app.py)."""
+    """Directorio base de la app:
+    - Si está congelada (PyInstaller), carpeta del ejecutable.
+    - En desarrollo, raíz del proyecto (carpeta que contiene app.py).
+    """
+    if getattr(sys, "frozen", False):  # PyInstaller --onefile
+        return os.path.dirname(sys.executable)
     return os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
 def config_path() -> str:
@@ -39,7 +57,7 @@ def data_path(name: str) -> str:
     return os.path.join(d, name)
 
 def load_config(defaults: dict | None = None) -> dict:
-    """Carga config.yaml desde el raíz del proyecto. Si no existe, lo crea con defaults (si se proveen)."""
+    """Carga config.yaml desde el directorio base. Si no existe, lo crea con defaults (si se proveen)."""
     path = config_path()
     if os.path.exists(path):
         with open(path, "r") as f:
@@ -61,38 +79,86 @@ def crear_contexto_navegador(browser, extraccion_oculta: bool = False):
     """
     Crea y configura el contexto del navegador
     """
-    storage_state_path = os.path.join(project_root(), "datos_sesion.json")
-    if not os.path.exists(storage_state_path):
-        with open(storage_state_path, "w") as f:
+    storage_state = storage_state_path()
+    if not os.path.exists(storage_state):
+        # asegurar carpeta data y archivo
+        os.makedirs(os.path.dirname(storage_state), exist_ok=True)
+        with open(storage_state, "w") as f:
             json.dump({}, f)
-    
+
     context = browser.new_context(
         viewport={"width": 1400, "height": 900},
         user_agent=REAL_UA,
         locale="es-ES",
         timezone_id="Europe/Madrid",
         ignore_https_errors=True,
-        storage_state=storage_state_path
+        storage_state=storage_state,
     )
-    
     return context
 
 def storage_state_path() -> str:
     """Ruta al archivo de estado de sesión persistente."""
-    return os.path.join(project_root(), "datos_sesion.json")
+    return data_path("datos_sesion.json")
+
+def ensure_playwright_browsers_path() -> str:
+    """
+    Garantiza la ruta (ya establecida arriba) y la devuelve.
+    """
+    path = os.environ["PLAYWRIGHT_BROWSERS_PATH"]
+    os.makedirs(path, exist_ok=True)
+    return path
 
 def configurar_navegador(p, extraccion_oculta: bool = False):
     """
     Configura y lanza el navegador
     """
-    browser = p.chromium.launch(
-        headless=extraccion_oculta,
-        args=[
-            "--disable-blink-features=AutomationControlled",
-            "--no-sandbox",
-        ],
-    )
-    return browser
+    ensure_playwright_browsers_path()
+    try:
+        browser = p.chromium.launch(
+            headless=extraccion_oculta,
+            args=[
+                "--disable-blink-features=AutomationControlled",
+                "--no-sandbox",
+            ],
+        )
+        return browser
+    except PWError as e:
+        msg = str(e)
+        if "Executable doesn't exist" in msg or "playwright install" in msg:
+            try:
+                notify("Playwright", "Descargando Chromium (solo la primera vez)...")
+            except Exception:
+                pass
+            # Ejecutar el CLI sin cerrar el proceso
+            from playwright.__main__ import main as playwright_main
+            old_argv = sys.argv[:]
+            try:
+                for args in (["playwright", "install", "chromium"],
+                             ["playwright", "install", "--force", "chromium"]):
+                    try:
+                        sys.argv = args
+                        ensure_playwright_browsers_path()
+                        playwright_main()
+                        break  # instalación OK
+                    except SystemExit as se:
+                        # Evitar que cierre la app; solo propagar si es error real
+                        if se.code not in (0, None):
+                            raise
+                    except Exception:
+                        # Intentará con --force en el siguiente ciclo
+                        continue
+            finally:
+                sys.argv = old_argv
+
+            # Reintento de lanzamiento tras instalar
+            return p.chromium.launch(
+                headless=extraccion_oculta,
+                args=[
+                    "--disable-blink-features=AutomationControlled",
+                    "--no-sandbox",
+                ],
+            )
+        raise
 
 def navegar_a_reportes(page: Page):
     """

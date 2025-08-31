@@ -21,6 +21,8 @@ def login(page: Page):
 			print("No se encontró el botón de cookies, continuando...")
 			pass
 
+		page.wait_for_load_state("load")
+
 		# page.get_by_role("link", name="Entra").click()
 		page.get_by_placeholder("Correo electrónico").fill(username)
 		page.get_by_placeholder("Contraseña").fill(password)
