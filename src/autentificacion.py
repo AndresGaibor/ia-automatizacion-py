@@ -21,12 +21,13 @@ def login(page: Page):
 		try:
 			page.get_by_role("button", name="Aceptar todas").click();
 		except PWTimeoutError:
+			print("No se encontró el botón de cookies, continuando...")
 			pass
 
-		page.get_by_role("link", name="Entra").click()
-
-		page.get_by_label("Correo electrónico").fill(username)
-		page.get_by_label("Contraseña").fill(password)
+		# page.get_by_role("link", name="Entra").click()
+		page.get_by_placeholder("Correo electrónico").fill(username)
+		page.get_by_placeholder("Contraseña").fill(password)
+		page.locator('label[for="keepme-logged"]').click()
 
 		# <input type="submit" value="Entrar" class="g-recaptcha signup-button" id="login-button" data-sitekey="6LeOaagZAAAAADEGihAZSe2cFNNTWgxfUM5NET9Z" data-callback="onSubmit" data-action="submit">
 		with page.expect_navigation(wait_until="domcontentloaded"):
