@@ -36,9 +36,16 @@ jobs:
           }
           python -m pip install pyinstaller playwright
 
+      - name: Clean previous builds and spec files
+        shell: pwsh
+        run: |
+          if (Test-Path build) { Remove-Item -Recurse -Force build }
+          if (Test-Path dist) { Remove-Item -Recurse -Force dist }
+          if (Get-ChildItem -Filter *.spec -ErrorAction SilentlyContinue) { Remove-Item -Force *.spec }
+
       - name: Build (onefile)
         shell: pwsh
-        run: pyinstaller --onefile --collect-all playwright --windowed app.py
+        run: pyinstaller --onefile --collect-all playwright --windowed --name app app.py
 
       - name: Upload artifact (.exe)
         uses: actions/upload-artifact@v4
@@ -77,9 +84,16 @@ jobs:
           }
           python -m pip install pyinstaller playwright
 
+      - name: Clean previous builds and spec files
+        shell: pwsh
+        run: |
+          if (Test-Path build) { Remove-Item -Recurse -Force build }
+          if (Test-Path dist) { Remove-Item -Recurse -Force dist }
+          if (Get-ChildItem -Filter *.spec -ErrorAction SilentlyContinue) { Remove-Item -Force *.spec }
+
       - name: Build (onefile)
         shell: pwsh
-        run: pyinstaller --onefile --collect-all playwright --windowed app.py
+        run: pyinstaller --onefile --collect-all playwright --windowed --name app app.py
 
       # Preinstala Chromium en la misma carpeta donde estará el .exe
       - name: Pre-bundle Chromium into dist/ms-playwright
