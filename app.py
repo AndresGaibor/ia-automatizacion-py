@@ -101,7 +101,7 @@ if __name__ == "__main__":
     archivo_lista_envio()
 
     root = tk.Tk()
-    root.title("Automatización")
+    root.title("Automatización Acumbamail")
     root.geometry("360x280")
 
     btn_listar = tk.Button(root, text="Listar campañas", command=lambda: run_listar_campanias(btn_listar))
