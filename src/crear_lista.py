@@ -74,14 +74,32 @@ def seleccionar_hoja_tk(archivo: str, master=None):
 	win.resizable(False, False)
 	win.grab_set()
 	win.transient(master)
+	# Ventana más amplia para nombres largos
+	try:
+		win.geometry("820x520")
+	except Exception:
+		pass
 
 	tk.Label(win, text="Selecciona la hoja a usar:").pack(padx=12, pady=(12, 6), anchor="w")
 
-	lb = tk.Listbox(win, height=min(10, len(hojas)))
+	# Contenedor con scrollbars para ver nombres largos
+	frame_lb = tk.Frame(win)
+	frame_lb.pack(padx=12, fill="both", expand=True)
+	frame_lb.rowconfigure(0, weight=1)
+	frame_lb.columnconfigure(0, weight=1)
+
+	lb = tk.Listbox(frame_lb, height=min(14, len(hojas)), exportselection=False)
+	vsb = tk.Scrollbar(frame_lb, orient="vertical", command=lb.yview)
+	hsb = tk.Scrollbar(frame_lb, orient="horizontal", command=lb.xview)
+	lb.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+
 	for h in hojas:
 		lb.insert(tk.END, h)
 	lb.selection_set(0)
-	lb.pack(padx=12, fill="both", expand=True)
+
+	lb.grid(row=0, column=0, sticky="nsew")
+	vsb.grid(row=0, column=1, sticky="ns")
+	hsb.grid(row=1, column=0, sticky="ew")
 
 	btns = tk.Frame(win)
 	btns.pack(padx=12, pady=12, fill="x")
