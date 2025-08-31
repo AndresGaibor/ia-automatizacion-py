@@ -5,6 +5,7 @@ import pandas as pd
 import importlib
 import threading
 from src.utils import load_config, data_path, storage_state_path
+from src.crear_lista import seleccionar_hoja_tk
 
 # Config por defecto (usada para crear y para "Restaurar")
 DEFAULTS = {
@@ -75,11 +76,16 @@ def run_obtener_suscriptores(btn):
     threading.Thread(target=worker, daemon=True).start()
 
 def run_crear_lista(btn):
-    def worker():
+    # Pedimos la hoja en el hilo principal (Tk es single-thread)
+    hoja = seleccionar_hoja_tk(data_path("Lista_envio.xlsx"), master=root)
+    if not hoja:
+        return  # cancelado por el usuario
+
+    def worker(hoja_sel: str):
         try:
             import src.crear_lista as m
             importlib.reload(m)
-            m.main()
+            m.main(hoja_sel)
         except Exception as e:
             messagebox.showerror("Error", f"Ocurrió un error: {e}")
         finally:
@@ -87,7 +93,7 @@ def run_crear_lista(btn):
             root.after(0, lambda: root.config(cursor=""))
     btn.config(state=tk.DISABLED)
     root.config(cursor="watch")
-    threading.Thread(target=worker, daemon=True).start()
+    threading.Thread(target=worker, args=(hoja,), daemon=True).start()
 
 if __name__ == "__main__":
     configuracion()
