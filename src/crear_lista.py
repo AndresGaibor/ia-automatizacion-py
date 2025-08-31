@@ -123,6 +123,8 @@ def main():
 		btn_agregar_suscriptores = page.locator('a#add-subscribers-link')
 		btn_agregar_suscriptores.click()
 
+		page.wait_for_load_state("networkidle")
+
 		page.get_by_label("Archivo CSV/Excel").check()
 
 		input_archivo = page.locator('input#id_csv')
