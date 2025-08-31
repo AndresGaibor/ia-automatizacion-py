@@ -7,6 +7,8 @@ import os
 import threading
 import tkinter as tk
 from tkinter import messagebox
+import tempfile
+import uuid
 
 archivo_busqueda = data_path("Lista_envio.xlsx")
 
@@ -155,6 +157,15 @@ def inicializar_navegacion_lista(page: Page):
 	page.click("a[href*='/list']")
 	page.wait_for_load_state("domcontentloaded")
 
+def _generar_archivo_subida_desde_hoja(archivo_excel: str, hoja: str) -> str:
+	"""Genera un CSV temporal solo con la hoja indicada y devuelve su ruta."""
+	with pd.ExcelFile(archivo_excel, engine="openpyxl") as xls:
+		df = pd.read_excel(xls, sheet_name=hoja, dtype=str).fillna("")
+	# CSV temporal compatible con Excel (utf-8-sig)
+	tmp_path = os.path.join(tempfile.gettempdir(), f"lista_{uuid.uuid4().hex}.csv")
+	df.to_csv(tmp_path, index=False, encoding="utf-8-sig")
+	return tmp_path
+
 def main(nombre_hoja: str | None = None):
 	config = load_config()
 	url = config.get("url", "")
@@ -169,6 +180,7 @@ def main(nombre_hoja: str | None = None):
 	# 	valor_ejemplo = segunda_fila[indice - 1] if indice - 1 < len(segunda_fila) else ""
 	# 	print(f"Columna {indice}: {columna} | Ejemplo: {valor_ejemplo}")
 
+	tmp_subida: str | None = None
 	with sync_playwright() as p:
 		browser = configurar_navegador(p, extraccion_oculta)
 		context = crear_contexto_navegador(browser, extraccion_oculta)
@@ -207,8 +219,10 @@ def main(nombre_hoja: str | None = None):
 
 		page.get_by_label("Archivo CSV/Excel").check()
 
+		# Generar archivo temporal solo con la hoja seleccionada
+		tmp_subida = _generar_archivo_subida_desde_hoja(archivo_busqueda, hoja_seleccionada)
 		input_archivo = page.locator('input#id_csv')
-		input_archivo.set_input_files(archivo_busqueda)
+		input_archivo.set_input_files(tmp_subida)
 
 		btn_aniadir = page.locator('a:visible', has_text="Añadir")
 		btn_aniadir.click()
@@ -244,9 +258,17 @@ def main(nombre_hoja: str | None = None):
 		
 		btn_siguiente = page.locator('a:visible', has_text="Siguiente")
 		btn_siguiente.click()
+
+		page.wait_for_load_state("networkidle")
 		
 		browser.close()
 		notify("Proceso finalizado", f"Terminé de crear la lista '{nombre_lista}'.")
+	# Limpiar archivo temporal
+	try:
+		if tmp_subida and os.path.exists(tmp_subida):
+			os.remove(tmp_subida)
+	except Exception:
+		pass
 
 if __name__ == "__main__":
 	main()
