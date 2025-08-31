@@ -4,6 +4,10 @@ from .autentificacion import login
 from .tipo_campo import field_type_label
 import pandas as pd
 import os
+import threading
+import tkinter as tk
+from tkinter import messagebox
+
 archivo_busqueda = data_path("Lista_envio.xlsx")
 
 def listar_hojas(archivo: str) -> list[str]:
@@ -11,20 +15,17 @@ def listar_hojas(archivo: str) -> list[str]:
 	with pd.ExcelFile(archivo, engine="openpyxl") as xls:
 		return [str(n) for n in xls.sheet_names]
 
-def seleccionar_hoja(archivo: str) -> str:
-	"""Lista las hojas y permite al usuario seleccionar una."""
+def _seleccionar_hoja_cli(archivo: str) -> str:
+	"""Selector por consola (fallback)."""
 	hojas = listar_hojas(archivo)
 	if not hojas:
 		raise ValueError("El archivo no contiene hojas.")
-
 	if len(hojas) == 1:
 		print(f"Usando única hoja: {hojas[0]}")
 		return hojas[0]
-
 	print("\nHojas disponibles en el Excel:")
 	for i, h in enumerate(hojas, 1):
 		print(f"  {i}) {h}")
-
 	while True:
 		op = input(f"Selecciona la hoja (1-{len(hojas)}) [1]: ").strip()
 		if op == "":
@@ -34,6 +35,85 @@ def seleccionar_hoja(archivo: str) -> str:
 			if 1 <= idx <= len(hojas):
 				return hojas[idx - 1]
 		print("Opción inválida. Intenta nuevamente.")
+
+def _can_use_tk() -> bool:
+	"""Tk solo en hilo principal."""
+	return threading.current_thread() is threading.main_thread()
+
+def seleccionar_hoja_tk(archivo: str, master=None):
+	"""Ventana modal para elegir hoja. Devuelve nombre o None."""
+	try:
+		hojas = listar_hojas(archivo)
+	except Exception as e:
+		if isinstance(master, tk.Misc):
+			messagebox.showerror("Error", f"No se pudieron listar hojas:\n{e}", parent=master)
+		else:
+			messagebox.showerror("Error", f"No se pudieron listar hojas:\n{e}")
+		return None
+	if not hojas:
+		if isinstance(master, tk.Misc):
+			messagebox.showwarning("Excel", "El archivo no contiene hojas.", parent=master)
+		else:
+			messagebox.showwarning("Excel", "El archivo no contiene hojas.")
+		return None
+
+	owns_root = False
+	if master is None:
+		if not _can_use_tk():
+			return None
+		master = tk.Tk()
+		master.withdraw()
+		owns_root = True
+
+	result = {"val": None}
+
+	win = tk.Toplevel(master)
+	win.title("Seleccionar hoja")
+	win.resizable(False, False)
+	win.grab_set()
+	win.transient(master)
+
+	tk.Label(win, text="Selecciona la hoja a usar:").pack(padx=12, pady=(12, 6), anchor="w")
+
+	lb = tk.Listbox(win, height=min(10, len(hojas)))
+	for h in hojas:
+		lb.insert(tk.END, h)
+	lb.selection_set(0)
+	lb.pack(padx=12, fill="both", expand=True)
+
+	btns = tk.Frame(win)
+	btns.pack(padx=12, pady=12, fill="x")
+
+	def aceptar():
+		try:
+			idx = lb.curselection()[0]
+			result["val"] = hojas[idx]
+		except Exception:
+			result["val"] = None
+		win.destroy()
+
+	def cancelar():
+		result["val"] = None
+		win.destroy()
+
+	tk.Button(btns, text="Cancelar", command=cancelar).pack(side="right")
+	tk.Button(btns, text="Aceptar", command=aceptar).pack(side="right", padx=6)
+
+	win.bind("<Return>", lambda e: aceptar())
+	win.bind("<Escape>", lambda e: cancelar())
+
+	win.wait_window()
+	if owns_root:
+		master.destroy()
+	return result["val"]
+
+def seleccionar_hoja(archivo: str) -> str:
+	"""Intenta UI; si no, cae a CLI."""
+	if _can_use_tk():
+		sel = seleccionar_hoja_tk(archivo)
+		if sel:
+			return sel
+	return _seleccionar_hoja_cli(archivo)
 
 def cargar_columnas(archivo: str, nombre_hoja: str | None = None) -> tuple[list[str], list[str]]:
 	"""
@@ -75,12 +155,12 @@ def inicializar_navegacion_lista(page: Page):
 	page.click("a[href*='/list']")
 	page.wait_for_load_state("domcontentloaded")
 
-def main():
+def main(nombre_hoja: str | None = None):
 	config = load_config()
 	url = config.get("url", "")
 	url_base = config.get("url_base", "")
 	extraccion_oculta = bool(config.get("headless", False))
-	hoja_seleccionada = seleccionar_hoja(archivo_busqueda)
+	hoja_seleccionada = nombre_hoja or seleccionar_hoja(archivo_busqueda)
 	campos, segunda_fila = cargar_columnas(archivo_busqueda, hoja_seleccionada)
 
 	nombre_lista = campos[0]
@@ -167,5 +247,6 @@ def main():
 		
 		browser.close()
 		notify("Proceso finalizado", f"Terminé de crear la lista '{nombre_lista}'.")
+
 if __name__ == "__main__":
 	main()
