@@ -1,5 +1,5 @@
 """
-Funciones utilitarias compartidas para automatización de Acumba.
+Funciones utilitarias compartidas para automatización.
 """
 
 import os

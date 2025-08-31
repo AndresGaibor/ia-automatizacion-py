@@ -3,7 +3,7 @@
 pyinstaller --onefile --collect-all playwright app.py
 ```
 
-# Acumba Automation
+# Automation
 
 Automatización para obtener reportes de campañas de email marketing.
 
@@ -17,7 +17,7 @@ Automatización para obtener reportes de campañas de email marketing.
 1. Clonar el repositorio:
 ```bash
 git clone <url-repositorio>
-cd acumba-automation
+cd automation
 ```
 
 2. Crear un entorno virtual:
@@ -79,7 +79,7 @@ El script generará un archivo Excel con dos hojas:
 ## Estructura del proyecto
 
 ```
-acumba-automation/
+automation/
 ├── src/
 │   └── demo.py
 ├── data/
