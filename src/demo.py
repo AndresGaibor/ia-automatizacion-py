@@ -820,8 +820,11 @@ def crear_archivo_excel(general: list[list[str]], informe_detallado: list[list[l
 			# Fallback al formato anterior si no se proporcionan los parámetros
 			nombre_archivo = f"{ARCHIVO_INFORMES_PREFIX}_{fecha_extraccion}.xlsx"
 		
-		# Asegurar que el nombre de archivo esté en el directorio data
-		nombre_archivo = data_path(nombre_archivo.replace(f"{ARCHIVO_INFORMES_PREFIX}_", ""))
+		# Asegurar que el nombre de archivo esté en el directorio data/suscriptores
+		if nombre_campania and fecha_envio:
+			nombre_archivo = data_path(f"suscriptores/{nombre_archivo}")
+		else:
+			nombre_archivo = data_path(nombre_archivo.replace(f"{ARCHIVO_INFORMES_PREFIX}_", ""))
 		
 		wb.save(nombre_archivo)
 		file_size = os.path.getsize(nombre_archivo)
@@ -881,7 +884,8 @@ def main():
 			
 			# Verificar si la página está cargada
 			logger.log_checkpoint("verificando_carga", "esperando domcontentloaded")
-			page.wait_for_load_state('domcontentloaded', timeout=10000)
+			timeouts = get_timeouts()
+			page.wait_for_load_state('domcontentloaded', timeout=timeouts['page_load'])
 			logger.log_checkpoint("dom_loaded", "DOM cargado")
 			
 			# Verificar si hay elementos visibles
@@ -1069,14 +1073,16 @@ def main():
 					
 					# Convertir fecha de envío a formato YYYYMMDDHHMM
 					try:
-						# Try different common date formats
+						# Try different common date formats including 2-digit year
 						date_formats = [
+							"%d/%m/%y %H:%M",  # Formato DD/MM/YY HH:MM (añadido primero)
 							"%d/%m/%Y %H:%M",
 							"%d-%m-%Y %H:%M", 
 							"%Y-%m-%d %H:%M",
 							"%d/%m/%Y",
 							"%d-%m-%Y",
-							"%Y-%m-%d"
+							"%Y-%m-%d",
+							"%d/%m/%y"  # Formato DD/MM/YY
 						]
 						
 						fecha_envio_dt = None
