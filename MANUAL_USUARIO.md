@@ -135,10 +135,12 @@ tu_carpeta/
 ├── app.exe (o app)              # La aplicación
 ├── config.yaml                 # Tu configuración
 ├── data/                       # Carpeta de datos
+│   ├── suscriptores/           # 📊 Informes generados (se crea automáticamente)
 │   ├── Busqueda.xlsx           # Para búsquedas de campañas
 │   ├── Lista_envio.xlsx        # Para crear listas
-│   └── automation_YYYYMMDD.log # Logs (se crean automáticamente)
-└── ms-playwright/              # Se crea automáticamente
+│   ├── datos_sesion.json       # Sesión del navegador (se crea automáticamente)
+│   └── automation_YYYYMMDD.log # Logs diarios (se crean automáticamente)
+└── ms-playwright/              # Navegador (se crea automáticamente)
 ```
 
 ### ⚙️ Configuración de velocidad de internet
@@ -178,7 +180,26 @@ configuracion:
    - **"Crear Listas"**: Para subir listas de suscriptores
 
 3. **Sigue** las instrucciones en pantalla
-4. **Los resultados** se guardan en la carpeta `data/`
+4. **Los resultados** se guardan en la carpeta `data/suscriptores/` con nombres descriptivos
+
+### 📊 Formato de Archivos de Salida
+
+Los informes generados tienen nombres que incluyen información relevante:
+
+**Formato del nombre:** `(nombre campaña)-(fecha envío)_(fecha extracción).xlsx`
+
+**Ejemplo:** `Newsletter Marketing-202509120140_202512091530.xlsx`
+- `Newsletter Marketing` = Nombre de la campaña
+- `202509120140` = Fecha de envío (12 Sep 2025, 01:40)  
+- `202512091530` = Fecha de extracción (09 Dic 2025, 15:30)
+
+**Estructura del archivo Excel:**
+- **General**: Resumen de las campañas procesadas
+- **Abiertos**: Suscriptores que abrieron el email
+- **No abiertos**: Suscriptores que NO abrieron el email
+- **Clics**: Suscriptores que hicieron clic en enlaces
+- **Hard bounces**: Emails que rebotaron permanentemente
+- **Soft bounces**: Emails que rebotaron temporalmente
 
 ### 💻 Línea de Comandos (CLI)
 
