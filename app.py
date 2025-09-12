@@ -13,7 +13,8 @@ DEFAULTS = {
     'url_base': 'https://google.com',
     'user': 'usuario@correo.com',
     'password': 'clave',
-    'headless': False
+    'headless': False,
+    'velocidad_internet': 'normal'
 }
 
 def configuracion():
@@ -77,15 +78,16 @@ def run_obtener_suscriptores(btn):
 
 def run_crear_lista(btn):
     # Pedimos la hoja en el hilo principal (Tk es single-thread)
-    hoja = seleccionar_hoja_tk(data_path("Lista_envio.xlsx"), master=root)
-    if not hoja:
+    hojas = seleccionar_hoja_tk(data_path("Lista_envio.xlsx"), master=root, multiple=True)
+    if not hojas:
         return  # cancelado por el usuario
 
-    def worker(hoja_sel: str):
+    def worker(hojas_sel: list[str]):
         try:
             import src.crear_lista as m
             importlib.reload(m)
-            m.main(hoja_sel)
+            # Pasamos la lista de hojas directamente a main
+            m.main(nombre_hoja=hojas_sel, multiple=True)
         except Exception as e:
             messagebox.showerror("Error", f"Ocurrió un error: {e}")
         finally:
@@ -93,7 +95,7 @@ def run_crear_lista(btn):
             root.after(0, lambda: root.config(cursor=""))
     btn.config(state=tk.DISABLED)
     root.config(cursor="watch")
-    threading.Thread(target=worker, args=(hoja,), daemon=True).start()
+    threading.Thread(target=worker, args=(hojas,), daemon=True).start()
 
 if __name__ == "__main__":
     configuracion()

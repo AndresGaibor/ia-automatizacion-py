@@ -1,10 +1,11 @@
 from playwright.sync_api import sync_playwright, Page
 from datetime import datetime
-from .utils import configurar_navegador, crear_contexto_navegador, obtener_total_paginas, navegar_siguiente_pagina, load_config, data_path, storage_state_path, notify
+from .utils import configurar_navegador, crear_contexto_navegador, obtener_total_paginas, navegar_siguiente_pagina, load_config, data_path, storage_state_path, notify, get_timeouts, safe_goto, safe_wait_for_element
 from .autentificacion import login
 import pandas as pd
 from openpyxl import Workbook, load_workbook
 import os
+import re
 
 # Rutas
 ARCHIVO_BUSQUEDA = data_path("Busqueda.xlsx")
@@ -32,14 +33,28 @@ def inicializar_navegacion_reportes(page: Page):
 	"""
 	Navega a la sección de reportes y espera a que cargue
 	"""
-	page.click("a[href*='/reports']")
-	page.wait_for_load_state("networkidle")
-	
-	# Esperar a que aparezca al menos un elemento de reporte
+	timeouts = get_timeouts()
+    
+	# Evitar depender de 'networkidle' (puede no llegar en SPAs); en su lugar, esperar al contenedor de reportes
 	try:
-		page.locator('#newsletter-reports').locator('> li').nth(1).wait_for(timeout=15000)
+		page.click("a[href*='/reports']")
 	except Exception as e:
-		print(f"⚠️ Advertencia al cargar reportes: {e}")
+		print(f"⚠️ No se pudo hacer clic en el enlace de reportes: {e}")
+
+	# Esperar elemento concreto de la lista de reportes o un fallback visible
+	try:
+		lista_reportes = page.locator('#newsletter-reports')
+		safe_wait_for_element(lista_reportes, 'tables')
+		# además, comprobar que tiene al menos un ítem cargado
+		lista_reportes.locator('> li').first.wait_for(timeout=timeouts['elements'])
+	except Exception as e:
+		print(f"⚠️ Advertencia al cargar reportes (fallback): {e}")
+		# Fallback: esperar un título/heading relacionado si existe para no colgarse
+		try:
+			heading = page.locator('h1, h2, h3, h4').filter(has_text=re.compile(r"(?i)(reporte|report)"))
+			heading.first.wait_for(timeout=timeouts['elements'])
+		except Exception:
+			pass
 
 def extraer_datos_campania(td_element, indice: int) -> list[str]:
 	"""
@@ -57,6 +72,17 @@ def extraer_datos_campania(td_element, indice: int) -> list[str]:
 		abiertos = divs.nth(5).inner_text()
 		clics = divs.nth(6).inner_text()
 		
+		# Verificar si es una fila de encabezados
+		if (nombre_txt.upper() in ["NOMBRE", "NAME"] or 
+		    tipo.upper() in ["TIPO", "TYPE"] or
+		    fecha_envio.upper() in ["FECHA ENVIO", "FECHA ENV", "DATE"] or
+		    listas.upper() in ["LISTAS", "LISTS"] or
+		    emails.upper() in ["EMAILS", "EMAIL"] or
+		    abiertos.upper() in ["ABIERTOS", "OPENS", "OPENED"] or
+		    clics.upper() in ["CLICS", "CLICKS"]):
+			print(f"⚠️ Saltando fila de encabezados: {nombre_txt}, {tipo}, {fecha_envio}")
+			return []  # Retornar lista vacía para indicar que se debe saltar
+		
 		return ['', nombre_txt, tipo, fecha_envio, listas, emails, abiertos, clics]
 	except Exception:
 		return ['', '', '', '', '', '', '', '']
@@ -68,17 +94,36 @@ def buscar_campanias_en_pagina(page: Page, terminos: list[str], numero_pagina: i
 	informe_detalle = []
 	encontrado = False
 	buscar_todo = not terminos[0] or not terminos[1]  # Si no hay términos, buscar todo
+	timeouts = get_timeouts()
 	
+	# Si la página fue cerrada (por el usuario o por error), salir temprano
+	if getattr(page, 'is_closed', None) and page.is_closed():
+		return [], False
+
 	try:
 		tabla_reporte = page.locator('#newsletter-reports')
-		tabla_reporte.locator('li').first.wait_for(timeout=10000)
-		page.wait_for_load_state("networkidle")
-		
+		# Esperar a que al menos un elemento esté presente sin depender de networkidle
+		tabla_reporte.locator('> li').first.wait_for(timeout=timeouts['tables'])
+
 		tds = tabla_reporte.locator('> li')
-		count = tds.count()
+		total = tds.count()
+		# Detectar si el primer li es cabecera (heurística: tiene menos de 7 divs esperados)
+		start_index = 0
+		try:
+			primer_divs = tds.nth(0).locator('> div').count()
+			if primer_divs < 7:
+				start_index = 1
+		except Exception:
+			pass
+		page_items = max(total - start_index, 0)
+		print(f"Encontrados {page_items} elementos de campaña en la página {numero_pagina}")
 		
-		for o in range(1, count):
+		for o in range(start_index, total):
 			datos_campania = extraer_datos_campania(tds.nth(o), o)
+			
+			# Si la función retorna lista vacía, significa que es una fila de encabezados, saltar
+			if not datos_campania:
+				continue
 			
 			if datos_campania[1]:  # Si tiene nombre
 				nombre_txt = datos_campania[1]
@@ -98,7 +143,15 @@ def buscar_campanias_en_pagina(page: Page, terminos: list[str], numero_pagina: i
 					informe_detalle = [datos_campania] + informe_detalle
 		
 	except Exception as e:
-		print(f"Error procesando página {numero_pagina}: {e}")
+		# Mensaje más claro si la página/contexto fue cerrada
+		try:
+			cerrada = (getattr(page, 'is_closed', None) and page.is_closed())
+		except Exception:
+			cerrada = False
+		if cerrada:
+			print(f"Error procesando página {numero_pagina}: la página fue cerrada")
+		else:
+			print(f"Error procesando página {numero_pagina}: {e}")
 	
 	return informe_detalle, encontrado
 
@@ -120,9 +173,17 @@ def guardar_datos_en_excel(informe_detalle: list[list[str]], archivo_busqueda: s
 		# Agregar datos al final
 		registros_agregados = 0
 		for fila in informe_detalle:
-			if ws is not None and any(fila):  # Solo agregar filas con datos
-				ws.append(fila)
-				registros_agregados += 1
+			if ws is not None and any(fila) and len(fila) >= 8:  # Solo agregar filas con datos válidos
+				# Verificación adicional: asegurar que no es una fila de headers
+				nombre = fila[1] if len(fila) > 1 else ""
+				tipo = fila[2] if len(fila) > 2 else ""
+				
+				if (nombre.upper() not in ["NOMBRE", "NAME"] and 
+				    tipo.upper() not in ["TIPO", "TYPE"]):
+					ws.append(fila)
+					registros_agregados += 1
+				else:
+					print(f"⚠️ Fila de encabezados filtrada en guardado: {nombre}, {tipo}")
 		
 		wb.save(archivo_busqueda)
 		
@@ -154,6 +215,7 @@ def procesar_busqueda_campanias(page: Page, terminos: list[str]) -> list[list[st
 		# Mantener orden cronológico: nuevos datos al inicio
 		informe_detalle = datos_pagina + informe_detalle
 		campanias_totales += len(datos_pagina)
+		print(f"Página {numero_pagina}: añadidas {len(datos_pagina)} campañas (acumulado: {campanias_totales})")
 		
 		# Si estamos buscando una campaña específica y la encontramos, parar
 		if not buscar_todo and encontrado:
@@ -192,14 +254,10 @@ def main():
 			browser = configurar_navegador(p, extraccion_oculta=False)
 			context = crear_contexto_navegador(browser)
 			
-			# Configurar timeouts más largos para listar campañas
-			context.set_default_timeout(120000)
-			context.set_default_navigation_timeout(120000)
-			
 			page = context.new_page()
 			
-			page.goto(url_base, wait_until="domcontentloaded", timeout=30000)
-			page.goto(url, wait_until="domcontentloaded", timeout=60000)
+			safe_goto(page, url_base, "domcontentloaded")
+			safe_goto(page, url, "domcontentloaded")
 			
 			# Realizar login
 			login(page)
