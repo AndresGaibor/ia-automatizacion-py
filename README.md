@@ -41,43 +41,41 @@ pip install -r requirements.txt
 
 ## Configuración
 
-1. Crear archivo `config.yaml` en la raíz del proyecto:
+1. El archivo `config.yaml` ya está configurado en la raíz del proyecto:
 ```yaml
-user: "tu-usuario"
-password: "tu-contraseña"
-url: "https://url-del-servicio"
-url_base: "https://url-base"
+url: https://acumbamail.com/app/newsletter/
+url_base: https://acumbamail.com
+user: tu-usuario@email.com
+password: tu-contraseña
 headless: false
 
-# Configuración de velocidad de internet/carga
-# Opciones: "rapido", "normal", "lento", "muy_lento"
-velocidad_internet: "normal"
+# Configuración de timeouts específicos (en segundos)
+timeouts:
+  navigation: 60        # Navegación entre páginas
+  page_load: 30         # Carga completa de páginas
+  element_wait: 15      # Espera de elementos en la página
+  elements: 20          # Espera de elementos específicos
+  context: 180          # Operaciones largas como login
+  long_operations: 120  # Operaciones muy largas como importación
+  file_upload: 120      # Subida de archivos
+  tables: 30            # Carga de tablas de datos
+  pagination: 45        # Navegación entre páginas de resultados
 ```
 
-### Configuración de Velocidad de Internet
+### Configuración de Timeouts
 
-Simplemente cambia el valor de `velocidad_internet` según tu conexión:
+Los timeouts están optimizados para balance entre velocidad y estabilidad:
 
-- **`"rapido"`**: Para conexiones de fibra óptica o muy rápidas
-- **`"normal"`**: Para conexiones estándar de banda ancha (por defecto)
-- **`"lento"`**: Para conexiones lentas o inestables
-- **`"muy_lento"`**: Para conexiones muy lentas o con alta latencia
+- **`navigation`**: Tiempo máximo para navegar entre páginas
+- **`page_load`**: Tiempo de espera para carga completa de páginas
+- **`elements`**: Tiempo de espera para localizar elementos específicos
+- **`long_operations`**: Tiempo para operaciones largas como login o importación
+- **`tables`**: Tiempo específico para carga de tablas de datos con muchos registros
 
-**Ejemplos:**
-
-```yaml
-# Para internet rápido
-velocidad_internet: "rapido"
-
-# Para internet normal (recomendado)
-velocidad_internet: "normal"
-
-# Para internet lento
-velocidad_internet: "lento"
-
-# Para internet muy lento
-velocidad_internet: "muy_lento"
-```
+**Ajuste según tu conexión:**
+- **Internet rápido**: Mantener valores por defecto
+- **Internet lento**: Aumentar valores en 50-100%
+- **Internet muy lento**: Duplicar valores
 
 2. Preparar archivo Excel de búsqueda:
 - Crear archivo Excel con una columna llamada "Informes"
@@ -101,21 +99,49 @@ python src/demo.py
 
 ## Resultados
 
-El script generará un archivo Excel con dos hojas:
-- **Hoja1**: Resumen general de los informes
-- **Hoja2**: Detalle de suscriptores y seguimiento de URLs
+### Archivos Generados
+
+Los informes se guardan en la carpeta `data/suscriptores/` con el siguiente formato de nombre:
+
+**Formato**: `(nombre campaña)-(fecha envío YYYYMMDDHHMM)_(fecha extracción YYYYMMDDHHMM).xlsx`
+
+**Ejemplo**: `Newsletter Marketing-202509120140_202512091530.xlsx`
+
+### Estructura del Archivo Excel
+
+Cada archivo contiene múltiples hojas con información detallada:
+
+- **General**: Resumen general de las campañas procesadas
+- **Abiertos**: Detalle de suscriptores que abrieron el email
+- **No abiertos**: Detalle de suscriptores que NO abrieron el email  
+- **Clics**: Detalle de suscriptores que hicieron clic
+- **Hard bounces**: Emails que rebotaron permanentemente
+- **Soft bounces**: Emails que rebotaron temporalmente
 
 ## Estructura del proyecto
 
 ```
-automation/
+acumba-automation/
 ├── src/
-│   └── demo.py
+│   ├── demo.py              # Script principal de extracción
+│   ├── autentificacion.py   # Manejo de login
+│   ├── crear_lista.py       # Creación de listas de suscriptores
+│   ├── listar_campanias.py  # Listado de campañas
+│   ├── utils.py             # Utilidades compartidas
+│   ├── logger.py            # Sistema de logging
+│   └── tipo_campo.py        # Definiciones de tipos de campo
 ├── data/
-│   datos_sesion.json
-├── config.yaml
-├── requirements.txt
-└── README.md
+│   ├── suscriptores/        # Carpeta donde se guardan los informes
+│   ├── Busqueda.xlsx        # Archivo con términos de búsqueda
+│   ├── Lista_envio.xlsx     # Listas de emails para upload
+│   ├── datos_sesion.json    # Sesión persistente del navegador
+│   └── automation_YYYYMMDD.log  # Logs diarios del proceso
+├── config.yaml             # Configuración principal
+├── requirements.txt         # Dependencias de Python
+├── app.py                  # Interfaz gráfica (GUI)
+├── CLAUDE.md               # Instrucciones para Claude Code
+├── MANUAL_USUARIO.md       # Manual detallado para usuarios
+└── README.md               # Este archivo
 ```
 
 ## Solución de problemas
