@@ -1,4 +1,4 @@
-# Diseño Técnico - Automatización Acumbamail (v2.1.0)
+# Diseño Técnico - Automatización Acumbamail (v2.2.0)
 
 > **Objetivo:** Documento técnico completo que describe la arquitectura, flujo de datos, módulos y funcionamiento de la aplicación de automatización para Acumbamail que permite extraer reportes de campañas y gestionar listas de suscriptores.
 
@@ -23,15 +23,18 @@ La solución prioriza:
 
 ## 2. Alcance
 
-**En alcance (v2.1.0)**
+**En alcance (v2.2.0)**
 - Automatización completa del flujo de login en Acumbamail
 - Extracción de datos de campañas con paginación automática
 - Importación masiva de suscriptores con validación
-- Generación de reportes Excel estructurados
+- Generación de reportes Excel estructurados con nomenclatura mejorada
 - Sistema de logging con análisis de rendimiento
-- Configuración adaptativa de timeouts
+- Configuración adaptativa de timeouts desde config.yaml
 - Interfaces GUI y CLI
 - Compilación a ejecutables standalone
+- **NUEVO v2.2.0**: Sistema de nomenclatura de archivos con datos de campaña
+- **NUEVO v2.2.0**: Organización en carpeta específica (data/suscriptores/)
+- **NUEVO v2.2.0**: Parsing robusto de fechas incluyendo formato DD/MM/YY HH:MM
 
 **Fuera de alcance**
 - Bypass de CAPTCHA o sistemas anti-bot
@@ -455,23 +458,50 @@ def process_excel_sheets(file_path: str, selected_sheets: List[str]) -> List[Dic
 
 ### 11.2 Generación de Reportes
 
-**Estructura del reporte Excel:**
+**Sistema de nomenclatura mejorado (v2.2.0):**
+
+Los archivos de salida siguen el formato: `(nombre_campaña)-(fecha_envío)_(fecha_extracción).xlsx`
+
 ```python
-def generate_excel_report(campaign_data: List[Dict], output_path: str):
-    """Genera reporte Excel estructurado con múltiples hojas"""
+def crear_archivo_excel(general, informe_detallado, nombre_campania="", fecha_envio=""):
+    """Genera reporte Excel con nomenclatura mejorada"""
     
-    with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
-        # Hoja principal con resumen
-        summary_df = create_summary_dataframe(campaign_data)
-        summary_df.to_excel(writer, sheet_name='Resumen', index=False)
-        
-        # Hoja detallada por campaña
-        detail_df = create_detail_dataframe(campaign_data) 
-        detail_df.to_excel(writer, sheet_name='Detalle', index=False)
-        
-        # Hoja de metadatos
-        metadata_df = create_metadata_dataframe()
-        metadata_df.to_excel(writer, sheet_name='Metadata', index=False)
+    # Generar nombre de archivo con información de campaña
+    ahora = datetime.now()
+    fecha_extraccion = ahora.strftime("%Y%m%d%H%M")
+    
+    if nombre_campania and fecha_envio:
+        # Limpiar nombre de campaña de caracteres problemáticos
+        nombre_limpio = re.sub(r'[<>:"/\\|?*]', '_', nombre_campania)
+        nombre_archivo = f"{nombre_limpio}-{fecha_envio}_{fecha_extraccion}.xlsx"
+        # Guardar en carpeta específica
+        nombre_archivo = data_path(f"suscriptores/{nombre_archivo}")
+    
+    # Estructura del archivo Excel con múltiples hojas:
+    hojas_datos = [
+        ("General", general),
+        ("Abiertos", abiertos), 
+        ("No abiertos", no_abiertos),
+        ("Clics", clics),
+        ("Hard bounces", hard_bounces),
+        ("Soft bounces", soft_bounces)
+    ]
+```
+
+**Parsing de fechas robusto:**
+
+```python
+# Formatos soportados (v2.2.0)
+date_formats = [
+    "%d/%m/%y %H:%M",  # DD/MM/YY HH:MM (nuevo)
+    "%d/%m/%Y %H:%M",  # DD/MM/YYYY HH:MM
+    "%d-%m-%Y %H:%M",  # DD-MM-YYYY HH:MM
+    "%Y-%m-%d %H:%M",  # YYYY-MM-DD HH:MM
+    "%d/%m/%Y",        # DD/MM/YYYY
+    "%d-%m-%Y",        # DD-MM-YYYY
+    "%Y-%m-%d",        # YYYY-MM-DD
+    "%d/%m/%y"         # DD/MM/YY (nuevo)
+]
 ```
 
 ### 11.3 Persistencia de Sesión
