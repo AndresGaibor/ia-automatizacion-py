@@ -748,7 +748,7 @@ def procesar_seguimiento_urls(page: Page, informe_detallado: list[list[str]]):
 	except Exception as e:
 		print(f"Error general en seguimiento URLs: {e}")
 
-def crear_archivo_excel(general: list[list[str]], informe_detallado: list[list[list[str]]]):
+def crear_archivo_excel(general: list[list[str]], informe_detallado: list[list[list[str]]], nombre_campania: str = "", fecha_envio: str = ""):
 	"""
 	Crea el archivo Excel con los informes recopilados
 	"""
@@ -808,10 +808,20 @@ def crear_archivo_excel(general: list[list[str]], informe_detallado: list[list[l
 			for fila in datos:
 				ws.append(fila)
 
-		# Guardar archivo
+		# Guardar archivo con nuevo formato: (nombre campaña)-(fecha envio)_(fecha extraccion).xlsx
 		ahora = datetime.now()
-		fecha_texto = ahora.strftime("%Y%m%d%H%M")
-		nombre_archivo = f"{ARCHIVO_INFORMES_PREFIX}_{fecha_texto}.xlsx"
+		fecha_extraccion = ahora.strftime("%Y%m%d%H%M")
+		
+		if nombre_campania and fecha_envio:
+			# Limpiar nombre de campaña de caracteres problemáticos para nombres de archivo
+			nombre_limpio = re.sub(r'[<>:"/\\|?*]', '_', nombre_campania)
+			nombre_archivo = f"{nombre_limpio}-{fecha_envio}_{fecha_extraccion}.xlsx"
+		else:
+			# Fallback al formato anterior si no se proporcionan los parámetros
+			nombre_archivo = f"{ARCHIVO_INFORMES_PREFIX}_{fecha_extraccion}.xlsx"
+		
+		# Asegurar que el nombre de archivo esté en el directorio data
+		nombre_archivo = data_path(nombre_archivo.replace(f"{ARCHIVO_INFORMES_PREFIX}_", ""))
 		
 		wb.save(nombre_archivo)
 		file_size = os.path.getsize(nombre_archivo)
@@ -1049,7 +1059,44 @@ def main():
 			# Crear archivo Excel con los resultados
 			logger.start_timer("crear_excel")
 			if general or abiertos or no_abiertos or clics or hard_bounces or soft_bounces:
-				archivo_creado = crear_archivo_excel(general, [abiertos, no_abiertos, clics, hard_bounces, soft_bounces])
+				# Extraer nombre de campaña y fecha de envío del primer elemento procesado
+				nombre_campania_param = ""
+				fecha_envio_param = ""
+				
+				if general and len(general) > 0 and len(general[0]) >= 3:
+					nombre_campania_param = general[0][0]  # Primer campo: nombre de campaña
+					fecha_envio_raw = general[0][2]  # Tercer campo: fecha de envío
+					
+					# Convertir fecha de envío a formato YYYYMMDDHHMM
+					try:
+						# Try different common date formats
+						date_formats = [
+							"%d/%m/%Y %H:%M",
+							"%d-%m-%Y %H:%M", 
+							"%Y-%m-%d %H:%M",
+							"%d/%m/%Y",
+							"%d-%m-%Y",
+							"%Y-%m-%d"
+						]
+						
+						fecha_envio_dt = None
+						for fmt in date_formats:
+							try:
+								fecha_envio_dt = datetime.strptime(fecha_envio_raw, fmt)
+								break
+							except ValueError:
+								continue
+						
+						if fecha_envio_dt:
+							fecha_envio_param = fecha_envio_dt.strftime("%Y%m%d%H%M")
+						else:
+							# Si no se puede parsear, usar el texto directamente limpiando caracteres problemáticos
+							fecha_envio_param = re.sub(r'[<>:"/\\|?*\s]', '', fecha_envio_raw)
+					except Exception as e:
+						logger.log_warning("extraer_fecha_envio", f"Error parseando fecha: {e}, usando texto limpio")
+						fecha_envio_param = re.sub(r'[<>:"/\\|?*\s]', '', fecha_envio_raw)
+				
+				archivo_creado = crear_archivo_excel(general, [abiertos, no_abiertos, clics, hard_bounces, soft_bounces], nombre_campania_param, fecha_envio_param)
 				logger.end_timer("crear_excel")
 				logger.log_success("crear_excel", f"Archivo creado: {archivo_creado}")
 			else:
