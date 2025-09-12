@@ -27,3 +27,5 @@ dist/
 *.log
 .DS_Store
 .env
+CLAUDE.md
+.claude/

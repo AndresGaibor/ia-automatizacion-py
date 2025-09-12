@@ -46,8 +46,37 @@ pip install -r requirements.txt
 user: "tu-usuario"
 password: "tu-contraseña"
 url: "https://url-del-servicio"
-archivo_busqueda: "ruta/al/archivo.xlsx"
-archivo_informes: "ruta/donde/guardar/informes.xlsx"
+url_base: "https://url-base"
+headless: false
+
+# Configuración de velocidad de internet/carga
+# Opciones: "rapido", "normal", "lento", "muy_lento"
+velocidad_internet: "normal"
+```
+
+### Configuración de Velocidad de Internet
+
+Simplemente cambia el valor de `velocidad_internet` según tu conexión:
+
+- **`"rapido"`**: Para conexiones de fibra óptica o muy rápidas
+- **`"normal"`**: Para conexiones estándar de banda ancha (por defecto)
+- **`"lento"`**: Para conexiones lentas o inestables
+- **`"muy_lento"`**: Para conexiones muy lentas o con alta latencia
+
+**Ejemplos:**
+
+```yaml
+# Para internet rápido
+velocidad_internet: "rapido"
+
+# Para internet normal (recomendado)
+velocidad_internet: "normal"
+
+# Para internet lento
+velocidad_internet: "lento"
+
+# Para internet muy lento
+velocidad_internet: "muy_lento"
 ```
 
 2. Preparar archivo Excel de búsqueda:
@@ -95,6 +124,14 @@ Si encuentras errores:
 1. Verifica la conexión a internet
 2. Confirma que las credenciales en `config.yaml` sean correctas
 3. Asegúrate de que el archivo de búsqueda existe y tiene el formato correcto
+4. **Si la aplicación se queda "colgada" o aparecen timeouts:**
+   - Cambia `velocidad_internet` a `"lento"` o `"muy_lento"` en tu `config.yaml`
+   - Si tienes internet rápido pero el sitio es lento, usa `"lento"`
+
+### Errores comunes de timeout:
+- **TimeoutError en navegación**: Cambia a `velocidad_internet: "lento"`
+- **Elementos no encontrados**: Cambia a `velocidad_internet: "muy_lento"`
+- **Operaciones que se cuelgan**: Cambia a `velocidad_internet: "muy_lento"`
 
 ## Contribuir
 
