@@ -10,7 +10,7 @@ from tkinter import messagebox
 import tempfile
 import uuid
 import time
-from .logger import get_logger
+from .logger import get_logger, ErrorSeverity
 
 archivo_busqueda = data_path("Lista_envio.xlsx")
 
@@ -51,7 +51,10 @@ def _seleccionar_hoja_cli(archivo: str, multiple=False) -> str | list[str]:
 			if op.isdigit():
 				idx = int(op)
 				if 1 <= idx <= len(hojas):
-					return hojas[idx - 1]
+					selected = hojas[idx - 1]
+					logger.info(f"✅ Hoja seleccionada: {selected}", context={"selected_sheet": selected})
+					return selected
+			logger.warning(f"Opción inválida: {op}")
 			print("Opción inválida. Intenta nuevamente.")
 			continue
 		
@@ -248,9 +251,38 @@ def inicializar_navegacion_lista(page: Page):
 	page.wait_for_load_state("domcontentloaded")
 
 def _generar_archivo_subida_desde_hoja(archivo_excel: str, hoja: str) -> str:
-	"""Genera un CSV temporal solo con la hoja indicada y devuelve su ruta."""
+	"""Genera un CSV temporal solo con la hoja indicada, elimina duplicados por email y devuelve su ruta."""
+	logger = get_logger()
 	with pd.ExcelFile(archivo_excel, engine="openpyxl") as xls:
 		df = pd.read_excel(xls, sheet_name=hoja, dtype=str).fillna("")
+	
+	# Buscar columna de email para eliminar duplicados
+	columna_email = None
+	for col in df.columns:
+		if any(keyword in str(col).lower() for keyword in ['email', 'correo', 'mail']):
+			columna_email = col
+			break
+	
+	filas_originales = len(df)
+	
+	if columna_email:
+		# Eliminar duplicados manteniendo la primera ocurrencia basándose en el email
+		df_sin_duplicados = df.drop_duplicates(subset=[columna_email], keep='first')
+		filas_despues = len(df_sin_duplicados)
+		duplicados_eliminados = filas_originales - filas_despues
+		
+		if duplicados_eliminados > 0:
+			logger.log_success("duplicados_eliminados", f"Se eliminaron {duplicados_eliminados} filas duplicadas de {filas_originales} (columna: {columna_email})")
+			print(f"✅ Se eliminaron {duplicados_eliminados} emails duplicados de la hoja '{hoja}'")
+		else:
+			logger.log_checkpoint("sin_duplicados", f"No se encontraron duplicados en la columna {columna_email}")
+			print(f"ℹ️ No se encontraron emails duplicados en la hoja '{hoja}'")
+		
+		df = df_sin_duplicados
+	else:
+		logger.log_warning("sin_columna_email", "No se encontró columna de email para eliminar duplicados")
+		print(f"⚠️ No se encontró columna de email en la hoja '{hoja}' - no se pueden eliminar duplicados")
+	
 	# CSV temporal compatible con Excel (utf-8-sig)
 	tmp_path = os.path.join(tempfile.gettempdir(), f"lista_{uuid.uuid4().hex}.csv")
 	df.to_csv(tmp_path, index=False, encoding="utf-8-sig")
@@ -497,11 +529,15 @@ def main(nombre_hoja: str | list[str] | None = None, multiple: bool = False):
 		login(page)
 		context.storage_state(path=storage_state_path())
 
-		# Procesar cada hoja seleccionada
+		# Procesar cada hoja seleccionada usando agrupación inteligente
 		listas_creadas = []
 		listas_fallidas = []
 		listas_canceladas = []
 		limite_alcanzado = False
+
+		# Iniciar operación por lotes para mejor logging
+		logger = get_logger()
+		logger.start_batch_operation('crear_listas', 'list_creation', len(hojas_seleccionadas))
 		
 		for idx, hoja_actual in enumerate(hojas_seleccionadas, 1):
 			print(f"\n🔄 Procesando hoja {idx}/{len(hojas_seleccionadas)}: {hoja_actual}")
@@ -546,7 +582,7 @@ def main(nombre_hoja: str | list[str] | None = None, multiple: bool = False):
 
 				# Añadir archivo (robusto)
 				if not _click_aniadir_robusto(page):
-					get_logger().log_warning("post_anadir", "'Añadir' no produjo cambios detectables, continuando con heurísticas")
+					get_logger().log_warning("post_anadir", "'Añadir' no produjo cambios detectables, continuando con heurísticas", severity=ErrorSeverity.RECOVERABLE)
 					# Intento de último recurso: click directo si encontramos el botón y luego continuar
 					try:
 						btns_aniadir = page.locator('a:visible', has_text="Añadir")
@@ -609,7 +645,15 @@ def main(nombre_hoja: str | list[str] | None = None, multiple: bool = False):
 					
 			except Exception as e:
 				print(f"❌ Error procesando hoja '{hoja_actual}': {e}")
+				logger.log_error("crear_lista", e, f"Hoja: {hoja_actual}", severity=ErrorSeverity.TECHNICAL)
 				listas_fallidas.append(hoja_actual)
+
+				# Agregar error al batch para tracking
+				if 'crear_listas' in logger.current_batch:
+					logger.current_batch['crear_listas']['errors'].append({
+						'hoja': hoja_actual,
+						'error': str(e)
+					})
 				
 				# Limpiar archivo temporal en caso de error
 				if tmp_subida and os.path.exists(tmp_subida):
@@ -620,7 +664,10 @@ def main(nombre_hoja: str | list[str] | None = None, multiple: bool = False):
 					tmp_subida = None
 		
 		browser.close()
-		
+
+		# Finalizar operación por lotes y obtener resumen
+		batch_summary = logger.end_batch_operation('crear_listas')
+
 		# Resumen final
 		print(f"\n📊 Resumen del procesamiento:")
 		print(f"✅ Listas creadas exitosamente: {len(listas_creadas)}")

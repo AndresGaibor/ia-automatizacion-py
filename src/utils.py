@@ -434,52 +434,51 @@ def obtener_total_paginas(page: Page) -> int:
         select_candidates = page.locator('select')
         logger.logger.info(f"🔍 Controles de paginación: {select_candidates.count()} <select> encontrados")
         if select_candidates.count() > 0:
-            # Buscar un select que tenga opciones numéricas típicas de paginado (15/25/50/100)
-            select_con_paginado = select_candidates.filter(
-                has=page.locator('option', has_text="15")
-            )
-            if select_con_paginado.count() == 0:
-                # fallback: cualquier select con varias opciones numéricas
-                select_con_paginado = select_candidates.filter(
-                    has=page.locator('option', has_text="50")
-                )
+            # Usar el primer select que tenga múltiples opciones
+            objetivo = select_candidates.first
 
-            objetivo = select_con_paginado if select_con_paginado.count() > 0 else select_candidates
-            
-            # Retry con diferentes enfoques para selects
+            # Retry simple: seleccionar la última opción disponible
             for select_attempt in range(2):
                 try:
                     # Esperar que el select esté listo
                     objetivo.wait_for(state="visible", timeout=5000)
                     objetivo.wait_for(state="attached", timeout=2000)
-                    
-                    # Tomar la última opción numérica disponible
+
+                    # Obtener todas las opciones y seleccionar la última
                     opciones = objetivo.locator('option')
                     count = opciones.count()
-                    max_val = None
-                    max_text = None
-                    for i in range(count):
-                        t = (opciones.nth(i).inner_text() or '').strip()
-                        digitos = ''.join(ch for ch in t if ch.isdigit())
-                        if digitos:
-                            n = int(digitos)
-                            if max_val is None or n > max_val:
-                                max_val = n
-                                max_text = opciones.nth(i).get_attribute('value') or t
-                    if max_text:
-                        # Intentar diferentes métodos de selección
+
+                    if count > 1:  # Solo si hay múltiples opciones
+                        # Seleccionar la última opción (index = count - 1)
+                        objetivo.select_option(index=count - 1)
+
+                        # Obtener el texto/valor de la opción seleccionada para el log
                         try:
-                            objetivo.select_option(value=max_text)
+                            last_option_text = opciones.nth(count - 1).inner_text() or "última opción"
+                            last_option_value = opciones.nth(count - 1).get_attribute('value') or last_option_text
                         except Exception:
-                            try:
-                                objetivo.select_option(label=str(max_val))
-                            except Exception:
-                                objetivo.select_option(index=opciones.count() - 1)
-                        
-                        logger.logger.info(f"🔧 Items por página (select): seleccionado '{max_text}' en intento {select_attempt + 1}")
+                            last_option_text = f"opción #{count}"
+                            last_option_value = last_option_text
+
+                        logger.logger.info(f"🔧 Items por página (select): seleccionada última opción '{last_option_text}' (intento {select_attempt + 1})")
                         page.wait_for_timeout(500)
+
+                        # Verificar que la selección se aplicó correctamente (simplificado)
+                        try:
+                            selected_index = objetivo.evaluate("el => el.selectedIndex")
+                            if selected_index == count - 1:
+                                logger.logger.info(f"✅ Confirmado: última opción seleccionada correctamente")
+                            else:
+                                logger.log_warning("verify_selection", f"Índice seleccionado ({selected_index}) no coincide con el último ({count - 1})")
+                        except Exception as verify_e:
+                            logger.log_warning("verify_selection", f"No se pudo verificar la selección: {verify_e}")
+
                         hecho = True
                         break
+                    else:
+                        logger.log_warning("select_items_per_page", f"Select solo tiene {count} opción(es), omitiendo")
+                        break
+
                 except Exception as e:
                     logger.log_warning("select_items_per_page", f"Intento {select_attempt + 1}/2 falló: {e}")
                     if select_attempt == 0:
@@ -538,30 +537,27 @@ def obtener_total_paginas(page: Page) -> int:
                                 else:
                                     break
                             
-                            max_val = None
-                            max_idx = None
-                            for i in range(opciones.count()):
+                            # Simplificado: seleccionar la última opción directamente
+                            count_opciones = opciones.count()
+                            if count_opciones > 1:
+                                # Seleccionar la última opción (index = count - 1)
+                                last_idx = count_opciones - 1
                                 try:
-                                    t = (opciones.nth(i).inner_text() or '').strip()
-                                    digitos = ''.join(ch for ch in t if ch.isdigit())
-                                    if digitos:
-                                        n = int(digitos)
-                                        if max_val is None or n > max_val:
-                                            max_val = n
-                                            max_idx = i
+                                    last_option_text = opciones.nth(last_idx).inner_text() or f"opción #{last_idx + 1}"
                                 except Exception:
-                                    continue
-                            
-                            if max_idx is not None:
-                                click_element(opciones.nth(max_idx))
-                                logger.logger.info(f"🔧 Items por página (combobox): seleccionado índice {max_idx} con valor {max_val} en intento {cb_attempt + 1}")
+                                    last_option_text = f"última opción"
+
+                                click_element(opciones.nth(last_idx))
+                                logger.logger.info(f"🔧 Items por página (combobox): seleccionada última opción '{last_option_text}' (intento {cb_attempt + 1})")
                                 page.wait_for_timeout(500)
                                 hecho = True
                                 break
                             else:
+                                logger.log_warning("combobox_options", f"Solo {count_opciones} opción(es) disponible(s), omitiendo")
                                 page.keyboard.press('Escape')
                                 if cb_attempt == 0:
                                     time.sleep(0.5)
+                                break
                                     
                         except Exception as e:
                             logger.log_warning("combobox_selection", f"Intento {cb_attempt + 1}/2 en combobox {cb_idx} falló: {e}")
@@ -581,17 +577,24 @@ def obtener_total_paginas(page: Page) -> int:
         # Tras cambiar, esperar a que el listado se refresque si teníamos un conteo previo
         if hecho and count_before is not None:
             try:
-                # Espera optimizada con timeout adaptativo
+                # Espera más robusta para permitir recarga de tabla
                 timeout_actual = get_current_processing_timeout()
                 page.wait_for_load_state("domcontentloaded", timeout=min(timeout_actual, 8000))  # Máximo 8s
-                page.wait_for_timeout(300)  # Reducido a 300ms
-                
-                for _ in range(8):  # Reducido a 8 iteraciones
-                    page.wait_for_timeout(150)  # Más rápido: 150ms
+                page.wait_for_timeout(800)  # Aumentado a 800ms para dar tiempo a la recarga
+
+                # Intentar detectar cambio en el conteo de elementos
+                for _ in range(15):  # Aumentado a 15 iteraciones
+                    page.wait_for_timeout(300)  # Aumentado a 300ms por iteración
                     count_after = page.locator('#newsletter-reports').locator('> li').count()
                     if count_after != count_before and count_after > 0:
                         logger.logger.info(f"🔄 Listado actualizado: {count_before} → {count_after} elementos")
+                        # Espera adicional para que la tabla se estabilice completamente
+                        page.wait_for_timeout(500)
                         break
+                else:
+                    # Si no se detectó cambio, esperar tiempo fijo adicional
+                    logger.log_warning("items_per_page", f"No se detectó cambio en el conteo ({count_before} elementos). Aplicando espera adicional.")
+                    page.wait_for_timeout(1500)  # Espera fija de 1.5s si no hay cambio detectable
             except Exception as ex:
                 logger.log_warning("refrescar_listado", f"Error esperando refresco: {ex}")
                 # Aumentar timeout si falla
@@ -600,11 +603,14 @@ def obtener_total_paginas(page: Page) -> int:
     except Exception as e:
         logger.log_warning("obtener_total_paginas", f"No se pudo ajustar 'items por página': {e}")
 
-    # Espera mínima para estabilidad con timeout adaptativo
+    # Espera robusta para estabilidad después de configurar paginación
     try:
         timeout_actual = get_current_processing_timeout()
-        page.wait_for_timeout(400)  # Reducido a 400ms
+        page.wait_for_timeout(800)  # Aumentado a 800ms para permitir actualización completa
         page.wait_for_load_state("domcontentloaded", timeout=min(timeout_actual, 5000))  # Máximo 5s
+
+        # Espera adicional específica para que la configuración de paginación tome efecto
+        page.wait_for_timeout(500)  # 500ms adicionales para estabilización
     except Exception:
         # Si falla, aumentar timeout para futuras operaciones
         increase_processing_timeout()
@@ -776,6 +782,146 @@ def navegar_siguiente_pagina(page: Page, pagina_actual: int) -> bool:
 				return False
 	
 	return False
+
+# Funciones específicas para listas de suscriptores
+
+def obtener_total_paginas_listas(page: Page) -> int:
+	"""
+	Obtiene el número total de páginas en la sección de listas
+	"""
+	from .logger import get_logger
+	logger = get_logger()
+
+	try:
+		# Buscar la paginación específica de listas
+		paginacion = page.locator('.am-pagination')
+
+		if paginacion.count() == 0:
+			logger.logger.info("No se encontró paginación, asumiendo 1 página")
+			return 1
+
+		# Buscar todos los enlaces de página dentro de la paginación
+		enlaces_pagina = paginacion.locator('li a')
+		total_paginas = 1
+
+		for i in range(enlaces_pagina.count()):
+			try:
+				texto = enlaces_pagina.nth(i).inner_text().strip()
+				if texto.isdigit():
+					numero_pagina = int(texto)
+					total_paginas = max(total_paginas, numero_pagina)
+			except:
+				continue
+
+		logger.logger.info(f"📄 Total de páginas de listas encontradas: {total_paginas}")
+		return total_paginas
+
+	except Exception as e:
+		logger.log_warning("obtener_total_paginas_listas", f"Error obteniendo total de páginas: {e}")
+		return 1
+
+def navegar_siguiente_pagina_listas(page: Page, pagina_actual: int) -> bool:
+	"""
+	Navega a la siguiente página en la sección de listas
+	"""
+	from .logger import get_logger
+	logger = get_logger()
+
+	siguiente_pagina = pagina_actual + 1
+
+	try:
+		logger.logger.info(f"🔄 Navegando a página {siguiente_pagina} de listas")
+
+		# Buscar el enlace específico de la siguiente página
+		paginacion = page.locator('.am-pagination')
+		enlace_siguiente = paginacion.locator(f'li a:has-text("{siguiente_pagina}")')
+
+		if enlace_siguiente.count() == 0:
+			logger.log_warning("navegar_siguiente_pagina_listas", f"No se encontró enlace para página {siguiente_pagina}")
+			return False
+
+		# Hacer clic en el enlace
+		enlace_siguiente.first.wait_for(timeout=10000)
+		enlace_siguiente.first.click()
+
+		# Esperar a que cargue la nueva página
+		page.wait_for_load_state("domcontentloaded", timeout=15000)
+		page.wait_for_timeout(2000)  # Esperar un poco más para que carguen los elementos
+
+		# Verificar que estamos en la página correcta
+		pagina_activa = paginacion.locator('li.active a')
+		if pagina_activa.count() > 0:
+			texto_activo = pagina_activa.first.inner_text().strip()
+			if texto_activo == str(siguiente_pagina):
+				logger.logger.info(f"✅ Navegación exitosa a página {siguiente_pagina}")
+				return True
+
+		logger.log_warning("navegar_siguiente_pagina_listas", f"No se pudo verificar navegación a página {siguiente_pagina}")
+		return False
+
+	except Exception as e:
+		logger.log_error("navegar_siguiente_pagina_listas", f"Error navegando a página {siguiente_pagina}: {e}")
+		return False
+
+def cambiar_items_por_pagina_listas(page: Page, items: int = 50) -> bool:
+	"""
+	Cambia el número de elementos por página en la sección de listas
+	"""
+	from .logger import get_logger
+	logger = get_logger()
+
+	try:
+		logger.logger.info(f"📊 Intentando cambiar a {items} elementos por página")
+
+		# Buscar el select dentro de .am-items-per-page
+		items_per_page_container = page.locator('.am-items-per-page')
+
+		if items_per_page_container.count() == 0:
+			logger.log_warning("cambiar_items_por_pagina_listas", "No se encontró contenedor de items per page")
+			return False
+
+		select_element = items_per_page_container.locator('select').first
+
+		if select_element.count() == 0:
+			logger.log_warning("cambiar_items_por_pagina_listas", "No se encontró select de items per page")
+			return False
+
+		# Verificar si la opción existe
+		opcion = select_element.locator(f'option:has-text("{items}")')
+
+		if opcion.count() == 0:
+			logger.log_warning("cambiar_items_por_pagina_listas", f"No se encontró opción para {items} elementos")
+			# Mostrar opciones disponibles
+			opciones = select_element.locator('option')
+			opciones_disponibles = []
+			for i in range(opciones.count()):
+				texto = opciones.nth(i).inner_text().strip()
+				opciones_disponibles.append(texto)
+			logger.logger.info(f"Opciones disponibles: {opciones_disponibles}")
+
+			# Usar la opción más alta disponible
+			if opciones_disponibles:
+				items_max = max([int(x) for x in opciones_disponibles if x.isdigit()])
+				logger.logger.info(f"Usando {items_max} elementos por página en su lugar")
+				opcion = select_element.locator(f'option:has-text("{items_max}")')
+
+		# Seleccionar la opción
+		if opcion.count() > 0:
+			select_element.wait_for(timeout=10000)
+			select_element.select_option(label=opcion.first.inner_text().strip())
+
+			# Esperar a que la página se recargue
+			page.wait_for_load_state("domcontentloaded", timeout=15000)
+			page.wait_for_timeout(2000)
+
+			logger.logger.info(f"✅ Cambiado a {items} elementos por página")
+			return True
+
+		return False
+
+	except Exception as e:
+		logger.log_error("cambiar_items_por_pagina_listas", f"Error cambiando items por página: {e}")
+		return False
 
 
 def notify(title: str, message: str, level: str = "info") -> bool:

@@ -111,6 +111,9 @@ if __name__ == "__main__":
 
     btn_obtener = tk.Button(root, text="Obtener suscriptores de campañas", command=lambda: run_obtener_suscriptores(btn_obtener))
     btn_obtener.pack(pady=8, fill="x", padx=20)
+    
+    btn_obtener_listas = tk.Button(root, text="Obtener listas suscriptores", command=lambda: run_listar_campanias(btn_listar))
+    btn_obtener_listas.pack(pady=8, fill="x", padx=20)
 
     btn_crear = tk.Button(root, text="Crear lista de suscriptores", command=lambda: run_crear_lista(btn_crear))
     btn_crear.pack(pady=8, fill="x", padx=20)
