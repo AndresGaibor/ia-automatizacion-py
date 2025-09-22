@@ -83,45 +83,29 @@ def run_obtener_suscriptores(btn):
     threading.Thread(target=worker, daemon=True).start()
 
 def run_crear_lista(btn):
-    # Verificar y crear directorio de listas si no existe
-    listas_dir = os.path.join(os.path.dirname(data_path("dummy")), "listas")
-    if not os.path.exists(listas_dir):
-        os.makedirs(listas_dir)
-
-    # Crear Plantilla.xlsx si no hay archivos en el directorio
-    archivos_excel = [f for f in os.listdir(listas_dir) if f.endswith('.xlsx') and f != 'Plantilla.xlsx']
-    if not archivos_excel:
-        plantilla_path = os.path.join(listas_dir, "Plantilla.xlsx")
-        if not os.path.exists(plantilla_path):
-            df_plantilla = pd.DataFrame(columns=['email', 'nombre', 'apellido'])
-            df_plantilla.to_excel(plantilla_path, index=False)
-
-    # Mostrar selector de archivos del directorio listas
-    from src.crear_lista_api import seleccionar_archivo_tk
-    archivo_seleccionado = seleccionar_archivo_tk(listas_dir, master=root)
-    if not archivo_seleccionado:
-        return  # cancelado por el usuario
-
-    # Seleccionar hojas del archivo elegido
-    from src.crear_lista_api import seleccionar_hoja_tk
-    hojas = seleccionar_hoja_tk(archivo_seleccionado, master=root, multiple=True)
-    if not hojas:
-        return  # cancelado por el usuario
-
-    def worker(archivo: str, hojas_sel: list[str]):
+    """
+    Nueva implementación mejorada que:
+    1. Permite seleccionar archivo Excel
+    2. Automáticamente usa la hoja "Datos"
+    3. Nombre de lista = nombre del archivo
+    4. Valida diferencias con hoja "Cambios"
+    5. Sube automáticamente sin pedir confirmación
+    """
+    def worker():
         try:
-            import src.crear_lista_api as m
+            import src.crear_lista_mejorado as m
             importlib.reload(m)
-            # Pasamos el archivo y la lista de hojas directamente a main
-            m.main(archivo=archivo, nombre_hoja=hojas_sel, multiple=True)
+            # Ejecutar creación automática
+            m.main_automatico()
         except Exception as e:
-            messagebox.showerror("Error", f"Ocurrió un error: {e}")
+            root.after(0, lambda: messagebox.showerror("Error", f"Ocurrió un error: {e}"))
         finally:
             root.after(0, lambda: btn.config(state=tk.NORMAL))
             root.after(0, lambda: root.config(cursor=""))
+
     btn.config(state=tk.DISABLED)
     root.config(cursor="watch")
-    threading.Thread(target=worker, args=(archivo_seleccionado, hojas), daemon=True).start()
+    threading.Thread(target=worker, daemon=True).start()
 
 def run_obtener_listas(btn):
     def worker():
