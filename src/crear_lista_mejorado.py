@@ -296,9 +296,46 @@ def crear_lista_via_api(nombre_lista: str, config_lista: Dict[str, str], api: AP
         print(f"Error creando lista {nombre_lista}: {e}")
         return None
 
+def verificar_y_mostrar_campos(list_id: int, df_suscriptores: pd.DataFrame, api: API) -> bool:
+    """
+    Verifica los campos de la lista después de agregar suscriptores
+    """
+    logger = get_logger()
+
+    try:
+        print(f"🔍 Verificando campos de la lista {list_id}...")
+
+        # Obtener campos existentes en la lista
+        campos_respuesta = api.suscriptores.get_merge_fields(list_id)
+
+        if hasattr(campos_respuesta, 'merge_fields') and campos_respuesta.merge_fields:
+            campos_existentes = list(campos_respuesta.merge_fields.keys())
+            print(f"📋 Campos existentes en la lista: {campos_existentes}")
+
+            # Verificar si faltan campos (considerar normalización)
+            campos_esperados = [col.replace(' ', '_').replace('-', '_') for col in df_suscriptores.columns if col != 'email']
+            campos_faltantes = [c for c in campos_esperados if c not in campos_existentes]
+
+            if campos_faltantes:
+                print(f"⚠️  Campos faltantes en la lista: {campos_faltantes}")
+                print(f"💡 Esto puede indicar que los campos no se enviaron correctamente")
+            else:
+                print(f"✅ Todos los campos esperados están presentes: {campos_esperados}")
+
+        else:
+            print(f"⚠️  No se encontraron merge fields en la lista {list_id}")
+
+        return True
+
+    except Exception as e:
+        logger.warning(f"Error verificando campos de lista {list_id}: {e}")
+        print(f"⚠️  No se pudieron verificar los campos de la lista: {e}")
+        return False
+
 def agregar_suscriptores_via_api(list_id: int, df_suscriptores: pd.DataFrame, api: API) -> int:
     """
     Agrega suscriptores a una lista usando la API con procesamiento en lotes
+    Primero define los campos personalizados, luego agrega los suscriptores
     """
     logger = get_logger()
     suscriptores_agregados = 0
@@ -314,6 +351,9 @@ def agregar_suscriptores_via_api(list_id: int, df_suscriptores: pd.DataFrame, ap
         return 0
 
     try:
+        # PASO 1: Agregar suscriptores (la API debería crear campos automáticamente)
+        print("👥 Agregando suscriptores con campos personalizados...")
+
         # Preparar datos para procesamiento en lotes
         subscribers_batch = []
         batch_size = 100  # Procesar en lotes de 100
@@ -324,7 +364,9 @@ def agregar_suscriptores_via_api(list_id: int, df_suscriptores: pd.DataFrame, ap
 
             for columna, valor in fila.items():
                 if pd.notna(valor) and str(valor).strip():  # Solo valores no vacíos
-                    merge_fields[columna] = str(valor).strip()
+                    # Normalizar nombre de campo (sin espacios, formato Acumbamail)
+                    campo_normalizado = columna.replace(' ', '_').replace('-', '_')
+                    merge_fields[campo_normalizado] = str(valor).strip()
 
             # Verificar que tenga email
             if 'email' not in merge_fields or not merge_fields['email']:
@@ -333,10 +375,25 @@ def agregar_suscriptores_via_api(list_id: int, df_suscriptores: pd.DataFrame, ap
 
             # Crear SubscriberData tipado
             try:
+                # Debug: mostrar datos que se van a enviar
+                if len(subscribers_batch) == 0:  # Solo mostrar para el primer suscriptor
+                    print(f"📤 Datos del primer suscriptor:")
+                    for k, v in merge_fields.items():
+                        print(f"   {k}: '{v}'")
+
                 subscriber_data = SubscriberData(
                     email=merge_fields['email'],
                     **{k: v for k, v in merge_fields.items() if k != 'email'}
                 )
+
+                # Debug: verificar el objeto creado
+                if len(subscribers_batch) == 0:
+                    subscriber_dict = subscriber_data.model_dump()
+                    print(f"📦 SubscriberData creado:")
+                    for k, v in subscriber_dict.items():
+                        if v is not None:
+                            print(f"   {k}: '{v}'")
+
                 subscribers_batch.append(subscriber_data)
 
                 # Procesar lote cuando alcance el tamaño
@@ -367,6 +424,11 @@ def agregar_suscriptores_via_api(list_id: int, df_suscriptores: pd.DataFrame, ap
             logger.info(f"Último lote procesado: {result.success_count} exitosos, {result.error_count} errores")
 
         logger.info(f"Agregados {suscriptores_agregados} suscriptores a lista {list_id}")
+
+        # PASO 2: Verificar campos después de agregar suscriptores
+        if suscriptores_agregados > 0:
+            print("🔍 Verificando campos de la lista...")
+            verificar_y_mostrar_campos(list_id, df_suscriptores, api)
 
     except Exception as e:
         logger.error(f"Error en proceso de agregar suscriptores: {e}")
