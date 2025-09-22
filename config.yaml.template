@@ -1,0 +1,30 @@
+url: https://acumbamail.com/app/newsletter/
+url_base: https://acumbamail.com
+user: your_email@example.com
+password: your_password_here
+headless: false
+
+# Configuración de timeouts específicos (en segundos) - Optimizados para velocidad
+timeouts:
+  navigation: 60        # 1 minuto - Para navegación entre páginas (reducido de 120s)
+  page_load: 30         # 30 segundos - Carga completa de páginas (reducido de 60s)
+  element_wait: 15      # 15 segundos - Espera de elementos en la página (reducido de 30s)
+  elements: 20          # 20 segundos - Espera de elementos específicos (reducido de 45s)
+  context: 180          # 3 minutos - Operaciones largas como login (reducido de 300s)
+  long_operations: 120  # 2 minutos - Operaciones muy largas como importación (reducido de 240s)
+  file_upload: 120      # 2 minutos - Subida de archivos (reducido de 180s)
+  tables: 30            # 30 segundos - Carga de tablas de datos (reducido de 60s)
+  pagination: 45        # 45 segundos - Navegación entre páginas de resultados (reducido de 90s)
+
+api:
+  base_url: "https://acumbamail.com/api/1/"
+  api_key: "your_api_key_here"   # Replace with your actual API key
+
+# Configuración por defecto para creación de listas
+lista:
+  sender_email: "your_email@example.com"
+  company: "Your Company"
+  country: "Your Country"
+  city: "Your City"
+  address: "Your Address"
+  phone: "Your Phone"

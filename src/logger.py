@@ -63,8 +63,26 @@ class PerformanceLogger:
                 file_handler = logging.FileHandler(log_file)
                 file_handler.setFormatter(formatter)
                 self.logger.addHandler(file_handler)
+
+    # -------------------------------------------------------------
+    # Passthrough API estilo logging.Logger para compatibilidad
+    # -------------------------------------------------------------
+    def debug(self, msg: str, *args, **kwargs) -> None:
+        self.logger.debug(msg, *args, **kwargs)
+
+    def info(self, msg: str, *args, **kwargs) -> None:
+        self.logger.info(msg, *args, **kwargs)
+
+    def warning(self, msg: str, *args, **kwargs) -> None:
+        self.logger.warning(msg, *args, **kwargs)
+
+    def error(self, msg: str, *args, **kwargs) -> None:
+        self.logger.error(msg, *args, **kwargs)
+
+    def critical(self, msg: str, *args, **kwargs) -> None:
+        self.logger.critical(msg, *args, **kwargs)
     
-    def start_timer(self, operation: str, batch_key: str = None) -> None:
+    def start_timer(self, operation: str, batch_key: Optional[str] = None) -> None:
         """Inicia el cronómetro para una operación con agrupación inteligente"""
         self.start_times[operation] = time.time()
 
@@ -82,7 +100,7 @@ class PerformanceLogger:
                     'total_items': 0
                 }
     
-    def end_timer(self, operation: str, extra_info: str = "", batch_key: str = None) -> float:
+    def end_timer(self, operation: str, extra_info: str = "", batch_key: Optional[str] = None) -> float:
         """Termina el cronómetro con logging inteligente y agrupación"""
         if operation not in self.start_times:
             if self.verbose_level >= 3:
@@ -173,23 +191,24 @@ class PerformanceLogger:
                     raise TimeoutError(f"Operación {func.__name__} excedió timeout de {timeout_seconds} segundos")
                 
                 # Solo en sistemas Unix
+                old_handler = None
                 if hasattr(signal, 'SIGALRM'):
                     old_handler = signal.signal(signal.SIGALRM, timeout_handler)
                     signal.alarm(timeout_seconds)
                 
                 try:
                     result = func(*args, **kwargs)
-                    if hasattr(signal, 'SIGALRM'):
+                    if hasattr(signal, 'SIGALRM') and old_handler is not None:
                         signal.alarm(0)  # Cancelar alarma
                         signal.signal(signal.SIGALRM, old_handler)
                     return result
                 except TimeoutError:
-                    if hasattr(signal, 'SIGALRM'):
+                    if hasattr(signal, 'SIGALRM') and old_handler is not None:
                         signal.alarm(0)
                         signal.signal(signal.SIGALRM, old_handler)
                     raise
                 except Exception as e:
-                    if hasattr(signal, 'SIGALRM'):
+                    if hasattr(signal, 'SIGALRM') and old_handler is not None:
                         signal.alarm(0)
                         signal.signal(signal.SIGALRM, old_handler)
                     raise
@@ -357,6 +376,7 @@ class PerformanceLogger:
             'tiempo_promedio_por_operacion': total_time / len(self.timings) if self.timings else 0,
             'operacion_mas_lenta': max(self.timings.items(), key=lambda x: x[1]) if self.timings else None,
             'operacion_mas_rapida': min(self.timings.items(), key=lambda x: x[1]) if self.timings else None,
+            'detalle_tiempos': dict(self.timings),
             'operaciones_agrupadas': {
                 base_op: {
                     'count': len(times),
@@ -484,6 +504,23 @@ def get_verbose_logger() -> PerformanceLogger:
     """Logger con máximo detalle (para debugging)"""
     return get_logger(verbose_level=5)
 
+# Crear una instancia de logger a nivel de módulo para compatibilidad
+# Muchos módulos hacen: `from src.logger import logger` y esperan métodos estilo logging.
+# Aquí exponemos el logger subyacente (logging.Logger) del PerformanceLogger global.
+try:
+    logger = get_logger().logger  # logging.Logger
+except Exception:
+    # Fallback muy defensivo para evitar romper importaciones en escenarios de arranque temprano
+    logger = logging.getLogger('acumba_automation_fallback')
+    if not logger.handlers:
+        _fmt = logging.Formatter('[%(asctime)s] %(levelname)s - %(name)s - %(message)s',
+                                 datefmt='%Y-%m-%d %H:%M:%S')
+        _ch = logging.StreamHandler()
+        _ch.setFormatter(_fmt)
+        _ch.setLevel(logging.INFO)
+        logger.addHandler(_ch)
+    logger.setLevel(logging.INFO)
+
 # Exportar enums para uso externo
-__all__ = ['PerformanceLogger', 'LogLevel', 'ErrorSeverity', 'get_logger',
+__all__ = ['PerformanceLogger', 'LogLevel', 'ErrorSeverity', 'get_logger', 'logger',
            'get_minimal_logger', 'get_normal_logger', 'get_verbose_logger', 'timer']

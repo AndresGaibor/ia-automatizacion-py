@@ -1,346 +1,258 @@
-from playwright.sync_api import sync_playwright, Page
 from datetime import datetime
-from .utils import configurar_navegador, crear_contexto_navegador, obtener_total_paginas_listas, navegar_siguiente_pagina_listas, cambiar_items_por_pagina_listas, load_config, data_path, storage_state_path, notify, get_timeouts, safe_goto, safe_wait_for_element
-from .autentificacion import login
 import pandas as pd
-from openpyxl import Workbook, load_workbook
 import os
-import re
+import sys
+from pathlib import Path
+
+# Agregar el directorio raíz al path cuando se ejecuta directamente
+if __name__ == "__main__":
+    # Obtener el directorio raíz del proyecto (padre de src)
+    current_dir = Path(__file__).parent
+    root_dir = current_dir.parent
+    sys.path.insert(0, str(root_dir))
+
+# Imports que funcionan tanto ejecutando directamente como módulo
+try:
+    # Cuando se ejecuta como módulo del paquete
+    from .utils import data_path, notify
+    from .api import API
+    from .logger import get_logger
+    from .excel_helper import ExcelHelper
+except ImportError:
+    # Cuando se ejecuta directamente
+    from src.utils import data_path, notify
+    from src.api import API
+    from src.logger import get_logger
+    from src.excel_helper import ExcelHelper
 
 # Rutas
-ARCHIVO_LISTAS = data_path("Buscar_Lista.xlsx")
+ARCHIVO_BUSQUEDA = data_path("Busqueda_Listas.xlsx")
 
-def cargar_ultimo_termino_busqueda(archivo_listas: str) -> list[str]:
+def cargar_datos_existentes(archivo_busqueda: str) -> list[list[str]]:
 	"""
-	Carga el último término de búsqueda desde el archivo Excel
+	Carga los datos existentes del archivo Excel
 	"""
 	try:
-		df = pd.read_excel(archivo_listas, engine="openpyxl")
-		terminos = ["", ""]
-
-		# Solo si hay filas y existen las columnas esperadas, extrae la última
-		if not df.empty and {'Nombre', 'Suscriptores'}.issubset(df.columns):
-			ultima_fila = df.iloc[-1]
-			terminos = [str(ultima_fila.get('Nombre', '')).strip(),
-						str(ultima_fila.get('Suscriptores', '')).strip()]
+		if not os.path.exists(archivo_busqueda):
+			return []
 		
-		return terminos
+		df = ExcelHelper.leer_excel(archivo_busqueda)
+		
+		if df.empty:
+			return []
+		
+		# Convertir DataFrame a lista de listas
+		datos = []
+		for _, fila in df.iterrows():
+			datos.append([str(val) if pd.notna(val) else '' for val in fila.values])
+		
+		return datos
+		
 	except Exception as e:
-		print(f"Error al cargar términos de búsqueda: {e}")
-		return ["", ""]
+		logger = get_logger()
+		logger.warning(f"Error cargando datos existentes: {e}")
+		return []
 
-def inicializar_navegacion_listas(page: Page):
+def ordenar_por_fecha(fecha_str: str) -> tuple:
 	"""
-	Navega a la sección de listas y espera a que cargue
+	Convierte fecha string a tupla para ordenamiento
+	Fechas vacías van al final (más antiguas)
 	"""
-	timeouts = get_timeouts()
-    
-	# Navegar a la página de listas
-	try:
-		page.goto("https://acumbamail.com/app/lists/")
-		page.wait_for_load_state("domcontentloaded")
-	except Exception as e:
-		print(f"⚠️ No se pudo navegar a listas: {e}")
-
-	# Esperar elemento concreto de la lista de listas
-	try:
-		# Usar el selector correcto encontrado durante debugging
-		lista_listas = page.locator('.item')
-		lista_listas.first.wait_for(timeout=timeouts['elements'])
-		print(f"✅ Encontrados {lista_listas.count()} elementos de lista")
-	except Exception as e:
-		print(f"⚠️ Advertencia al cargar listas: {e}")
-		# Esperar un poco más por si acaso
-		page.wait_for_timeout(2000)
-
-def extraer_datos_lista(elemento_lista, indice: int) -> list[str]:
-	"""
-	Extrae los datos de una lista específica del elemento
-	"""
-	try:
-		# Intentar extraer información de la lista
-		# Adaptarse a diferentes estructuras posibles
-		nombre_txt = ""
-		suscriptores = ""
-		fecha_creacion = ""
-		estado = ""
-		
-		# Buscar el nombre de la lista
-		try:
-			# Basado en la estructura encontrada, el nombre parece estar al inicio del texto
-			texto_completo = elemento_lista.inner_text().strip()
-			lineas = texto_completo.split('\n')
-			nombre_txt = lineas[0].strip() if lineas else f"Lista {indice}"
-		except:
-			nombre_txt = f"Lista {indice}"
-		
-		# Buscar el número de suscriptores
-		try:
-			# Basado en la estructura "X suscriptores", buscar en el texto
-			texto_completo = elemento_lista.inner_text()
-			# Buscar patrón "número suscriptores"
-			match = re.search(r'(\d+)\s+suscriptores?', texto_completo, re.IGNORECASE)
-			if match:
-				suscriptores = match.group(1)
-			else:
-				# Fallback: buscar cualquier número
-				numeros = re.findall(r'\d+', texto_completo)
-				suscriptores = numeros[0] if numeros else "0"
-		except:
-			suscriptores = "0"
-		
-		# Buscar fecha de creación
-		try:
-			# Buscar patrón "Creada el DD/MM/YYYY"
-			texto_completo = elemento_lista.inner_text()
-			match = re.search(r'Creada el (\d{2}/\d{2}/\d{4})', texto_completo)
-			if match:
-				fecha_creacion = match.group(1)
-			else:
-				fecha_creacion = "N/A"
-		except:
-			fecha_creacion = "N/A"
-		
-		# Buscar estado
-		try:
-			estado_element = elemento_lista.locator('.status, .state, .active, [data-status]').first
-			estado = estado_element.inner_text().strip()
-		except:
-			estado = "Activo"
-		
-		# Verificar si es una fila de encabezados
-		if (nombre_txt.upper() in ["NOMBRE", "NAME", "LISTA", "LIST"] or 
-		    suscriptores.upper() in ["SUSCRIPTORES", "SUBSCRIBERS", "MEMBERS"]):
-			print(f"⚠️ Saltando fila de encabezados: {nombre_txt}, {suscriptores}")
-			return []  # Retornar lista vacía para indicar que se debe saltar
-		
-		return ['', nombre_txt, suscriptores, fecha_creacion, estado]
-	except Exception as e:
-		print(f"Error extrayendo datos de lista {indice}: {e}")
-		return ['', '', '', '', '']
-
-def buscar_listas_en_pagina(page: Page, terminos: list[str], numero_pagina: int) -> tuple[list[list[str]], bool]:
-	"""
-	Busca listas en la página actual y retorna los datos y si encontró el término buscado
-	"""
-	informe_detalle = []
-	encontrado = False
-	buscar_todo = not terminos[0] or not terminos[1]  # Si no hay términos, buscar todo
-	timeouts = get_timeouts()
+	if not fecha_str or str(fecha_str).strip() == '' or str(fecha_str).lower() == 'nan':
+		# Sin fecha = más antigua (valor mínimo)
+		return (0, 0, 0, 0, 0, 0)
 	
-	# Si la página fue cerrada (por el usuario o por error), salir temprano
-	if getattr(page, 'is_closed', None) and page.is_closed():
-		return [], False
-
 	try:
-		# Buscar diferentes selectores posibles para las listas
-		posibles_selectores = [
-			'.item',  # Selector principal encontrado
-			'.am-responsive-table-row.item',  # Selector más específico
-			'.am-responsive-table-row',  # Selector fallback
-			'.lists-container .list-item',
-			'#lists-container .list-item',
-			'.table tbody tr',
-			'.list-row',
-			'[data-list]',
-			'.list',
-			'li[class*="list"]',
-			'div[class*="list"]'
-		]
+		# Intentar parsear diferentes formatos de fecha
+		fecha_str = str(fecha_str).strip()
 		
-		elementos_listas = None
-		for selector in posibles_selectores:
-			try:
-				elementos_listas = page.locator(selector)
-				if elementos_listas.count() > 0:
-					print(f"Encontrado selector válido: {selector}")
-					break
-			except:
-				continue
-		
-		if not elementos_listas or elementos_listas.count() == 0:
-			print("⚠️ No se encontraron elementos de lista")
-			return [], False
-		
-		total = elementos_listas.count()
-		print(f"Encontrados {total} elementos de lista en la página {numero_pagina}")
-		
-		for o in range(total):
-			datos_lista = extraer_datos_lista(elementos_listas.nth(o), o)
-			
-			# Si la función retorna lista vacía, significa que es una fila de encabezados, saltar
-			if not datos_lista:
-				continue
-			
-			if datos_lista[1]:  # Si tiene nombre
-				nombre_txt = datos_lista[1]
-				suscriptores = datos_lista[2]
+		# Formato: 2024-09-16 10:30:00 o similar
+		if len(fecha_str) >= 10:
+			# Extraer año, mes, día, hora, minuto, segundo
+			parts = fecha_str.replace('/', '-').replace(' ', '-').replace(':', '-').split('-')
+			if len(parts) >= 3:
+				year = int(parts[0]) if parts[0].isdigit() else 2000
+				month = int(parts[1]) if parts[1].isdigit() else 1
+				day = int(parts[2]) if parts[2].isdigit() else 1
+				hour = int(parts[3]) if len(parts) > 3 and parts[3].isdigit() else 0
+				minute = int(parts[4]) if len(parts) > 4 and parts[4].isdigit() else 0
+				second = int(parts[5]) if len(parts) > 5 and parts[5].isdigit() else 0
 				
-				# Si estamos buscando todo, agregar todas las listas
-				if buscar_todo:
-					informe_detalle = [datos_lista] + informe_detalle
-				else:
-					# Verificar si es la lista buscada específica
-					if nombre_txt.strip() == terminos[0] and suscriptores.strip() == terminos[1]:
-						encontrado = True
-						break
-					
-					# Agregar al inicio para mantener orden cronológico inverso
-					informe_detalle = [datos_lista] + informe_detalle
-		
-	except Exception as e:
-		# Mensaje más claro si la página/contexto fue cerrada
-		try:
-			cerrada = (getattr(page, 'is_closed', None) and page.is_closed())
-		except Exception:
-			cerrada = False
-		if cerrada:
-			print(f"Error procesando página {numero_pagina}: la página fue cerrada")
-		else:
-			print(f"Error procesando página {numero_pagina}: {e}")
+				return (year, month, day, hour, minute, second)
 	
-	return informe_detalle, encontrado
-
-def guardar_datos_en_excel(informe_detalle: list[list[str]], archivo_listas: str):
-	"""
-	Guarda los datos en el archivo Excel
-	"""
-	try:
-		try:
-			wb = load_workbook(archivo_listas)
-			ws = wb.active
-		except FileNotFoundError:
-			wb = Workbook()
-			ws = wb.active
-			if ws is None:
-				ws = wb.create_sheet(title="Listas")
-			ws.append(["Buscar", "Nombre", "Suscriptores", "Fecha creacion", "Estado"])
-
-		# Agregar datos al final
-		registros_agregados = 0
-		for fila in informe_detalle:
-			if ws is not None and any(fila) and len(fila) >= 5:  # Solo agregar filas con datos válidos
-				# Verificación adicional: asegurar que no es una fila de headers
-				nombre = fila[1] if len(fila) > 1 else ""
-				suscriptores = fila[2] if len(fila) > 2 else ""
-				
-				if (nombre.upper() not in ["NOMBRE", "NAME", "LISTA", "LIST"] and 
-				    suscriptores.upper() not in ["SUSCRIPTORES", "SUBSCRIBERS"]):
-					ws.append(fila)
-					registros_agregados += 1
-				else:
-					print(f"⚠️ Fila de encabezados filtrada en guardado: {nombre}, {suscriptores}")
-		
-		wb.save(archivo_listas)
-		
-	except Exception as e:
-		print(f"Error guardando archivo Excel: {e}")
-
-def procesar_busqueda_listas(page: Page, terminos: list[str]) -> list[list[str]]:
-	"""
-	Función principal que coordina la búsqueda de listas
-	"""
-	informe_detalle = []
-	buscar_todo = not terminos[0] or not terminos[1]  # Si no hay términos, buscar todo
-	
-	# Inicializar navegación a listas
-	inicializar_navegacion_listas(page)
-	
-	# Buscar en la página actual (las listas generalmente están en una sola página)
-	print("Procesando listas...")
-	datos_pagina, encontrado = buscar_listas_en_pagina(page, terminos, 1)
-	
-	# Mantener orden cronológico: nuevos datos al inicio
-	informe_detalle = datos_pagina + informe_detalle
-	listas_totales = len(datos_pagina)
-	print(f"Página 1: añadidas {len(datos_pagina)} listas (total: {listas_totales})")
-	
-	# Intentar cambiar a 50 elementos por página para obtener más listas
-	try:
-		if cambiar_items_por_pagina_listas(page, 50):
-			print("✅ Cambiado a 50 elementos por página")
-			# Volver a buscar en la página actual con más elementos
-			datos_pagina, encontrado = buscar_listas_en_pagina(page, terminos, 1)
-			informe_detalle = datos_pagina
-			listas_totales = len(datos_pagina)
-			print(f"Página 1 (50 items): añadidas {len(datos_pagina)} listas (total: {listas_totales})")
-	except Exception as e:
-		print(f"⚠️ No se pudo cambiar elementos por página: {e}")
-
-	# Verificar si hay paginación y procesarla
-	try:
-		paginas_totales = obtener_total_paginas_listas(page)
-		if paginas_totales > 1:
-			print(f"Total de páginas de listas: {paginas_totales}")
-			for numero_pagina in range(2, paginas_totales + 1):
-				print(f"Procesando página {numero_pagina} de {paginas_totales}...")
-
-				# Navegar a siguiente página
-				if navegar_siguiente_pagina_listas(page, numero_pagina - 1):
-					datos_pagina, encontrado_pagina = buscar_listas_en_pagina(page, terminos, numero_pagina)
-					informe_detalle = datos_pagina + informe_detalle
-					listas_totales += len(datos_pagina)
-					print(f"Página {numero_pagina}: añadidas {len(datos_pagina)} listas (acumulado: {listas_totales})")
-
-					# Si estamos buscando una lista específica y la encontramos, parar
-					if not buscar_todo and encontrado_pagina:
-						encontrado = True
-						print(f"Búsqueda detenida: se encontró la última lista registrada ('{terminos[0]}')")
-						break
-				else:
-					break
-	except Exception as e:
-		print(f"⚠️ Error en paginación: {e}")
-		# Si no hay paginación, continuar con una sola página
+	except (ValueError, IndexError):
 		pass
 	
-	if buscar_todo:
-		print(f"Total de listas recopiladas: {listas_totales}")
-	else:
-		print(f"Total de listas añadidas: {listas_totales}")
+	# Si no se puede parsear, tratarla como muy antigua
+	return (0, 0, 0, 0, 0, 0)
+
+
+
+def obtener_listas_via_api() -> list[list[str]]:
+	"""
+	Obtiene todas las listas usando la API de suscriptores de forma incremental
+	"""
+	informe_detalle = []
+	logger = get_logger()
 	
+	try:
+		# Cargar datos existentes del Excel
+		datos_existentes = cargar_datos_existentes(ARCHIVO_BUSQUEDA)
+		listas_existentes = {int(fila[1]): fila for fila in datos_existentes if fila[1] and str(fila[1]).isdigit()}
+		
+		api = API()
+		listas = api.suscriptores.get_lists()
+		
+		print(f"Se encontraron {len(listas)} listas en la API")
+		print(f"Ya existen {len(listas_existentes)} listas en el archivo Excel")
+		
+		listas_nuevas = []
+		listas_sin_fecha = []
+		
+		for lista in listas:
+			if lista.id in listas_existentes:
+				# Lista ya existe, verificar si tiene fecha
+				fila_existente = listas_existentes[lista.id]
+				if not fila_existente[4] or str(fila_existente[4]).strip() == '':  # Sin fecha de creación
+					listas_sin_fecha.append(lista)
+				# Mantener la fila existente
+				informe_detalle.append(fila_existente)
+			else:
+				# Lista nueva, necesita ser procesada
+				listas_nuevas.append(lista)
+		
+		print(f"Listas nuevas encontradas: {len(listas_nuevas)}")
+		print(f"Listas existentes sin fecha: {len(listas_sin_fecha)}")
+		
+		# Procesar solo las listas que necesitan get_list_stats
+		listas_a_procesar = listas_nuevas + listas_sin_fecha
+		
+		if listas_a_procesar:
+			print(f"Obteniendo detalles para {len(listas_a_procesar)} listas...")
+			
+			for lista in listas_a_procesar:
+				try:
+					stats = api.suscriptores.get_list_stats(lista.id)
+					# Formato: ['Buscar', 'ID_LISTA', 'NOMBRE LISTA', 'SUSCRIPTORES', 'CREACION']
+					fila = [
+						'',  # Buscar (columna vacía)
+						str(lista.id),  # ID_LISTA
+						lista.name,  # NOMBRE LISTA
+						str(stats.total_subscribers) if hasattr(stats, 'total_subscribers') else '0',  # SUSCRIPTORES
+						stats.create_date if hasattr(stats, 'create_date') else ''  # CREACION
+					]
+					
+					# Si es una lista existente sin fecha, actualizar en lugar de agregar
+					if lista.id in listas_existentes:
+						# Encontrar y reemplazar en informe_detalle
+						for i, fila_det in enumerate(informe_detalle):
+							if fila_det[1] == str(lista.id):
+								informe_detalle[i] = fila
+								break
+					else:
+						# Lista nueva, agregar a las nuevas
+						informe_detalle.append(fila)
+					
+				except Exception as e:
+					logger.warning(f"Error obteniendo stats para lista {lista.id}: {e}")
+					# Fallback sin estadísticas detalladas
+					fila = ['', str(lista.id), lista.name, '0', '']
+					
+					if lista.id in listas_existentes:
+						# Actualizar existente
+						for i, fila_det in enumerate(informe_detalle):
+							if fila_det[1] == str(lista.id):
+								informe_detalle[i] = fila
+								break
+					else:
+						informe_detalle.append(fila)
+		
+		# Ordenar por fecha de creación (más vieja primero, sin fecha al final)
+		informe_detalle.sort(key=lambda x: ordenar_por_fecha(x[4]), reverse=False)
+		
+		logger.info(f"Obtenidas {len(informe_detalle)} listas via API ({len(listas_nuevas)} nuevas)")
+		api.close()
+		
+	except Exception as e:
+		logger.error(f"Error obteniendo listas via API: {e}")
+		print(f"Error obteniendo listas via API: {e}")
+		
 	return informe_detalle
+
+def guardar_datos_en_excel(informe_detalle: list[list[str]], archivo_busqueda: str):
+	"""
+	Guarda los datos en el archivo Excel usando ExcelHelper con las nuevas columnas
+	y ajusta automáticamente el ancho de las columnas
+	"""
+	if not informe_detalle:
+		print("No hay datos para guardar.")
+		return
+
+	try:
+		# Crear DataFrame con los datos incluyendo ID_LISTA
+		columnas = ["Buscar", "ID_LISTA", "NOMBRE LISTA", "SUSCRIPTORES", "CREACION"]
+		df = pd.DataFrame(informe_detalle, columns=columnas)
+		
+		# Guardar con ajuste automático de columnas usando ExcelWriter
+		with pd.ExcelWriter(archivo_busqueda, engine='openpyxl') as writer:
+			df.to_excel(writer, sheet_name='Sheet1', index=False)
+			
+			# Ajustar automáticamente el ancho de las columnas
+			worksheet = writer.sheets['Sheet1']
+			
+			for column in worksheet.columns:
+				max_length = 0
+				column_letter = column[0].column_letter
+				
+				for cell in column:
+					try:
+						# Calcular la longitud máxima del contenido
+						if len(str(cell.value)) > max_length:
+							max_length = len(str(cell.value))
+					except:
+						pass
+				
+				# Ajustar el ancho (agregar un poco de padding)
+				adjusted_width = min(max_length + 2, 50)  # Máximo 50 caracteres
+				worksheet.column_dimensions[column_letter].width = adjusted_width
+		
+		print(f"Se guardaron {len(informe_detalle)} registros en {archivo_busqueda}")
+		print("✅ Columnas ajustadas automáticamente")
+
+	except Exception as e:
+		logger = get_logger()
+		logger.error(f"Error guardando archivo Excel: {e}")
+		print(f"Error guardando archivo Excel: {e}")
+		
+		# Fallback: usar ExcelHelper tradicional
+		try:
+			df = pd.DataFrame(informe_detalle, columns=["Buscar", "ID_LISTA", "NOMBRE LISTA", "SUSCRIPTORES", "CREACION"])
+			ExcelHelper.escribir_excel(df, archivo_busqueda, "Sheet1", reemplazar=True)
+			print(f"Se guardaron {len(informe_detalle)} registros en {archivo_busqueda} (modo fallback)")
+		except Exception as e2:
+			print(f"Error en fallback: {e2}")
 
 def main():
 	"""
-	Función principal del programa de listado de listas
+	Función principal del programa de listado de listas usando API
 	"""
-	# Cargar config fresca y términos de búsqueda
-	config = load_config()
-	url = config.get("url", "")
-	url_base = config.get("url_base", "")
-
-	terminos = cargar_ultimo_termino_busqueda(ARCHIVO_LISTAS)
-	
-	# Si no hay términos válidos, buscar todas las listas
-	if not terminos[0] or not terminos[1]:
-		terminos = ["", ""]  # Términos vacíos para buscar todo
+	logger = get_logger()
 	
 	try:
-		with sync_playwright() as p:
-			browser = configurar_navegador(p, extraccion_oculta=False)
-			context = crear_contexto_navegador(browser)
-			
-			page = context.new_page()
-			
-			safe_goto(page, url_base, "domcontentloaded")
-			safe_goto(page, url, "domcontentloaded")
-			
-			# Realizar login
-			login(page)
-			context.storage_state(path=storage_state_path())
+		# Obtener listas via API
+		informe_detalle = obtener_listas_via_api()
+		
+		if informe_detalle:
+			guardar_datos_en_excel(informe_detalle, ARCHIVO_BUSQUEDA)
+			# notify("Proceso finalizado", f"Listas obtenidas via API: {len(informe_detalle)}")
+			print(f"🎉 Proceso finalizado: Listas obtenidas via API: {len(informe_detalle)}")
+		else:
+			print("No se obtuvieron datos de listas")
+			# notify("Proceso finalizado", "No se obtuvieron listas")
+			print("⚠️ Proceso finalizado: No se obtuvieron listas")
 
-			# Procesar búsqueda de listas
-			informe_detalle = procesar_busqueda_listas(page, terminos)
-
-			# Guardar resultados
-			if informe_detalle:
-				guardar_datos_en_excel(informe_detalle, ARCHIVO_LISTAS)
-			
-			browser.close()
-			notify("Proceso finalizado", f"Lista de listas de suscriptores obtenida")
-			
 	except Exception as e:
+		logger.error(f"Error crítico en el programa: {e}")
 		print(f"Error crítico en el programa: {e}")
 		raise
 
