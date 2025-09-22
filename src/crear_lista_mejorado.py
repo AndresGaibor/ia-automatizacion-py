@@ -10,7 +10,7 @@ Funcionalidades:
 
 from .utils import data_path, notify, load_config
 from .api import API
-from .api.models.suscriptores import SubscriberData
+from .api.models.suscriptores import SubscriberData, FieldType
 from .logger import get_logger
 from .excel_helper import ExcelHelper
 import pandas as pd
@@ -253,7 +253,12 @@ def procesar_hoja_excel(archivo: str, nombre_hoja: str, config_lista: Dict[str, 
         if not list_id:
             return None
 
+        # Crear campos personalizados automáticamente
+        print("🔧 Paso 1: Creando campos personalizados...")
+        crear_campos_personalizados(list_id, df, api)
+
         # Agregar suscriptores
+        print("👥 Paso 2: Agregando suscriptores...")
         suscriptores_agregados = agregar_suscriptores_via_api(list_id, df, api)
 
         resultado = {
@@ -270,6 +275,62 @@ def procesar_hoja_excel(archivo: str, nombre_hoja: str, config_lista: Dict[str, 
         logger.error(f"Error procesando hoja {nombre_hoja}: {e}")
         print(f"❌ Error procesando hoja {nombre_hoja}: {e}")
         return None
+
+def crear_campos_personalizados(list_id: int, df_suscriptores: pd.DataFrame, api: API) -> bool:
+    """
+    Crea campos personalizados en la lista basándose en las columnas del DataFrame
+
+    Args:
+        list_id: ID de la lista
+        df_suscriptores: DataFrame con los datos de suscriptores
+        api: Instancia de API
+
+    Returns:
+        bool: True si se crearon exitosamente
+    """
+    logger = get_logger()
+
+    try:
+        # Obtener columnas que no sean 'email'
+        campos_personalizados = [col for col in df_suscriptores.columns if col != 'email']
+
+        if not campos_personalizados:
+            logger.info("No hay campos personalizados para crear")
+            return True
+
+        print(f"🔧 Creando {len(campos_personalizados)} campos personalizados...")
+
+        campos_creados = 0
+        campos_fallidos = 0
+
+        for campo in campos_personalizados:
+            try:
+                # Normalizar nombre del campo
+                campo_normalizado = campo.replace(' ', '_').replace('-', '_')
+
+                # Crear campo usando la API
+                api.suscriptores.add_merge_tag(
+                    list_id=list_id,
+                    field_name=campo_normalizado,
+                    field_type=FieldType.TEXT
+                )
+
+                campos_creados += 1
+                print(f"   ✅ {campo} -> {campo_normalizado}")
+                logger.info(f"Campo '{campo_normalizado}' creado exitosamente")
+
+            except Exception as e:
+                campos_fallidos += 1
+                print(f"   ❌ {campo}: {e}")
+                logger.warning(f"Error creando campo '{campo}': {e}")
+
+        print(f"📊 Resultado: {campos_creados} exitosos, {campos_fallidos} fallidos")
+        return campos_creados > 0
+
+    except Exception as e:
+        logger.error(f"Error general creando campos personalizados: {e}")
+        print(f"❌ Error creando campos personalizados: {e}")
+        return False
 
 def crear_lista_via_api(nombre_lista: str, config_lista: Dict[str, str], api: API) -> Optional[int]:
     """
