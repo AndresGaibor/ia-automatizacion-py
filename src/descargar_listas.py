@@ -33,7 +33,7 @@ if __name__ == "__main__":
 try:
     # Cuando se ejecuta como módulo del paquete
     from .logger import get_logger
-    from .utils import load_config
+    from .utils import load_config, data_path, notify
     from .api.client import APIClient
     from .api.endpoints.suscriptores import SuscriptoresAPI
     from .excel_utils import crear_o_cargar_libro_excel, obtener_o_crear_hoja, agregar_datos
@@ -62,18 +62,33 @@ class DescargadorListas:
         self.directorio_salida = Path("data/listas")
         self.config = load_config()
         
+        # Validar configuración de API
+        api_config = self.config.get("api", {})
+        if not api_config.get("api_key"):
+            notify("Error de API", "Error: API Key no configurada. Configure api.api_key en config.yaml", "error")
+            raise ValueError("API Key no configurada")
+        
+        if not api_config.get("base_url"):
+            notify("Error de API", "Error: URL base de API no configurada en config.yaml", "error")
+            raise ValueError("URL base de API no configurada")
+        
         # Configurar cliente API
-        self.api_client = APIClient(
-            base_url=self.config["api"]["base_url"],
-            auth_token=self.config["api"]["api_key"]
-        )
-        self.suscriptores_api = SuscriptoresAPI(self.api_client)
+        try:
+            self.api_client = APIClient(
+                base_url=self.config["api"]["base_url"],
+                auth_token=self.config["api"]["api_key"]
+            )
+            self.suscriptores_api = SuscriptoresAPI(self.api_client)
+        except Exception as e:
+            notify("Error de API", f"Error configurando cliente API: {e}", "error")
+            raise
         
         # Crear directorio de salida si no existe
         self.directorio_salida.mkdir(parents=True, exist_ok=True)
         
         logger.info(f"Descargador inicializado. Archivo: {self.archivo_busqueda}")
         logger.info(f"Directorio de salida: {self.directorio_salida}")
+        notify("API", "Cliente API configurado correctamente", "info")
 
     def leer_listas_marcadas(self) -> List[Dict[str, Any]]:
         """

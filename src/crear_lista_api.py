@@ -2,7 +2,7 @@
 Módulo para crear listas de suscriptores usando la API de Acumbamail.
 Reemplaza la implementación anterior que usaba Playwright.
 """
-from .utils import data_path, notify, load_config
+from .utils import data_path, load_config
 from .api import API
 from .api.models.suscriptores import SubscriberData
 from .logger import get_logger
@@ -13,8 +13,59 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 import threading
 from typing import List, Optional, Union, Dict, Any
+from pathlib import Path
+import shutil
 
 # archivo_busqueda será asignado dinámicamente
+
+def renombrar_archivo_con_id(archivo_original: str, nombre_lista: str, list_id: int) -> bool:
+    """
+    Renombra el archivo original con el formato [Nombre de lista]-ID-[ID_LISTA].xlsx
+
+    Args:
+        archivo_original: Ruta del archivo original
+        nombre_lista: Nombre de la lista creada
+        list_id: ID de la lista asignado por la API
+
+    Returns:
+        bool: True si se renombró exitosamente
+    """
+    logger = get_logger()
+
+    try:
+        archivo_path = Path(archivo_original)
+        directorio = archivo_path.parent
+        extension = archivo_path.suffix
+
+        # Crear nuevo nombre con formato solicitado
+        nuevo_nombre = f"{nombre_lista}-ID-{list_id}{extension}"
+        nueva_ruta = directorio / nuevo_nombre
+
+        # Verificar si el archivo destino ya existe
+        if nueva_ruta.exists():
+            print(f"⚠️  El archivo ya existe: {nuevo_nombre}")
+            # Agregar sufijo para evitar sobrescribir
+            contador = 1
+            while nueva_ruta.exists():
+                nuevo_nombre = f"{nombre_lista}-ID-{list_id}_{contador}{extension}"
+                nueva_ruta = directorio / nuevo_nombre
+                contador += 1
+            print(f"📝 Usando nombre alternativo: {nuevo_nombre}")
+
+        # Renombrar archivo
+        shutil.move(str(archivo_path), str(nueva_ruta))
+
+        print("✅ Archivo renombrado:")
+        print(f"   Anterior: {archivo_path.name}")
+        print(f"   Nuevo: {nuevo_nombre}")
+
+        logger.info(f"Archivo renombrado: {archivo_path.name} -> {nuevo_nombre}")
+        return True
+
+    except Exception as e:
+        logger.error(f"Error renombrando archivo: {e}")
+        print(f"❌ Error renombrando archivo: {e}")
+        return False
 
 def seleccionar_archivo_tk(directorio: str, master=None) -> Optional[str]:
     """
@@ -469,17 +520,52 @@ def main(archivo: Optional[str] = None, nombre_hoja: Optional[Union[str, List[st
                 fallidos += 1
         
         # Resumen final
-        print(f"\n📊 Resumen del proceso:")
+        print("\n📊 Resumen del proceso:")
         print(f"   ✅ Exitosos: {exitosos}")
         print(f"   ❌ Fallidos: {fallidos}")
         print(f"   📊 Total: {len(hojas_seleccionadas)}")
-        
+
         if resultados:
-            print(f"\n📋 Listas creadas:")
+            print("\n📋 Listas creadas:")
+            listas_exitosas = []
             for r in resultados:
                 if r['exitoso']:
                     print(f"   • {r['nombre_lista']} (ID: {r['list_id']}) - {r['suscriptores_agregados']} suscriptores")
-        
+                    listas_exitosas.append(r)
+
+            # Renombrar archivo si se crearon listas exitosamente
+            if listas_exitosas:
+                print("\n📁 Renombrando archivo...")
+                if len(listas_exitosas) == 1:
+                    # Solo una lista: usar formato simple
+                    lista = listas_exitosas[0]
+                    archivo_base = os.path.splitext(os.path.basename(archivo_busqueda))[0]
+                    renombrar_exitoso = renombrar_archivo_con_id(archivo_busqueda, archivo_base, lista['list_id'])
+                else:
+                    # Múltiples listas: usar IDs concatenados
+                    ids_listas = [str(r['list_id']) for r in listas_exitosas]
+                    archivo_base = os.path.splitext(os.path.basename(archivo_busqueda))[0]
+                    ids_concatenados = "-".join(ids_listas)
+
+                    archivo_path = Path(archivo_busqueda)
+                    directorio = archivo_path.parent
+                    extension = archivo_path.suffix
+                    nuevo_nombre = f"{archivo_base}-IDs-{ids_concatenados}{extension}"
+                    nueva_ruta = directorio / nuevo_nombre
+
+                    try:
+                        shutil.move(str(archivo_path), str(nueva_ruta))
+                        print("✅ Archivo renombrado:")
+                        print(f"   Anterior: {archivo_path.name}")
+                        print(f"   Nuevo: {nuevo_nombre}")
+                        renombrar_exitoso = True
+                    except Exception as e:
+                        print(f"❌ Error renombrando archivo: {e}")
+                        renombrar_exitoso = False
+
+                if renombrar_exitoso:
+                    print("   ✅ Archivo renombrado exitosamente")
+
         # Notificación
         if exitosos > 0:
             # notify("Listas creadas", f"Se crearon {exitosos} listas exitosamente")

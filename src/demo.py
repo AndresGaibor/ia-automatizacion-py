@@ -1,14 +1,12 @@
-from playwright.sync_api import sync_playwright, TimeoutError as PWTimeoutError, Page
+from playwright.sync_api import sync_playwright
 from datetime import datetime
+from typing import List
 
 from .excel_utils import agregar_datos, crear_hoja_con_datos, obtener_o_crear_hoja
-
-from .api.models.campanias import CampaignBasicInfo
-
-from .api import API
 from .autentificacion import login
-from .utils import cargar_id_campanias_a_buscar, crear_contexto_navegador, configurar_navegador, navegar_siguiente_pagina, obtener_total_paginas, load_config, data_path, notify
+from .utils import cargar_id_campanias_a_buscar, crear_contexto_navegador, configurar_navegador, load_config, data_path, notify
 from .logger import get_logger
+from .hybrid_service import HybridDataService
 from openpyxl import Workbook
 import re
 
@@ -44,10 +42,15 @@ def crear_archivo_excel(general: list[list[str]], informe_detallado: list[list[l
         
         # Crear libro y hoja general
         wb = Workbook()
+
+        # Eliminar la hoja por defecto "Sheet" creada automáticamente
+        if "Sheet" in wb.sheetnames:
+            wb.remove(wb["Sheet"])
+
         encabezados_general = ["Nombre", "Tipo", "Fecha envio", "Listas", "Emails", "Abiertos", "Clics", "URL de Correo"]
         ws_general = obtener_o_crear_hoja(wb, "General", encabezados_general)
         agregar_datos(ws_general, general)
-        
+
         # Definir configuraciones para las hojas detalladas
         hojas_config = [
             ("Abiertos", abiertos, ["Proyecto", "Lista", "Correo", "Fecha apertura", "País apertura", "Aperturas", "Lista", "Estado", "Calidad"]),
@@ -56,7 +59,7 @@ def crear_archivo_excel(general: list[list[str]], informe_detallado: list[list[l
             ("Hard bounces", hard_bounces, ["Proyecto", "Lista", "Correo", "Lista", "Estado", "Calidad"]),
             ("Soft bounces", soft_bounces, ["Proyecto", "Lista", "Correo", "Lista", "Estado", "Calidad"])
         ]
-        
+
         # Crear hojas detalladas usando la configuración
         for nombre_hoja, datos, columnas in hojas_config:
             crear_hoja_con_datos(wb, nombre_hoja, datos, columnas)
@@ -78,6 +81,49 @@ def generar_listas(todas_listas, id_listas: list[str]) -> str:
 	listas = ", ".join(listas_ar)
 	return listas
 
+def crear_mapa_email_lista(todas_listas, api) -> dict[str, str]:
+	"""
+	Crea un mapa email -> nombre_lista consultando cada lista una sola vez
+	para evitar el rate limit de la API
+	"""
+	mapa_email_lista = {}
+
+	try:
+		get_logger().info(f"🗺️ Creando mapa de emails para {len(todas_listas)} listas...")
+
+		for i, lista in enumerate(todas_listas):
+			try:
+				get_logger().info(f"🔍 Lista {i+1}/{len(todas_listas)}: {lista.name}")
+
+				# Obtener todos los suscriptores de esta lista
+				suscriptores = api.suscriptores.get_subscribers(lista.id)
+
+				# Mapear cada email a esta lista
+				for suscriptor in suscriptores:
+					email = suscriptor.email.lower().strip()
+					mapa_email_lista[email] = lista.name or ""
+
+				get_logger().info(f"✅ Lista {lista.name}: {len(suscriptores)} suscriptores mapeados")
+
+			except Exception as e:
+				get_logger().warning(f"⚠️ Error procesando lista {lista.name}: {e}")
+				continue
+
+		get_logger().info(f"✅ Mapa completado: {len(mapa_email_lista)} emails mapeados")
+		return mapa_email_lista
+
+	except Exception as e:
+		get_logger().error(f"Error creando mapa email-lista: {e}")
+		return {}
+
+def obtener_lista_suscriptor(email: str, mapa_email_lista: dict[str, str]) -> str:
+	"""
+	Obtiene la lista específica a la que pertenece un suscriptor
+	usando el mapa precalculado
+	"""
+	email_clean = email.lower().strip()
+	return mapa_email_lista.get(email_clean, "Lista no encontrada")
+
 def generar_general(campania, campania_complete, campaign_clics, todas_listas) -> list[str]:
 	nombre = campania.name or ""
 	tipo = ""
@@ -92,172 +138,95 @@ def generar_general(campania, campania_complete, campaign_clics, todas_listas) -
 	
 	return [nombre, tipo, fecha, listas, emails, opens, clicks, url_email]
 
-def generar_abiertos(campania, openers, todas_listas) -> list[list[str]]:
+def generar_abiertos(campania, openers, mapa_email_lista) -> list[list[str]]:
 	abiertos: list[list[str]] = []
-	
-	lista = generar_listas(todas_listas, campania.lists or [])
-	
+
 	for opener in openers:
 		proyecto = campania.name or ""
-		# lista = generar_listas(todas_listas, campania.lists or [])
 		correo = opener.email or ""
 		fecha_apertura = opener.open_datetime or ""
 		pais = ""
 		aperturas = ""
-		lista2 = lista
 		estado = "Activo"
 		calidad = ""
+
+		# Obtener la lista específica del suscriptor usando el mapa
+		lista = obtener_lista_suscriptor(correo, mapa_email_lista)
+		lista2 = lista
 
 		abiertos.append([proyecto, lista, correo, fecha_apertura, pais, aperturas, lista2, estado, calidad])
 	return abiertos
 
-def generar_clics(campania, campaign_clics, todas_listas) -> list[list[str]]:
+def generar_clics(campania, campaign_clics, mapa_email_lista) -> list[list[str]]:
 	clics: list[list[str]] = []
-	
-	lista = generar_listas(todas_listas, campania.lists or [])
-	
+
 	for click in campaign_clics:
 		proyecto = campania.name or ""
-		# lista = generar_listas(todas_listas, campania.lists or [])
 		correo = click.email or ""
 		fecha_clic = click.click_datetime or ""
 		pais = ""
-		lista2 = lista
 		estado = "Activo"
 		calidad = ""
+
+		# Obtener la lista específica del suscriptor usando el mapa
+		lista = obtener_lista_suscriptor(correo, mapa_email_lista)
+		lista2 = lista
 
 		clics.append([proyecto, lista, correo, fecha_clic, pais, lista2, estado, calidad])
 	return clics
 
-def generar_soft_bounces(campania, soft_bounce_list, todas_listas) -> list[list[str]]:
+def generar_soft_bounces(campania, soft_bounce_list, mapa_email_lista) -> list[list[str]]:
 	soft_bounces: list[list[str]] = []
-	
-	lista = generar_listas(todas_listas, campania.lists or [])
-	
+
 	for bounce in soft_bounce_list:
 		proyecto = campania.name or ""
-		# lista = generar_listas(todas_listas, campania.lists or [])
 		correo = bounce.email or ""
-		lista2 = lista
 		estado = "Activo"
 		calidad = ""
+
+		# Obtener la lista específica del suscriptor usando el mapa
+		lista = obtener_lista_suscriptor(correo, mapa_email_lista)
+		lista2 = lista
 
 		soft_bounces.append([proyecto, lista, correo, lista2, estado, calidad])
 	return soft_bounces
 
-def seleccionar_filtro(page: Page, label: str) -> bool:
+# Las funciones de scraping han sido movidas a src/scrapping/endpoints/
+# Este archivo ahora usa el HybridDataService para combinar API y scraping
+
+def convert_hard_bounces_to_rows(hard_bounces) -> List[List[str]]:
 	"""
-	Selecciona un filtro en el selector de la página actual.
-	Devuelve True si se seleccionó correctamente, False en caso contrario.
-	"""
-	try:
-		select_filtro = page.locator("#query-filter")
-		select_filtro.select_option(label=label)
-		page.wait_for_load_state("networkidle")
-		return True
-	except Exception as e:
-		get_logger().error(f"Error seleccionando filtro '{label}': {e}")
-		return False
-
-def extraer_suscriptores_tabla(page: Page, cantidad_campos) -> list[list[str]]:
-	suscriptores = []
-	page.wait_for_load_state("networkidle")
-
-	contenedor_tabla = page.locator("div").filter(has_text="Abiertos No abiertos Clics").nth(1)
-	filas = contenedor_tabla.locator("> li")
-	filas_total = filas.count()
-
-	for fila_i in range(1, filas_total):
-		campos = filas.nth(fila_i).locator("> div")
-
-		campos_arr = []
-
-		for i in range(0, cantidad_campos - 1):
-			campo = campos.nth(i).inner_text()
-			campos_arr.append(campo)
-		
-		suscriptores.append(campos_arr)
-
-	return suscriptores
-
-def navegar_a_detalle_sucriptores(page: Page, campaign_id) -> bool:
-	"""
-	Navega a la sección de detalles de suscriptores de la campaña.
-	Devuelve True si se navegó correctamente, False en caso contrario.
-	"""
-	try:
-		config = load_config()
-		url_base = config.get("url_base", "")
-		url = f"{url_base}/report/campaign/{campaign_id}/"
-		page.goto(url)
-
-		page.get_by_role("link", name="Detalles suscriptores").click()
-		page.wait_for_load_state("networkidle")
-		return True
-	except Exception as e:
-		get_logger().error(f"Error navegando a Detalles suscriptores: {e}")
-		return False
-
-def generar_hard_bounces(page: Page, campania: CampaignBasicInfo, campaign_id: int) -> list[list[str]]:
-	"""
-	Scrapea Hard bounces de la campaña y devuelve filas:
+	Convierte objetos HardBounceSubscriber a filas para Excel:
 	[Proyecto, Lista, Correo, Lista, Estado, Calidad]
 	"""
-	suscriptores: list[list[str]] = []
-	try:
-		navegar_a_detalle_sucriptores(page, campaign_id)
+	rows: List[List[str]] = []
+	for bounce in hard_bounces:
+		rows.append([
+			bounce.proyecto,
+			bounce.lista,
+			bounce.email,
+			bounce.lista,  # Lista duplicada según formato original
+			bounce.estado.value if hasattr(bounce.estado, 'value') else str(bounce.estado),
+			bounce.calidad.value if hasattr(bounce.calidad, 'value') else str(bounce.calidad)
+		])
+	return rows
 
-		seleccionar_filtro(page, "Hard bounces")
-
-		paginas_totales = obtener_total_paginas(page)
-		for numero_pagina in range(1, paginas_totales + 1):
-			
-			suscriptores = extraer_suscriptores_tabla(page, 4)
-
-			for suscriptor in suscriptores:
-				email = suscriptor[0]
-				lista = suscriptor[1]
-				estado = suscriptor[2]
-				calidad = suscriptor[3]
-
-				suscriptores.append([campania.name or "", lista, email, lista, estado, calidad])
-
-			if numero_pagina < paginas_totales:
-				if not navegar_siguiente_pagina(page, numero_pagina):
-					break
-	except Exception as e:
-		get_logger().error(f"Error generando Hard bounces para campaña {campaign_id}: {e}")
-	return suscriptores
-
-def generar_no_abiertos(page: Page, campania: CampaignBasicInfo, campaign_id: int) -> list[list[str]]:
+def convert_no_opens_to_rows(no_opens) -> List[List[str]]:
 	"""
-	Scrapea No abiertos en la página de detalles abierta y devuelve filas:
+	Convierte objetos NoOpenSubscriber a filas para Excel:
 	[Proyecto, Lista, Correo, Lista, Estado, Calidad]
-	Nota: Asume que ya estamos en la vista de 'Detalles suscriptores' de la campaña.
 	"""
-	suscriptores: list[list[str]] = []
-	try:
-		seleccionar_filtro(page, "No abiertos")
-
-		paginas_totales = obtener_total_paginas(page)
-		for numero_pagina in range(1, paginas_totales + 1):
-
-			suscriptores = extraer_suscriptores_tabla(page, 4)
-
-			for suscriptor in suscriptores:
-				email = suscriptor[0]
-				lista = suscriptor[1]
-				estado = suscriptor[2]
-				calidad = suscriptor[3]
-
-				suscriptores.append([campania.name or "", lista, email, lista, estado, calidad])
-
-			if numero_pagina < paginas_totales:
-				if not navegar_siguiente_pagina(page, numero_pagina):
-					break
-	except Exception as e:
-		get_logger().error(f"Error generando No abiertos para campaña {campaign_id}: {e}")
-	return suscriptores
+	rows: List[List[str]] = []
+	for no_open in no_opens:
+		rows.append([
+			no_open.proyecto,
+			no_open.lista,
+			no_open.email,
+			no_open.lista,  # Lista duplicada según formato original
+			no_open.estado.value if hasattr(no_open.estado, 'value') else str(no_open.estado),
+			no_open.calidad.value if hasattr(no_open.calidad, 'value') else str(no_open.calidad)
+		])
+	return rows
 
 def formatear_fecha_envio(fecha_str: str) -> str:
 	"""
@@ -270,8 +239,13 @@ def formatear_fecha_envio(fecha_str: str) -> str:
 		# Try different common date formats including 2-digit year
 		date_formats = [
 			"%d/%m/%y %H:%M",  # Formato DD/MM/YY HH:MM (añadido primero)
+			"%d/%m/%Y %H:%M",  # DD/MM/YYYY HH:MM
 			"%d-%m-%Y %H:%M", 
 			"%Y-%m-%d %H:%M",
+			"%Y-%m-%d %H:%M:%S",  # YYYY-MM-DD HH:MM:SS
+			"%d/%m/%Y %H:%M:%S",  # DD/MM/YYYY HH:MM:SS
+			"%d-%m-%Y %H:%M:%S",  # DD-MM-YYYY HH:MM:SS
+			"%d/%m/%Y",  # DD/MM/YYYY
 			"%d-%m-%Y",
 			"%Y-%m-%d",
 			"%d/%m/%y"  # Formato DD/MM/YY
@@ -288,9 +262,22 @@ def formatear_fecha_envio(fecha_str: str) -> str:
 		if fecha_envio_dt:
 			fecha_envio_param = fecha_envio_dt.strftime("%Y%m%d")
 		else:
-			# Si no se puede parsear, usar el texto directamente limpiando caracteres problemáticos
-			fecha_envio_param = re.sub(r'[<>:"/\\|?*\s]', '', fecha_str)
-	except Exception as e:
+			# Si no se puede parsear, intentar extraer solo la parte de fecha
+			# Buscar patrones como YYYY-MM-DD, DD/MM/YYYY, o DD-MM-YYYY
+			date_match = re.search(r'(\d{4})[-/](\d{2})[-/](\d{2})', fecha_str)  # YYYY-MM-DD o YYYY/MM/DD
+			if date_match:
+				year, month, day = date_match.groups()
+				fecha_envio_param = f"{year}{month}{day}"
+			else:
+				# Intentar formato DD/MM/YYYY o DD-MM-YYYY
+				date_match = re.search(r'(\d{2})[-/](\d{2})[-/](\d{4})', fecha_str)
+				if date_match:
+					day, month, year = date_match.groups()
+					fecha_envio_param = f"{year}{month}{day}"
+				else:
+					# Último recurso: limpiar caracteres problemáticos
+					fecha_envio_param = re.sub(r'[<>:"/\\|?*\s]', '', fecha_str)
+	except Exception:
 		fecha_envio_param = re.sub(r'[<>:"/\\|?*\s]', '', fecha_str)
 
 	return fecha_envio_param
@@ -305,36 +292,52 @@ def main():
 		with sync_playwright() as p:
 			browser = configurar_navegador(p, extraccion_oculta)
 			context = crear_contexto_navegador(browser, extraccion_oculta)
-			
-			page = context.new_page()
-			
-			login(page, context= context)
 
-			api = API()
+			page = context.new_page()
+
+			login(page, context=context)
+
+			# Inicializar servicio híbrido con la página autenticada
+			hybrid_service = HybridDataService(page)
+			api = hybrid_service.api  # Obtener instancia de API para consultas adicionales
 
 			for i, id in enumerate(ids_a_buscar):
-				# GENERAL
-				campania = api.campaigns.get_basic_info(id)
-				campania_complete = api.campaigns.get_total_info(id)
-				campaign_clics = api.campaigns.get_clicks(id)
-				todas_listas = api.suscriptores.get_lists()
+				get_logger().info(f"📊 Procesando campaña {i+1}/{len(ids_a_buscar)}: ID {id}")
 
+				# Obtener datos completos usando servicio híbrido
+				complete_data = hybrid_service.get_complete_campaign_data(id)
+
+				# Extraer datos para compatibilidad con formato Excel existente
+				campania = complete_data["campaign_basic"]
+				campania_complete = complete_data["campaign_detailed"]
+				campaign_clics = complete_data["clicks"]
+				todas_listas = complete_data["lists"]
+				openers = complete_data["openers"]
+				soft_bounce_list = complete_data["soft_bounces"]
+
+				# Crear mapa email->lista SOLO para las listas usadas por esta campaña
+				# Esto reduce llamadas únicas a get_subscribers y evita el rate limit
+				listas_campania_ids = campania.lists or []
+				listas_campania = [l for l in todas_listas if l.id in listas_campania_ids]
+				mapa_email_lista = crear_mapa_email_lista(listas_campania, api)
+
+				# Datos básicos
 				general = [generar_general(campania, campania_complete, campaign_clics, todas_listas)]
+				abiertos2 = generar_abiertos(campania, openers, mapa_email_lista)
+				clics = generar_clics(campania, campaign_clics, mapa_email_lista)
+				soft_bounces = generar_soft_bounces(campania, soft_bounce_list, mapa_email_lista)
 
-				# ABIERTOS
-				openers = api.campaigns.get_openers(id)
-				abiertos2 = generar_abiertos(campania, openers, todas_listas)
+				# Datos de scraping (convertir a formato Excel)
+				hard_bounces = []
+				no_abiertos = []
 
-				# CLICS
-				clics = generar_clics(campania, campaign_clics, todas_listas)
-
-				# SOFT BOUNCES
-				soft_bounce_list = api.campaigns.get_soft_bounces(id)
-				soft_bounces = generar_soft_bounces(campania, soft_bounce_list, todas_listas)
-
-				# HARD BOUNCES (scraping) y NO ABIERTOS (scraping)
-				hard_bounces = generar_hard_bounces(page, campania, id)
-				no_abiertos = generar_no_abiertos(page, campania, id)
+				if complete_data.get("scraping_result"):
+					scraping_result = complete_data["scraping_result"]
+					hard_bounces = convert_hard_bounces_to_rows(scraping_result.hard_bounces)
+					no_abiertos = convert_no_opens_to_rows(scraping_result.no_opens)
+					get_logger().info(f"✅ Scraping completado - Hard bounces: {len(hard_bounces)}, No abiertos: {len(no_abiertos)}")
+				else:
+					get_logger().warning(f"⚠️ No se pudieron obtener datos de scraping para campaña {id}")
 
 				# Crear archivo Excel con los resultados
 				if general or abiertos2 or no_abiertos or clics or hard_bounces or soft_bounces:
@@ -353,6 +356,7 @@ def main():
 						nombre_campania_param,
 						fecha_envio_param
 					)
+					get_logger().info(f"💾 Archivo Excel creado: {archivo_creado}")
 			browser.close()
 			notify("Proceso finalizado", "Extracción de suscriptores completada")
 				

@@ -27,7 +27,7 @@ class Settings:
 	"""
 
 	def __init__(self):
-		# Defaults
+		# Defaults que coinciden con la estructura del config.yaml
 		defaults = {
 			"api": {
 				"base_url": "https://acumbamail.com/api/1/",
@@ -42,7 +42,7 @@ class Settings:
 		base_url_cfg = api_cfg.get("base_url") or defaults["api"]["base_url"]
 		api_key_cfg = api_cfg.get("api_key")
 
-		# Overrides por entorno si existen
+		# Overrides por entorno si existen (mantener compatibilidad)
 		self.api_base_url: str = os.getenv("API_BASE_URL", base_url_cfg)
 		self.api_key: Optional[str] = os.getenv("API_KEY", api_key_cfg)
 

@@ -1,7 +1,37 @@
-## Compilacion (incluyendo playwright)
+## Compilación (Crear Ejecutable)
+
+### Método Recomendado (Nuevo)
+Usar el script de compilación automático que incluye todas las dependencias:
+
+**Linux/macOS:**
 ```bash
-pyinstaller --onefile --collect-all playwright app.py
+./build.sh
 ```
+
+**Windows:**
+```batch
+build.bat
+```
+
+### Método Manual (Avanzado)
+Si necesitas compilación personalizada:
+
+```bash
+# Usando el archivo .spec mejorado
+pyinstaller app.spec
+
+# O comando directo (menos confiable)
+pyinstaller --onefile --collect-all playwright --collect-all pydantic app.py
+```
+
+### Verificación Pre-Compilación
+Antes de compilar, asegúrate de que todas las dependencias estén instaladas:
+
+```bash
+pip install -r requirements.txt
+```
+
+**Nota:** El archivo `app.spec` incluye configuraciones optimizadas para evitar errores como "No module named 'pydantic'" y otros problemas de dependencias.
 
 # Automation
 

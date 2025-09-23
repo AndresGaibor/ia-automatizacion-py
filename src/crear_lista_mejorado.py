@@ -16,10 +16,245 @@ from .excel_helper import ExcelHelper
 import pandas as pd
 import os
 import tkinter as tk
-from tkinter import messagebox, ttk, filedialog
-import threading
-from typing import List, Optional, Union, Dict, Any, Set
+from tkinter import messagebox, filedialog
+from typing import Optional, Dict, Any
 from pathlib import Path
+import shutil
+import re
+
+def extraer_id_desde_nombre_archivo(nombre_archivo: str) -> Optional[int]:
+    """
+    Extrae el ID de lista desde el nombre del archivo con formato -ID-[numero].xlsx
+
+    Args:
+        nombre_archivo: Nombre del archivo (ej: "MiLista-ID-12345.xlsx")
+
+    Returns:
+        ID de la lista como entero o None si no se encuentra
+    """
+    # Patrón para capturar -ID-[numero] antes de la extensión
+    patron = r'-ID-(\d+)(?:_\d+)?\.xlsx?$'
+    match = re.search(patron, nombre_archivo, re.IGNORECASE)
+
+    if match:
+        try:
+            return int(match.group(1))
+        except ValueError:
+            pass
+
+    return None
+
+def tiene_formato_id_existente(archivo: str) -> bool:
+    """
+    Verifica si el archivo tiene formato de ID existente
+
+    Args:
+        archivo: Ruta completa del archivo
+
+    Returns:
+        True si tiene formato -ID-[numero].xlsx
+    """
+    nombre_archivo = os.path.basename(archivo)
+    return extraer_id_desde_nombre_archivo(nombre_archivo) is not None
+
+def verificar_lista_existe_remota(list_id: int, api: API) -> bool:
+    """
+    Verifica si una lista existe en el servidor remoto
+
+    Args:
+        list_id: ID de la lista a verificar
+        api: Instancia de API
+
+    Returns:
+        True si la lista existe, False en caso contrario
+    """
+    logger = get_logger()
+
+    try:
+        # Obtener todas las listas y verificar si existe el ID
+        listas = api.suscriptores.get_lists()
+
+        for lista in listas:
+            if lista.id == list_id:
+                logger.info(f"Lista {list_id} '{lista.name}' existe en el servidor")
+                return True
+
+        logger.info(f"Lista {list_id} no existe en el servidor")
+        return False
+
+    except Exception as e:
+        logger.warning(f"Error verificando lista {list_id}: {e}")
+        # Si hay error, asumimos que no existe
+        return False
+
+def obtener_suscriptores_remotos(list_id: int, api: API) -> set:
+    """
+    Obtiene los emails de suscriptores de una lista remota
+
+    Args:
+        list_id: ID de la lista
+        api: Instancia de API
+
+    Returns:
+        Set con los emails de los suscriptores remotos
+    """
+    logger = get_logger()
+
+    try:
+        # Obtener suscriptores de la lista - la función devuelve List[ActualSubscriber]
+        subscribers = api.suscriptores.get_subscribers(list_id)
+
+        emails_remotos = set()
+        if subscribers:
+            for subscriber in subscribers:
+                if subscriber.email:
+                    emails_remotos.add(subscriber.email.lower())
+
+        logger.info(f"Lista {list_id}: {len(emails_remotos)} suscriptores remotos encontrados")
+        return emails_remotos
+
+    except Exception as e:
+        logger.error(f"Error obteniendo suscriptores de lista {list_id}: {e}")
+        return set()
+
+def comparar_suscriptores_local_vs_remoto(df_local: pd.DataFrame, emails_remotos: set) -> Dict[str, Any]:
+    """
+    Compara suscriptores locales vs remotos para encontrar nuevos
+
+    Args:
+        df_local: DataFrame con suscriptores locales
+        emails_remotos: Set con emails remotos
+
+    Returns:
+        Dict con información de la comparación
+    """
+    logger = get_logger()
+
+    # Obtener emails locales
+    emails_locales = set()
+    if 'email' in df_local.columns:
+        emails_locales = set(df_local['email'].dropna().astype(str).str.lower())
+
+    # Encontrar emails nuevos (locales que no están en remotos)
+    emails_nuevos = emails_locales - emails_remotos
+
+    # Crear DataFrame solo con usuarios nuevos
+    df_nuevos = pd.DataFrame()
+    if emails_nuevos:
+        # Filtrar DataFrame para incluir solo emails nuevos
+        mask = df_local['email'].astype(str).str.lower().isin(emails_nuevos)
+        df_nuevos = df_local[mask].copy()
+
+    resultado = {
+        'total_locales': len(emails_locales),
+        'total_remotos': len(emails_remotos),
+        'emails_nuevos': emails_nuevos,
+        'cantidad_nuevos': len(emails_nuevos),
+        'df_nuevos': df_nuevos,
+        'tiene_nuevos': len(emails_nuevos) > 0
+    }
+
+    logger.info(f"Comparación: {resultado['total_locales']} locales, "
+               f"{resultado['total_remotos']} remotos, "
+               f"{resultado['cantidad_nuevos']} nuevos")
+
+    return resultado
+
+def procesar_archivo_con_id_existente(archivo: str, list_id: int, api: API) -> Optional[Dict[str, Any]]:
+    """
+    Procesa un archivo que ya tiene ID de lista en el nombre
+
+    Args:
+        archivo: Ruta del archivo Excel
+        list_id: ID extraído del nombre del archivo
+        api: Instancia de API
+
+    Returns:
+        Dict con resultado del procesamiento
+    """
+    print(f"🔍 Archivo con ID existente detectado: {list_id}")
+
+    # Verificar si la lista existe
+    if not verificar_lista_existe_remota(list_id, api):
+        print(f"❌ Lista {list_id} no existe en el servidor")
+        print("📝 Creando nueva lista...")
+
+        # La lista no existe, procesar como archivo nuevo
+        return crear_lista_automatica(archivo, validar_cambios=True)
+
+    print(f"✅ Lista {list_id} existe en el servidor")
+
+    # Leer datos locales
+    try:
+        hojas = ExcelHelper.obtener_hojas(archivo)
+        if 'Datos' not in hojas:
+            print("❌ No se encontró la hoja 'Datos' en el archivo")
+            return None
+
+        df_local = ExcelHelper.leer_excel(archivo, 'Datos')
+        if df_local.empty:
+            print("❌ La hoja 'Datos' está vacía")
+            return None
+
+        print(f"📊 Archivo local: {len(df_local)} suscriptores")
+
+    except Exception as e:
+        print(f"❌ Error leyendo archivo local: {e}")
+        return None
+
+    # Obtener suscriptores remotos
+    print("🔍 Obteniendo suscriptores remotos...")
+    emails_remotos = obtener_suscriptores_remotos(list_id, api)
+    print(f"📊 Lista remota: {len(emails_remotos)} suscriptores")
+
+    # Comparar local vs remoto
+    comparacion = comparar_suscriptores_local_vs_remoto(df_local, emails_remotos)
+
+    if not comparacion['tiene_nuevos']:
+        print("✅ No hay suscriptores nuevos que agregar")
+        print("🎯 Lista ya está actualizada")
+
+        return {
+            'nombre_lista': os.path.splitext(os.path.basename(archivo))[0],
+            'list_id': list_id,
+            'total_filas': comparacion['total_locales'],
+            'suscriptores_agregados': 0,
+            'exitoso': True,
+            'ya_actualizada': True
+        }
+
+    print(f"🆕 Encontrados {comparacion['cantidad_nuevos']} suscriptores nuevos")
+    print("📤 Agregando solo los nuevos suscriptores...")
+
+    # Crear campos personalizados para los nuevos datos
+    crear_campos_personalizados(list_id, comparacion['df_nuevos'], api)
+
+    # Agregar solo los suscriptores nuevos
+    suscriptores_agregados = agregar_suscriptores_via_api(list_id, comparacion['df_nuevos'], api)
+
+    resultado = {
+        'nombre_lista': os.path.splitext(os.path.basename(archivo))[0],
+        'list_id': list_id,
+        'total_filas': comparacion['total_locales'],
+        'suscriptores_agregados': suscriptores_agregados,
+        'exitoso': suscriptores_agregados > 0,
+        'actualizacion_incremental': True,
+        'total_remotos_previo': comparacion['total_remotos'],
+        'nuevos_agregados': comparacion['cantidad_nuevos']
+    }
+
+    if resultado['exitoso']:
+        print("✅ Actualización incremental exitosa:")
+        print(f"   📊 Total en archivo: {resultado['total_filas']}")
+        print(f"   📊 Remotos previos: {resultado['total_remotos_previo']}")
+        print(f"   🆕 Nuevos agregados: {resultado['suscriptores_agregados']}")
+
+        # Mostrar notificación
+        notify("Lista actualizada", f"Se agregaron {suscriptores_agregados} nuevos suscriptores a la lista {list_id}")
+    else:
+        print("❌ Error en actualización incremental")
+
+    return resultado
 
 def seleccionar_archivo_excel(directorio_inicial: str = None) -> Optional[str]:
     """
@@ -144,12 +379,118 @@ def obtener_nombre_lista_desde_archivo(archivo: str) -> str:
 
     return nombre_limpio.strip()
 
+def renombrar_archivo_con_id(archivo_original: str, nombre_lista: str, list_id: int) -> bool:
+    """
+    Renombra el archivo original con el formato [Nombre de lista]-ID-[ID_LISTA].xlsx
+
+    Args:
+        archivo_original: Ruta del archivo original
+        nombre_lista: Nombre de la lista creada
+        list_id: ID de la lista asignado por la API
+
+    Returns:
+        bool: True si se renombró exitosamente
+    """
+    logger = get_logger()
+
+    try:
+        archivo_path = Path(archivo_original)
+        directorio = archivo_path.parent
+        extension = archivo_path.suffix
+
+        # Crear nuevo nombre con formato solicitado
+        nuevo_nombre = f"{nombre_lista}-ID-{list_id}{extension}"
+        nueva_ruta = directorio / nuevo_nombre
+
+        # Verificar si el archivo destino ya existe
+        if nueva_ruta.exists():
+            print(f"⚠️  El archivo ya existe: {nuevo_nombre}")
+            # Agregar sufijo para evitar sobrescribir
+            contador = 1
+            while nueva_ruta.exists():
+                nuevo_nombre = f"{nombre_lista}-ID-{list_id}_{contador}{extension}"
+                nueva_ruta = directorio / nuevo_nombre
+                contador += 1
+            print(f"📝 Usando nombre alternativo: {nuevo_nombre}")
+
+        # Renombrar archivo
+        shutil.move(str(archivo_path), str(nueva_ruta))
+
+        print("✅ Archivo renombrado:")
+        print(f"   Anterior: {archivo_path.name}")
+        print(f"   Nuevo: {nuevo_nombre}")
+
+        logger.info(f"Archivo renombrado: {archivo_path.name} -> {nuevo_nombre}")
+        return True
+
+    except Exception as e:
+        logger.error(f"Error renombrando archivo: {e}")
+        print(f"❌ Error renombrando archivo: {e}")
+        return False
+
+def crear_lista_automatica_interna(archivo: str, api: API, validar_cambios: bool = True) -> Optional[Dict[str, Any]]:
+    """
+    Versión interna de crear_lista_automatica que acepta una instancia de API existente
+    """
+    if not os.path.exists(archivo):
+        print(f"❌ Archivo no encontrado: {archivo}")
+        return None
+
+    # Obtener nombre de lista desde archivo
+    nombre_lista = obtener_nombre_lista_desde_archivo(archivo)
+    print(f"📝 Nombre de lista: '{nombre_lista}'")
+
+    # Validar hojas si está habilitado
+    if validar_cambios:
+        validacion = validar_diferencias_hojas(archivo)
+        print(f"🔍 {validacion['mensaje']}")
+
+        if validacion['es_problematico']:
+            respuesta = messagebox.askyesno(
+                "Problema detectado",
+                f"{validacion['mensaje']}\n\n¿Desea continuar de todas formas?",
+                icon="warning"
+            )
+            if not respuesta:
+                print("❌ Proceso cancelado por el usuario")
+                return None
+
+    # Verificar que existe hoja "Datos"
+    hojas = ExcelHelper.obtener_hojas(archivo)
+    if 'Datos' not in hojas:
+        print(f"❌ No se encontró la hoja 'Datos' en el archivo. Hojas disponibles: {hojas}")
+        return None
+
+    # Cargar configuración
+    config_lista = cargar_configuracion_lista()
+
+    # Procesar solo la hoja "Datos"
+    resultado = procesar_hoja_excel(archivo, 'Datos', config_lista, api, nombre_lista)
+
+    if resultado and resultado['exitoso']:
+        print(f"🎉 Lista '{nombre_lista}' creada exitosamente!")
+        print(f"   📊 ID: {resultado['list_id']}")
+        print(f"   👥 Suscriptores: {resultado['suscriptores_agregados']}/{resultado['total_filas']}")
+
+        # Renombrar archivo con el ID de la lista
+        print("📁 Renombrando archivo...")
+        renombrar_exitoso = renombrar_archivo_con_id(archivo, nombre_lista, resultado['list_id'])
+        resultado['archivo_renombrado'] = renombrar_exitoso
+
+        # Mostrar notificación
+        notify("Lista creada", f"Lista '{nombre_lista}' creada con {resultado['suscriptores_agregados']} suscriptores")
+    else:
+        print(f"❌ Error creando lista '{nombre_lista}'")
+
+    return resultado
+
 def crear_lista_automatica(archivo: str, validar_cambios: bool = True) -> Optional[Dict[str, Any]]:
     """
     Crea lista automáticamente:
     1. Usa nombre del archivo como nombre de lista
     2. Procesa solo la hoja "Datos"
     3. Valida inconsistencias con "Cambios" si existe
+    4. Renombra el archivo con el ID de la lista creada
 
     Args:
         archivo: Ruta del archivo Excel
@@ -158,8 +499,6 @@ def crear_lista_automatica(archivo: str, validar_cambios: bool = True) -> Option
     Returns:
         Dict con resultado del procesamiento
     """
-    logger = get_logger()
-
     if not os.path.exists(archivo):
         print(f"❌ Archivo no encontrado: {archivo}")
         return None
@@ -207,6 +546,11 @@ def crear_lista_automatica(archivo: str, validar_cambios: bool = True) -> Option
             print(f"🎉 Lista '{nombre_lista}' creada exitosamente!")
             print(f"   📊 ID: {resultado['list_id']}")
             print(f"   👥 Suscriptores: {resultado['suscriptores_agregados']}/{resultado['total_filas']}")
+
+            # Renombrar archivo con el ID de la lista
+            print("📁 Renombrando archivo...")
+            renombrar_exitoso = renombrar_archivo_con_id(archivo, nombre_lista, resultado['list_id'])
+            resultado['archivo_renombrado'] = renombrar_exitoso
 
             # Mostrar notificación
             notify("Lista creada", f"Lista '{nombre_lista}' creada con {resultado['suscriptores_agregados']} suscriptores")
@@ -379,7 +723,7 @@ def verificar_y_mostrar_campos(list_id: int, df_suscriptores: pd.DataFrame, api:
 
             if campos_faltantes:
                 print(f"⚠️  Campos faltantes en la lista: {campos_faltantes}")
-                print(f"💡 Esto puede indicar que los campos no se enviaron correctamente")
+                print("💡 Esto puede indicar que los campos no se enviaron correctamente")
             else:
                 print(f"✅ Todos los campos esperados están presentes: {campos_esperados}")
 
@@ -438,7 +782,7 @@ def agregar_suscriptores_via_api(list_id: int, df_suscriptores: pd.DataFrame, ap
             try:
                 # Debug: mostrar datos que se van a enviar
                 if len(subscribers_batch) == 0:  # Solo mostrar para el primer suscriptor
-                    print(f"📤 Datos del primer suscriptor:")
+                    print("📤 Datos del primer suscriptor:")
                     for k, v in merge_fields.items():
                         print(f"   {k}: '{v}'")
 
@@ -450,7 +794,7 @@ def agregar_suscriptores_via_api(list_id: int, df_suscriptores: pd.DataFrame, ap
                 # Debug: verificar el objeto creado
                 if len(subscribers_batch) == 0:
                     subscriber_dict = subscriber_data.model_dump()
-                    print(f"📦 SubscriberData creado:")
+                    print("📦 SubscriberData creado:")
                     for k, v in subscriber_dict.items():
                         if v is not None:
                             print(f"   {k}: '{v}'")
@@ -514,14 +858,13 @@ def cargar_configuracion_lista() -> Dict[str, str]:
 
 def main_automatico():
     """
-    Función principal para crear lista automáticamente
+    Función principal para procesar lista automáticamente
     1. Pide seleccionar archivo Excel
-    2. Automáticamente usa hoja "Datos"
-    3. Nombre de lista = nombre del archivo
-    4. Valida inconsistencias con "Cambios"
-    5. Sube automáticamente
+    2. Detecta si tiene ID existente en el nombre
+    3. Si tiene ID: verifica lista remota y actualiza incrementalmente
+    4. Si no tiene ID: crea nueva lista
     """
-    print("🚀 Iniciando creación automática de lista de suscriptores")
+    print("🚀 Iniciando procesamiento automático de lista de suscriptores")
 
     # Seleccionar archivo
     archivo = seleccionar_archivo_excel()
@@ -529,15 +872,46 @@ def main_automatico():
         print("❌ No se seleccionó archivo")
         return
 
-    print(f"📁 Archivo seleccionado: {os.path.basename(archivo)}")
+    nombre_archivo = os.path.basename(archivo)
+    print(f"📁 Archivo seleccionado: {nombre_archivo}")
 
-    # Crear lista automáticamente
-    resultado = crear_lista_automatica(archivo, validar_cambios=True)
+    # Crear API
+    try:
+        api = API()
+    except Exception as e:
+        print(f"❌ Error inicializando API: {e}")
+        return
 
-    if resultado:
-        print("✅ Proceso completado exitosamente")
-    else:
-        print("❌ Proceso falló")
+    try:
+        # Verificar si el archivo tiene formato de ID existente
+        if tiene_formato_id_existente(archivo):
+            list_id = extraer_id_desde_nombre_archivo(nombre_archivo)
+            if list_id is not None:
+                print(f"🔍 Archivo con ID detectado: {list_id}")
+                # Procesar archivo con ID existente
+                resultado = procesar_archivo_con_id_existente(archivo, list_id, api)
+            else:
+                print("❌ Error extrayendo ID del nombre del archivo")
+                resultado = None
+        else:
+            print("📝 Archivo sin ID detectado - creando nueva lista")
+
+            # Procesar como archivo nuevo (reutilizar la función existente pero sin crear nueva API)
+            resultado = crear_lista_automatica_interna(archivo, api, validar_cambios=True)
+
+        # Mostrar resultado
+        if resultado:
+            if resultado.get('ya_actualizada'):
+                print("✅ Lista ya estaba actualizada - no se requieren cambios")
+            elif resultado.get('actualizacion_incremental'):
+                print("✅ Actualización incremental completada exitosamente")
+            else:
+                print("✅ Nueva lista creada exitosamente")
+        else:
+            print("❌ Proceso falló")
+
+    finally:
+        api.close()
 
 def main_lote():
     """
@@ -568,18 +942,50 @@ def main_lote():
     exitosos = 0
     fallidos = 0
 
-    for i, archivo in enumerate(archivos_excel, 1):
-        print(f"\n🔄 Procesando {i}/{len(archivos_excel)}: {os.path.basename(archivo)}")
+    # Crear API una vez para todos los archivos
+    try:
+        api = API()
+    except Exception as e:
+        print(f"❌ Error inicializando API: {e}")
+        return
 
-        resultado = crear_lista_automatica(archivo, validar_cambios=True)
+    try:
+        for i, archivo in enumerate(archivos_excel, 1):
+            nombre_archivo = os.path.basename(archivo)
+            print(f"\n🔄 Procesando {i}/{len(archivos_excel)}: {nombre_archivo}")
 
-        if resultado and resultado['exitoso']:
-            exitosos += 1
-        else:
-            fallidos += 1
+            # Detectar si tiene ID existente
+            if tiene_formato_id_existente(archivo):
+                list_id = extraer_id_desde_nombre_archivo(nombre_archivo)
+                if list_id is not None:
+                    print(f"   🔍 Archivo con ID detectado: {list_id}")
+                    resultado = procesar_archivo_con_id_existente(archivo, list_id, api)
+                else:
+                    print("   ❌ Error extrayendo ID del nombre del archivo")
+                    resultado = None
+            else:
+                print("   📝 Archivo sin ID - creando nueva lista")
+                resultado = crear_lista_automatica_interna(archivo, api, validar_cambios=True)
+
+            if resultado and resultado['exitoso']:
+                exitosos += 1
+
+                if resultado.get('ya_actualizada'):
+                    print("   ✅ Lista ya estaba actualizada")
+                elif resultado.get('actualizacion_incremental'):
+                    print("   ✅ Actualización incremental exitosa")
+                elif resultado.get('archivo_renombrado'):
+                    print("   ✅ Nueva lista creada y archivo renombrado")
+                else:
+                    print("   ✅ Proceso exitoso")
+            else:
+                fallidos += 1
+
+    finally:
+        api.close()
 
     # Resumen
-    print(f"\n📊 Resumen del procesamiento en lote:")
+    print("\n📊 Resumen del procesamiento en lote:")
     print(f"   ✅ Exitosos: {exitosos}")
     print(f"   ❌ Fallidos: {fallidos}")
     print(f"   📊 Total: {len(archivos_excel)}")

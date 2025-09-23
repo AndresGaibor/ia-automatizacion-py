@@ -4,6 +4,7 @@ Funciones utilitarias compartidas para automatización.
 
 import os
 import sys
+import re
 from playwright.sync_api import BrowserContext
 
 def _early_project_root() -> str:
@@ -186,7 +187,6 @@ def obtener_total_paginas(page: Page) -> int:
 	"""
 	Obtiene el número total de páginas de reportes calculando desde elementos totales
 	"""
-	print("holaaa")
 	try:
 		print("🔍 Optimizando elementos por página...")
 
@@ -208,22 +208,32 @@ def obtener_total_paginas(page: Page) -> int:
 	# Calcular páginas usando elementos totales
 	try:
 		# Buscar el total de elementos en el texto "de X elementos"
-		elementos_info = page.locator('span.font-color-darkblue-1')
-		if elementos_info.count() > 0:
-			total_elementos_texto = elementos_info.inner_text(timeout=5000)
-			total_elementos = int(total_elementos_texto.replace(',', ''))
+		elementos_info = page.locator("span.font-color-darkblue-1").filter(
+			has_text=re.compile(r"elementos", re.IGNORECASE)
+		)
+		info_count = elementos_info.count()
+		if info_count > 0:
+			# Si hay varios, tomar el último (suele ser el de la paginación)
+			target = elementos_info.last if info_count > 1 else elementos_info.first
+			total_elementos_texto = target.inner_text(timeout=5000)
+
+			# Extraer el último número del texto (e.g., "de 1.234 elementos")
+			numeros = re.findall(r"\d[\d\.,]*", total_elementos_texto)
+			if not numeros:
+				raise ValueError(f"No se encontraron números en: {total_elementos_texto}")
+			total_elementos = int(numeros[-1].replace('.', '').replace(',', ''))
 
 			# Obtener elementos por página actual
 			items_por_pagina = 200  # Por defecto después de optimización
 			try:
-				select_actual = page.locator('select option[selected]')
+				# Algunos navegadores no mantienen el atributo [selected], usar :checked como alternativa
+				select_actual = page.locator('select option[selected], select option:checked')
 				if select_actual.count() > 0:
-					# Extraer número de la URL del option seleccionado
-					option_value = select_actual.get_attribute('value')
+					option_value = select_actual.first.get_attribute('value')
 					if option_value and 'items_per_page=' in option_value:
 						items_text = option_value.split('items_per_page=')[1].split('&')[0]
 						items_por_pagina = int(items_text)
-			except:
+			except Exception:
 				pass
 
 			# Calcular total de páginas
@@ -369,10 +379,10 @@ def get_timeouts() -> dict:
 	timeouts = config.get("timeouts", {})
 	
 	return {
-		"default": timeouts.get("default", 30000),      # 30 segundos
-		"navigation": timeouts.get("navigation", 60000), # 60 segundos  
-		"element": timeouts.get("element", 10000),       # 10 segundos
-		"upload": timeouts.get("upload", 120000),        # 2 minutos
+		"default": timeouts.get("default", 30000),        # 30 segundos
+		"navigation": timeouts.get("navigation", 60000),  # 60 segundos  
+		"element": timeouts.get("element", 15000),        # 15 segundos
+		"upload": timeouts.get("upload", 120000),         # 2 minutos
 	}
 
 def safe_goto(page: Page, url: str, timeout: int = 60000) -> bool:
