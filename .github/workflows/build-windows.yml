@@ -32,11 +32,16 @@ jobs:
       - name: Install dependencies
         shell: pwsh
         run: |
-          python -m pip install -U pip wheel
+          python -m pip install -U pip wheel setuptools
           if (Test-Path requirements.txt) {
             python -m pip install -r requirements.txt
           }
-          python -m pip install pyinstaller playwright
+          # Instalar pyinstaller y dependencias críticas
+          python -m pip install pyinstaller
+          python -m pip install pydantic pydantic-core
+          # Instalar playwright y sus navegadores
+          python -m pip install playwright
+          playwright install chromium
 
       - name: Clean previous builds and spec files
         shell: pwsh
@@ -47,7 +52,48 @@ jobs:
 
       - name: Build (onefile)
         shell: pwsh
-        run: pyinstaller --onefile --collect-all playwright app.py
+        run: |
+          # Comando optimizado para Windows con mejores hooks
+          pyinstaller --onefile `
+            --collect-all playwright `
+            --collect-all pydantic `
+            --collect-all pandas `
+            --hidden-import tkinter `
+            --hidden-import tkinter.ttk `
+            --hidden-import src `
+            --hidden-import src.utils `
+            --hidden-import src.api `
+            --hidden-import src.logger `
+            --hidden-import src.structured_logger `
+            --hidden-import src.demo `
+            --hidden-import src.listar_campanias `
+            --hidden-import src.crear_lista_mejorado `
+            --hidden-import src.obtener_listas `
+            --hidden-import src.descargar_suscriptores `
+            --hidden-import src.mapeo_segmentos `
+            --hidden-import src.autentificacion `
+            --hidden-import src.excel_helper `
+            --exclude-module matplotlib `
+            --exclude-module scipy `
+            --exclude-module pytest `
+            --exclude-module IPython `
+            --exclude-module jupyter `
+            app.py
+
+      - name: Test executable
+        shell: pwsh
+        run: |
+          # Verificar que el ejecutable se creó
+          if (!(Test-Path dist/app.exe)) {
+            Write-Error "El ejecutable no se creó correctamente"
+            exit 1
+          }
+          # Verificar tamaño del ejecutable (debe ser > 50MB por Playwright)
+          $size = (Get-Item dist/app.exe).Length / 1MB
+          Write-Host "Tamaño del ejecutable: $($size) MB"
+          if ($size -lt 50) {
+            Write-Warning "El ejecutable parece muy pequeño ($($size) MB). Puede que falten dependencias."
+          }
 
       - name: Upload artifact (.exe)
         uses: actions/upload-artifact@v4

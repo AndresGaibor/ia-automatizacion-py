@@ -20,8 +20,12 @@ datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 tmp_ret = collect_all('pydantic')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
+# Recopilar Pandas (crítico para el funcionamiento)
+tmp_ret = collect_all('pandas')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+
 # Recopilar otros módulos críticos
-for module in ['httpx', 'httpcore', 'pandas', 'openpyxl', 'email_validator']:
+for module in ['httpx', 'httpcore', 'openpyxl', 'email_validator', 'rich', 'structlog']:
     try:
         tmp_ret = collect_all(module)
         datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
@@ -54,7 +58,7 @@ additional_hiddenimports = [
     'threading',
     'concurrent.futures',
 
-    # Project modules
+    # Project modules - TODOS los módulos que importa app.py dinámicamente
     'src',
     'src.utils',
     'src.logger',
@@ -68,6 +72,52 @@ additional_hiddenimports = [
     'src.demo',
     'src.listar_campanias',
     'src.autentificacion',
+    'src.obtener_listas',
+    'src.descargar_suscriptores',
+    'src.mapeo_segmentos',
+    'src.structured_logger',
+    'src.scraping',
+    'src.scraping.endpoints',
+    'src.scraping.endpoints.subscriber_details',
+    'src.scraping.endpoints.segments',
+    'src.scraping.models',
+    'src.hybrid',
+    'src.hybrid.campanias',
+
+    # Logging modules
+    'logging',
+    'pythonjsonlogger',
+    'colorama',
+    'rich.console',
+    'rich.logging',
+
+    # Data processing
+    'numpy',
+    'pytz',
+    'python_dateutil',
+
+    # YAML
+    'yaml',
+
+    # UUID for hybrid service
+    'uuid',
+
+    # Regex
+    're',
+
+    # Time and datetime
+    'time',
+    'datetime',
+
+    # OS and path operations
+    'os',
+    'pathlib',
+
+    # Typing
+    'typing',
+
+    # Collections
+    'collections',
 ]
 
 hiddenimports.extend(additional_hiddenimports)
@@ -101,12 +151,18 @@ a = Analysis(
         'notebook',
         'jupyter',
         'pytest',
+        'tkinter.test',
+        'test',
+        'unittest',
+        'doctest',
+        'pdb',
+        'pydoc',
     ],
     noarchive=False,
     optimize=0,
 )
 
-pyz = PYZ(a.pure)
+pyz = PYZ(a.pure, a.zipped_data, cipher=None)
 
 exe = EXE(
     pyz,

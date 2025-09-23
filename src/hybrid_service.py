@@ -94,8 +94,8 @@ class HybridDataService:
             # Extraer hard bounces (no disponible en API)
             hard_bounces = self.scraping_service.extract_hard_bounces(campaign, campaign_id)
 
-            # Extraer no abiertos (no disponible en API)
-            no_opens = self.scraping_service.extract_no_opens(campaign, campaign_id)
+            # Extraer no abiertos (no disponible en API) - con verificación de integridad y reintentos
+            no_opens = self.scraping_service.extract_no_opens_with_retry(campaign, campaign_id)
 
             # Crear resultado de scraping
             scraping_result = ScrapingResult(
@@ -112,8 +112,15 @@ class HybridDataService:
             return scraping_result
 
         except Exception as e:
-            self.logger.error(f"Error en extracción por scraping: {e}")
-            return None
+            error_msg = str(e).lower()
+            # Si es un error crítico (campaña no existe), propagar el error
+            if any(keyword in error_msg for keyword in ["timeout", "no existe", "not found", "página no existe"]):
+                self.logger.error(f"Error crítico en campaña {campaign_id}: {e}")
+                raise Exception(f"Campaña {campaign_id} no disponible: {e}")
+            else:
+                # Otros errores menos críticos, continuar sin scraping
+                self.logger.error(f"Error en extracción por scraping: {e}")
+                return None
 
     def process_multiple_campaigns(self, campaign_ids: List[int]) -> ScrapingSession:
         """
