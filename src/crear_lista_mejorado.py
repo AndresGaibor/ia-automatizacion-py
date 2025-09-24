@@ -130,10 +130,32 @@ def comparar_suscriptores_local_vs_remoto(df_local: pd.DataFrame, emails_remotos
     """
     logger = get_logger()
 
+    # Detectar columna de email automáticamente
+    email_column = None
+    possible_email_columns = ['email', 'Email', 'EMAIL', 'Correo Electrónico', 'Correo', 'correo', 'e-mail', 'E-mail']
+
+    for col_name in possible_email_columns:
+        if col_name in df_local.columns:
+            email_column = col_name
+            break
+
+    if not email_column:
+        print(f"⚠️ No se encontró columna de email. Columnas disponibles: {list(df_local.columns)}")
+        return {
+            'total_locales': 0,
+            'total_remotos': len(emails_remotos),
+            'emails_nuevos': set(),
+            'cantidad_nuevos': 0,
+            'df_nuevos': pd.DataFrame(),
+            'tiene_nuevos': False,
+            'error': f'No se encontró columna de email en: {list(df_local.columns)}'
+        }
+
+    print(f"📧 Usando columna de email: '{email_column}'")
+
     # Obtener emails locales
     emails_locales = set()
-    if 'email' in df_local.columns:
-        emails_locales = set(df_local['email'].dropna().astype(str).str.lower())
+    emails_locales = set(df_local[email_column].dropna().astype(str).str.lower())
 
     # Encontrar emails nuevos (locales que no están en remotos)
     emails_nuevos = emails_locales - emails_remotos
@@ -142,8 +164,12 @@ def comparar_suscriptores_local_vs_remoto(df_local: pd.DataFrame, emails_remotos
     df_nuevos = pd.DataFrame()
     if emails_nuevos:
         # Filtrar DataFrame para incluir solo emails nuevos
-        mask = df_local['email'].astype(str).str.lower().isin(emails_nuevos)
+        mask = df_local[email_column].astype(str).str.lower().isin(emails_nuevos)
         df_nuevos = df_local[mask].copy()
+
+        # Renombrar columna de email a 'email' para compatibilidad con API
+        if email_column != 'email':
+            df_nuevos = df_nuevos.rename(columns={email_column: 'email'})
 
     resultado = {
         'total_locales': len(emails_locales),
@@ -151,7 +177,8 @@ def comparar_suscriptores_local_vs_remoto(df_local: pd.DataFrame, emails_remotos
         'emails_nuevos': emails_nuevos,
         'cantidad_nuevos': len(emails_nuevos),
         'df_nuevos': df_nuevos,
-        'tiene_nuevos': len(emails_nuevos) > 0
+        'tiene_nuevos': len(emails_nuevos) > 0,
+        'email_column_used': email_column
     }
 
     logger.info(f"Comparación: {resultado['total_locales']} locales, "
@@ -184,19 +211,30 @@ def procesar_archivo_con_id_existente(archivo: str, list_id: int, api: API) -> O
 
     print(f"✅ Lista {list_id} existe en el servidor")
 
-    # Leer datos locales
+    # Leer datos locales con detección automática de hoja
     try:
         hojas = ExcelHelper.obtener_hojas(archivo)
-        if 'Datos' not in hojas:
-            print("❌ No se encontró la hoja 'Datos' en el archivo")
+
+        # Intentar encontrar hoja de datos (preferencia: Datos > Sheet1 > primera hoja)
+        hoja_datos = None
+        if 'Datos' in hojas:
+            hoja_datos = 'Datos'
+        elif 'Sheet1' in hojas:
+            hoja_datos = 'Sheet1'
+        elif len(hojas) > 0:
+            hoja_datos = hojas[0]
+        else:
+            print("❌ No se encontraron hojas en el archivo")
             return None
 
-        df_local = ExcelHelper.leer_excel(archivo, 'Datos')
+        print(f"📄 Usando hoja: '{hoja_datos}'")
+        df_local = ExcelHelper.leer_excel(archivo, hoja_datos)
         if df_local.empty:
-            print("❌ La hoja 'Datos' está vacía")
+            print(f"❌ La hoja '{hoja_datos}' está vacía")
             return None
 
         print(f"📊 Archivo local: {len(df_local)} suscriptores")
+        print(f"📋 Columnas disponibles: {list(df_local.columns)}")
 
     except Exception as e:
         print(f"❌ Error leyendo archivo local: {e}")

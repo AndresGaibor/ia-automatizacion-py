@@ -49,26 +49,22 @@ class SubscriberDetailsService:
     def navigate_to_subscriber_details(self, campaign_id: int) -> bool:
         """
         Navega a la sección de detalles de suscriptores de la campaña.
-        Aplica mejores prácticas de Playwright.
+        Aplica mejores prácticas de Playwright y optimiza con 200 elementos por página.
         """
         with log_operation("navegacion_detalles_suscriptores", campaign_id=campaign_id):
             try:
                 url_base = self.config.get("url_base", "")
-                url = f"{url_base}/report/campaign/{campaign_id}/"
+                # Navegar directamente a la página de suscriptores con 200 elementos por página
+                url = f"{url_base}/report/campaign/{campaign_id}/subscribers/?items_per_page=200"
 
-                log_browser_action("navegacion", url, campaign_id=campaign_id)
+                log_browser_action("navegacion_optimizada", url, campaign_id=campaign_id, items_per_page=200)
                 # Usar navegación con timeout configurado
                 self.page.goto(url, timeout=self.timeouts['navigation'])
-
-                log_browser_action("click", "Detalles suscriptores", campaign_id=campaign_id)
-                # Usar localizador basado en rol y texto (mejores prácticas)
-                details_link = self.page.get_by_role("link", name="Detalles suscriptores")
-                details_link.click(timeout=self.timeouts['element_wait'])
 
                 # Esperar a que la página esté completamente cargada
                 self.page.wait_for_load_state("networkidle", timeout=self.timeouts['network_idle'])
 
-                log_success("Navegación completada", campaign_id=campaign_id, url=url)
+                log_success("Navegación completada con 200 elementos por página", campaign_id=campaign_id, url=url)
                 return True
 
             except PWTimeoutError as e:
