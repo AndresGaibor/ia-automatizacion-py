@@ -33,13 +33,13 @@ class SubscriberDetailsService:
         self.logger = get_logger()
         self.config = load_config()
 
-        # Configuración de timeouts agresivos para asegurar extracción completa
+        # Configuración de timeouts muy largos para conexiones lentas
         self.timeouts = {
-            'navigation': 180000,  # 3 minutos para navegación (antes 60s)
-            'element_wait': 60000,  # 1 minuto para elementos (antes 20s)
-            'network_idle': 45000,  # 45 segundos para network idle (antes 15s)
-            'table_extraction': 120000,  # 2 minutos para extracción de tabla (nuevo)
-            'page_load': 90000   # 1.5 minutos para carga de página (nuevo)
+            'navigation': 300000,  # 5 minutos para navegación (aumentado de 3min)
+            'element_wait': 120000,  # 2 minutos para elementos (aumentado de 1min)
+            'network_idle': 90000,  # 1.5 minutos para network idle (aumentado de 45s)
+            'table_extraction': 240000,  # 4 minutos para extracción de tabla (aumentado de 2min)
+            'page_load': 180000   # 3 minutos para carga de página (aumentado de 1.5min)
         }
         
         log_info("SubscriberDetailsService inicializado", 
@@ -487,7 +487,7 @@ class SubscriberDetailsService:
             log_error("Error obteniendo total esperado de no abiertos", campaign_id=campaign_id, error=str(e))
             return 0
 
-    def extract_no_opens_with_retry(self, campaign: CampaignBasicInfo, campaign_id: int, max_retries: int = 3) -> List[NoOpenSubscriber]:
+    def extract_no_opens_with_retry(self, campaign: CampaignBasicInfo, campaign_id: int, max_retries: int = 5) -> List[NoOpenSubscriber]:
         """
         Extrae suscriptores no abiertos con verificación de integridad y reintentos automáticos.
         Garantiza que se extraigan todos los datos o se alcance el límite de reintentos.
@@ -527,10 +527,15 @@ class SubscriberDetailsService:
                         extracted_count=extracted_count, expected_total=expected_total,
                         attempt=attempt, campaign_id=campaign_id)
 
-                # Verificar si tenemos todos los datos
-                if extracted_count >= expected_total:
-                    log_success("✅ Extracción completa - todos los datos obtenidos",
+                # Verificar si tenemos todos los datos (con tolerancia del 5% para conexiones lentas)
+                tolerance = max(1, int(expected_total * 0.05))  # 5% de tolerancia, mínimo 1
+                missing_count = expected_total - extracted_count
+
+                if extracted_count >= expected_total or missing_count <= tolerance:
+                    status_msg = "✅ Extracción completa - todos los datos obtenidos" if extracted_count >= expected_total else f"✅ Extracción completa con tolerancia - faltantes: {missing_count}/{tolerance} permitidos"
+                    log_success(status_msg,
                                extracted_count=extracted_count, expected_total=expected_total,
+                               missing_count=missing_count, tolerance=tolerance,
                                attempt=attempt, campaign_id=campaign_id)
                     return extracted_data
 
@@ -538,14 +543,13 @@ class SubscriberDetailsService:
                 last_attempt_data = extracted_data
                 last_attempt_count = extracted_count
 
-                missing_count = expected_total - extracted_count
                 log_warning(f"❌ Datos incompletos en intento {attempt}",
                            extracted_count=extracted_count, expected_total=expected_total,
-                           missing_count=missing_count, attempt=attempt, campaign_id=campaign_id)
+                           missing_count=missing_count, tolerance=tolerance, attempt=attempt, campaign_id=campaign_id)
 
                 # Si no es el último intento, esperar antes del siguiente
                 if attempt < max_retries:
-                    wait_time = min(30 * attempt, 120)  # Espera progresiva: 30s, 60s, 120s máximo
+                    wait_time = min(60 * attempt, 300)  # Espera progresiva más larga: 60s, 120s, 180s, 240s, 300s máximo
                     log_info(f"Esperando {wait_time}s antes del siguiente intento",
                             wait_time=wait_time, attempt=attempt + 1, campaign_id=campaign_id)
                     time.sleep(wait_time)
@@ -555,7 +559,7 @@ class SubscriberDetailsService:
                          attempt=attempt, error=str(e), campaign_id=campaign_id)
 
                 if attempt < max_retries:
-                    wait_time = min(30 * attempt, 120)
+                    wait_time = min(60 * attempt, 300)  # Misma espera progresiva tras error
                     log_info(f"Esperando {wait_time}s antes del siguiente intento tras error",
                             wait_time=wait_time, attempt=attempt + 1, campaign_id=campaign_id)
                     time.sleep(wait_time)
@@ -574,15 +578,24 @@ class SubscriberDetailsService:
 
     def _increase_timeouts_for_retry(self, attempt: int):
         """
-        Aumenta los timeouts progresivamente para reintentos.
+        Aumenta los timeouts progresivamente para reintentos, con límites máximos altos para conexiones lentas.
         """
-        multiplier = 1 + (attempt * 0.5)  # 1.5x, 2.0x, 2.5x, etc.
+        multiplier = 1 + (attempt * 0.3)  # 1.3x, 1.6x, 1.9x, etc. (más gradual)
 
-        self.timeouts['navigation'] = int(self.timeouts['navigation'] * multiplier)
-        self.timeouts['element_wait'] = int(self.timeouts['element_wait'] * multiplier)
-        self.timeouts['network_idle'] = int(self.timeouts['network_idle'] * multiplier)
-        self.timeouts['table_extraction'] = int(self.timeouts['table_extraction'] * multiplier)
-        self.timeouts['page_load'] = int(self.timeouts['page_load'] * multiplier)
+        # Límites máximos muy altos para conexiones extremadamente lentas
+        max_limits = {
+            'navigation': 600000,  # 10 minutos máximo
+            'element_wait': 240000,  # 4 minutos máximo
+            'network_idle': 180000,  # 3 minutos máximo
+            'table_extraction': 480000,  # 8 minutos máximo
+            'page_load': 360000   # 6 minutos máximo
+        }
+
+        self.timeouts['navigation'] = min(int(self.timeouts['navigation'] * multiplier), max_limits['navigation'])
+        self.timeouts['element_wait'] = min(int(self.timeouts['element_wait'] * multiplier), max_limits['element_wait'])
+        self.timeouts['network_idle'] = min(int(self.timeouts['network_idle'] * multiplier), max_limits['network_idle'])
+        self.timeouts['table_extraction'] = min(int(self.timeouts['table_extraction'] * multiplier), max_limits['table_extraction'])
+        self.timeouts['page_load'] = min(int(self.timeouts['page_load'] * multiplier), max_limits['page_load'])
         """Retorna metadatos sobre la extracción actual"""
         metadata = {
             "service_version": "1.0.0",

@@ -129,9 +129,17 @@ def obtener_listas_via_api() -> list[list[str]]:
 		
 		if listas_a_procesar:
 			print(f"Obteniendo detalles para {len(listas_a_procesar)} listas...")
-			
-			for lista in listas_a_procesar:
+
+			for i, lista in enumerate(listas_a_procesar):
 				try:
+					# Agregar delay conservador para evitar rate limit estricto
+					if i > 0:  # No delay en la primera lista
+						delay = 5  # 5 segundos fijos entre cada llamada para rate limit estricto
+						print(f"Esperando {delay}s para evitar rate limit... ({i+1}/{len(listas_a_procesar)})")
+						import time
+						time.sleep(delay)
+
+					print(f"Procesando lista {i+1}/{len(listas_a_procesar)}: {lista.name} (ID: {lista.id})")
 					stats = api.suscriptores.get_list_stats(lista.id)
 					# Formato: ['Buscar', 'ID_LISTA', 'NOMBRE LISTA', 'SUSCRIPTORES', 'CREACION']
 					fila = [
@@ -154,15 +162,48 @@ def obtener_listas_via_api() -> list[list[str]]:
 						informe_detalle.append(fila)
 					
 				except Exception as e:
-					logger.warning(f"Error obteniendo stats para lista {lista.id}: {e}")
+					error_str = str(e).lower()
+					if "429" in error_str or "rate limit" in error_str or "too many requests" in error_str:
+						# Error de rate limit: esperar más tiempo y reintentar una vez
+						print(f"⚠️ Rate limit detectado para lista {lista.id}. Esperando 60 segundos...")
+						import time
+						time.sleep(60)
+						try:
+							print(f"Reintentando lista {lista.id}: {lista.name}")
+							stats = api.suscriptores.get_list_stats(lista.id)
+							# Procesar stats exitosas después del reintento
+							fila = [
+								'',  # Buscar (columna vacía)
+								str(lista.id),  # ID_LISTA
+								lista.name,  # NOMBRE LISTA
+								str(stats.total_subscribers) if hasattr(stats, 'total_subscribers') else '0',  # SUSCRIPTORES
+								stats.create_date if hasattr(stats, 'create_date') else ''  # CREACION
+							]
+
+							if lista.id in listas_existentes:
+								# Encontrar y reemplazar en informe_detalle
+								for j, fila_det in enumerate(informe_detalle):
+									if fila_det[1] == str(lista.id):
+										informe_detalle[j] = fila
+										break
+							else:
+								informe_detalle.append(fila)
+
+							print(f"✅ Lista {lista.id} procesada exitosamente después del reintento")
+							continue
+						except Exception as e2:
+							logger.warning(f"Error obteniendo stats para lista {lista.id} después del reintento: {e2}")
+					else:
+						logger.warning(f"Error obteniendo stats para lista {lista.id}: {e}")
+
 					# Fallback sin estadísticas detalladas
 					fila = ['', str(lista.id), lista.name, '0', '']
-					
+
 					if lista.id in listas_existentes:
 						# Actualizar existente
-						for i, fila_det in enumerate(informe_detalle):
+						for j, fila_det in enumerate(informe_detalle):
 							if fila_det[1] == str(lista.id):
-								informe_detalle[i] = fila
+								informe_detalle[j] = fila
 								break
 					else:
 						informe_detalle.append(fila)

@@ -337,37 +337,30 @@ def run_obtener_listas(btn):
             # Validar configuración con diálogo automático
             if not check_config_or_show_dialog(root):
                 return
-            
-            # Validar archivo de búsqueda de listas
-            valid_listas, message_listas, marcadas = validar_archivo_busqueda_listas()
-            if not valid_listas:
-                root.after(0, lambda: notify("Error de Archivo", message_listas, "warning"))
-                return
-            
+
             # Mostrar información previa
-            root.after(0, lambda: notify("Iniciando", f"Obteniendo información de {marcadas} listas", "info"))
-            
+            root.after(0, lambda: notify("Iniciando", "Obteniendo todas las listas vía API", "info"))
+
             # Mostrar contador (estimado 1-3 minutos)
-            # tiempo_estimado = min(marcadas * 5, 180)  # 5 segundos por lista, máximo 3 minutos
-            # root.after(0, lambda: mostrar_contador_progreso("Obteniendo Listas", tiempo_estimado))
-            # root.after(0, lambda: actualizar_progreso("Conectando a Acumbamail"))
-            
+            # root.after(0, lambda: mostrar_contador_progreso("Obteniendo Listas", 180))
+            # root.after(0, lambda: actualizar_progreso("Conectando a Acumbamail API"))
+
             import src.obtener_listas as m
             importlib.reload(m)
-            
-            # root.after(0, lambda: actualizar_progreso("Extrayendo información de listas"))
+
+            # root.after(0, lambda: actualizar_progreso("Extrayendo información de listas vía API"))
             m.main()
-            
+
             # root.after(0, lambda: cerrar_contador_progreso())
             root.after(0, lambda: notify("Completado", "Obtención de listas finalizada con éxito", "info"))
-            
+
         except Exception as e:
             # root.after(0, lambda: cerrar_contador_progreso())
             root.after(0, lambda: notify("Error", f"Error al obtener listas: {e}", "error"))
         finally:
             root.after(0, lambda: btn.config(state=tk.NORMAL))
             root.after(0, lambda: root.config(cursor=""))
-    
+
     btn.config(state=tk.DISABLED)
     root.config(cursor="watch")
     threading.Thread(target=worker, daemon=True).start()
