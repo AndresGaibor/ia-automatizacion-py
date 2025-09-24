@@ -1017,37 +1017,11 @@ def procesar_lista_individual(nombre_lista: str, segmentos_data: List[List[Any]]
                 except Exception as e:
                     logger.warning(f"Error actualizando ID en segmentos: {e}")
             else:
-                # 3. Si no existe en ningún lado, crear la lista
-                logger.info(f"Lista '{nombre_lista}' no existe. Creando...")
-                print(f"Lista '{nombre_lista}' no existe. Creando en Acumbamail")
-                notify("Creando Lista", f"Creando nueva lista: {nombre_lista}", "info")
-
-                try:
-                    # Obtener configuración para creación de lista con valores por defecto
-                    lista_config = config.get('lista', {})
-
-                    list_id = api_client.suscriptores.create_list(
-                        sender_email=lista_config.get('sender_email', 'correo@empresa.com'),
-                        name=nombre_lista,
-                        company=lista_config.get('company', 'Empresa'),
-                        country=lista_config.get('country', 'España'),
-                        city=lista_config.get('city', 'Madrid'),
-                        address=lista_config.get('address', 'Dirección'),
-                        phone=lista_config.get('phone', '+34 900 000 000')
-                    )
-
-                    logger.info(f"Lista '{nombre_lista}' creada exitosamente con ID: {list_id}")
-                    # 4. Actualizar Segmentos.xlsx con el nuevo ID (con manejo de errores)
-                    try:
-                        actualizar_id_en_segmentos(nombre_lista, list_id)
-                        notify("Lista Creada", f"Lista '{nombre_lista}' creada exitosamente (ID: {list_id})", "info")
-                    except Exception as e:
-                        logger.warning(f"Error actualizando ID en segmentos: {e}")
-
-                except Exception as e:
-                    logger.error(f"Error creando lista '{nombre_lista}': {e}")
-                    notify("Error", f"Error creando lista '{nombre_lista}': {e}", "error")
-                    return False
+                # 3. Si no existe en ningún lado, saltar este segmento
+                logger.info(f"Lista '{nombre_lista}' no existe en carpeta /listas ni en servidor. Saltando...")
+                print(f"⚠️ Lista '{nombre_lista}' no existe en /listas. Saltando segmento.")
+                notify("Lista No Encontrada", f"Lista '{nombre_lista}' no existe en /listas. Segmento saltado.", "warning")
+                return False  # Retornar False para indicar que se saltó
 
         if not list_id:
             logger.error(f"No se pudo obtener ID válido para lista: {nombre_lista}")

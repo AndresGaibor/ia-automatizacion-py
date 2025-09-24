@@ -658,14 +658,16 @@ def procesar_hoja_excel(archivo: str, nombre_hoja: str, config_lista: Dict[str, 
         print(f"❌ Error procesando hoja {nombre_hoja}: {e}")
         return None
 
-def crear_campos_personalizados(list_id: int, df_suscriptores: pd.DataFrame, api: API) -> bool:
+def crear_campos_personalizados(list_id: int, df_suscriptores: pd.DataFrame, api: API, page=None) -> bool:
     """
-    Crea campos personalizados en la lista basándose en las columnas del DataFrame
+    Crea campos personalizados inteligentemente basándose en los campos disponibles en Acumba.
+    Usa scraping para verificar qué campos ya existen y evita crear duplicados.
 
     Args:
         list_id: ID de la lista
         df_suscriptores: DataFrame con los datos de suscriptores
         api: Instancia de API
+        page: Página de Playwright para scraping (opcional)
 
     Returns:
         bool: True si se crearon exitosamente
@@ -674,18 +676,63 @@ def crear_campos_personalizados(list_id: int, df_suscriptores: pd.DataFrame, api
 
     try:
         # Obtener columnas que no sean 'email'
-        campos_personalizados = [col for col in df_suscriptores.columns if col != 'email']
+        campos_excel = [col for col in df_suscriptores.columns if col != 'email']
 
-        if not campos_personalizados:
-            logger.info("No hay campos personalizados para crear")
+        if not campos_excel:
+            logger.info("No hay campos personalizados para procesar")
             return True
 
-        print(f"🔧 Creando {len(campos_personalizados)} campos personalizados...")
+        print(f"🔍 Analizando {len(campos_excel)} campos del Excel...")
+
+        # Si tenemos una página, verificar campos existentes en Acumba
+        campos_acumba = []
+        if page:
+            try:
+                from .field_scraper import obtener_campos_disponibles_acumba, filtrar_campos_necesarios
+
+                print("📊 Obteniendo campos disponibles en Acumbamail...")
+                info_campos = obtener_campos_disponibles_acumba(page, list_id)
+                campos_acumba = info_campos.get("fields", [])
+
+                print(f"📋 Campos detectados en Acumba: {len(campos_acumba)}")
+                for campo in campos_acumba[:5]:  # Mostrar primeros 5
+                    print(f"   • {campo}")
+                if len(campos_acumba) > 5:
+                    print(f"   • ... y {len(campos_acumba) - 5} más")
+
+                # Filtrar campos necesarios
+                filtrado = filtrar_campos_necesarios(campos_excel, campos_acumba)
+                campos_crear = filtrado["crear"]
+                campos_mapear = filtrado["mapear"]
+                campos_ignorar = filtrado["ignorar"]
+
+                print(f"🆕 Campos nuevos a crear: {len(campos_crear)}")
+                print(f"🔗 Campos existentes a mapear: {len(campos_mapear)}")
+                print(f"🚫 Campos a ignorar: {len(campos_ignorar)}")
+
+                if campos_ignorar:
+                    print("📋 Campos ignorados:")
+                    for campo in campos_ignorar:
+                        print(f"   • {campo}")
+
+            except Exception as e:
+                logger.warning(f"Error en scraping de campos, usando modo fallback: {e}")
+                campos_crear = campos_excel
+        else:
+            # Sin scraping, crear todos los campos (modo legacy)
+            logger.info("No hay página disponible para scraping, usando modo legacy")
+            campos_crear = campos_excel
+
+        if not campos_crear:
+            print("✅ No se necesitan crear campos nuevos")
+            return True
+
+        print(f"🔧 Creando {len(campos_crear)} campos personalizados necesarios...")
 
         campos_creados = 0
         campos_fallidos = 0
 
-        for campo in campos_personalizados:
+        for campo in campos_crear:
             try:
                 # Normalizar nombre del campo
                 campo_normalizado = campo.replace(' ', '_').replace('-', '_')
