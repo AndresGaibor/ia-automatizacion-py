@@ -150,7 +150,7 @@ def configurar_navegador(p, extraccion_oculta: bool = False):
 			args=[
 				"--disable-blink-features=AutomationControlled",
 				"--no-sandbox",
-				"--window-position=2000,0",
+				# "--window-position=2000,0",
 					"--window-size=1280,800",
 			],
 		)
