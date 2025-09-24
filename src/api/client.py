@@ -43,6 +43,10 @@ class APIClient:
 		**kwargs
 	) -> httpx.Response:
 		"""Metodo interno para hacer peticiones HTTP"""
+		# Validar configuración de API
+		if not self.base_url or not self.auth_token:
+			raise Exception("Configuración de API incompleta. Verifique 'api.base_url' y 'api.api_key' en config.yaml")
+
 		# Construir la URL completa manteniendo la estructura de la API
 		url = f"{self.base_url}{endpoint.lstrip('/')}"
 

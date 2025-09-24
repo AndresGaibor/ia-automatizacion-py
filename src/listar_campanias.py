@@ -84,6 +84,10 @@ def main():
 		informe: list[list[str]] = []
 		campanias = api.campaigns.get_all(True)
 
+		# Filtrar campañas válidas
+		from datetime import datetime, timedelta
+		hoy = datetime.now().strftime("%Y%m%d")
+
 		for campania in campanias:
 			nombre = campania.name
 			id = str(campania.id)
@@ -92,12 +96,14 @@ def main():
 			abierto = str(campania.opened)
 			no_abierto = str(campania.unopened)
 
-			informe.append(['', nombre, id, fecha, total_enviado, abierto, no_abierto])
+			# Filtrar campañas de prueba o del mismo día (pueden estar incompletas)
+			if (nombre and
+				hoy not in nombre and  # Excluir campañas del día actual
+				total_enviado != "0"):  # Excluir campañas sin envíos
+				informe.append(['', nombre, id, fecha, total_enviado, abierto, no_abierto])
 		
 		if informe:
 			guardar_datos_en_excel(informe, ARCHIVO_BUSQUEDA)
-
-		notify("Proceso finalizado", f"Lista de campañas obtenida")
 
 	except Exception as e:
 		print(f"Error crítico en el programa: {e}")

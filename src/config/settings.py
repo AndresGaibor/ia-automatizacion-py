@@ -20,35 +20,38 @@ except Exception:
 class Settings:
 	"""Configuración centralizada de la aplicación
 
-	Prioridad de carga:
-	1) Variables de entorno (API_BASE_URL, API_KEY)
-	2) config.yaml -> sección `api: { base_url, api_key }`
-	3) Valores por defecto seguros
+	URLs hardcodeadas para evitar errores de configuración del usuario.
+	Solo requiere configurar credenciales (usuario, password, api_key).
 	"""
 
 	def __init__(self):
-		# Defaults que coinciden con la estructura del config.yaml
-		defaults = {
-			"api": {
-				"base_url": "https://acumbamail.com/api/1/",
-				"api_key": None,
-			}
-		}
+		# URLs hardcodeadas - el usuario no necesita configurarlas
+		self.url_base: str = "https://acumbamail.com"
+		self.url: str = "https://acumbamail.com/app/newsletter/"
+		self.api_base_url: str = "https://acumbamail.com/api/1/"
 
-		cfg = load_config(defaults)
-		api_cfg = cfg.get("api", {}) if isinstance(cfg, dict) else {}
+		# Cargar configuración del usuario solo para credenciales
+		cfg = load_config({})
 
-		# Cargar primero desde config.yaml
-		base_url_cfg = api_cfg.get("base_url") or defaults["api"]["base_url"]
-		api_key_cfg = api_cfg.get("api_key")
+		# Credenciales del usuario (requeridas)
+		self.user: Optional[str] = cfg.get("user")
+		self.password: Optional[str] = cfg.get("password")
+		self.api_key: Optional[str] = cfg.get("api", {}).get("api_key") if cfg.get("api") else None
 
-		# Overrides por entorno si existen (mantener compatibilidad)
-		self.api_base_url: str = os.getenv("API_BASE_URL", base_url_cfg)
-		self.api_key: Optional[str] = os.getenv("API_KEY", api_key_cfg)
+		# Configuraciones opcionales con defaults
+		self.headless: bool = cfg.get("headless", False)
+		self.debug: bool = cfg.get("debug", False)
 
 	def validate(self) -> None:
-		if not self.api_base_url:
-			raise ValueError("api_base_url no configurado. Define api.base_url en config.yaml o API_BASE_URL en entorno.")
+		"""Valida que las credenciales estén configuradas"""
+		if not self.user or not self.password:
+			raise ValueError("Credenciales no configuradas. Configure 'user' y 'password' en config.yaml")
+		if not self.api_key:
+			raise ValueError("API key no configurada. Configure 'api.api_key' en config.yaml")
+
+	def is_configured(self) -> bool:
+		"""Verifica si la configuración está completa"""
+		return bool(self.user and self.password and self.api_key)
 
 
 settings = Settings()

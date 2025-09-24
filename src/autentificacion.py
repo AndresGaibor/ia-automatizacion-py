@@ -53,7 +53,6 @@ def login(page: Page, context: BrowserContext):
 		raise ValueError("Contraseña no configurada en config.yaml")
 
 	print("🔑 Iniciando proceso de login...")
-	notify("Autenticación", "Iniciando sesión en Acumbamail", "info")
 	
 	try:
 		page.goto(url, timeout=60_000)
@@ -65,7 +64,6 @@ def login(page: Page, context: BrowserContext):
 
 	if f"{url_base}/" != page.url:
 		print("✅ Ya estás en la página principal, guardando estado de sesión...")
-		notify("Sesión", "Sesión activa detectada", "info")
 		context.storage_state(path=storage_state_path())
 		page.wait_for_timeout(5_000)
 		return

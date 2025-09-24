@@ -39,6 +39,11 @@ class HybridDataService:
 
             # 1. Obtener datos básicos de API (rápido y confiable)
             campaign_basic = self.api.campaigns.get_basic_info(campaign_id)
+
+            # Validar que los datos básicos se obtuvieron correctamente
+            if not campaign_basic:
+                raise Exception(f"No se pudieron obtener datos básicos de la campaña {campaign_id}. Verifique la configuración de API en config.yaml")
+
             campaign_detailed = self.api.campaigns.get_total_info(campaign_id)
             campaign_clicks = self.api.campaigns.get_clicks(campaign_id)
             campaign_openers = self.api.campaigns.get_openers(campaign_id)
@@ -139,7 +144,7 @@ class HybridDataService:
                     complete_data = self.get_complete_campaign_data(campaign_id)
 
                     # Agregar resultado a la sesión
-                    if complete_data.get("scraping_result"):
+                    if complete_data and complete_data.get("scraping_result"):
                         session.add_campaign_result(complete_data["scraping_result"])
 
                 except Exception as e:

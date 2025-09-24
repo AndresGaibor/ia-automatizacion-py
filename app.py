@@ -6,6 +6,9 @@ import importlib
 import threading
 import time
 from src.utils import load_config, data_path, storage_state_path, notify
+from src.config_window import show_config_window
+from src.config.settings import settings
+from src.config_validator import check_config_or_show_dialog
 
 # Config por defecto (usada para crear y para "Restaurar")
 DEFAULTS = {
@@ -215,42 +218,22 @@ def limpiar_sesion():
 def run_listar_campanias(btn):
     def worker():
         try:
-            # Validar configuración
-            valid, message = validar_configuracion()
-            if not valid:
-                root.after(0, lambda: notify("Error de Configuración", message, "error"))
+            # Validar configuración con diálogo automático
+            if not check_config_or_show_dialog(root):
                 return
-            
-            # Validar archivo de búsqueda
-            valid_busqueda, message_busqueda, marcados = validar_archivo_busqueda()
-            if not valid_busqueda:
-                root.after(0, lambda: notify("Error de Archivo", message_busqueda, "warning"))
-                return
-            
-            # Mostrar información previa
-            root.after(0, lambda: notify("Iniciando", f"Procesando {marcados} campañas marcadas", "info"))
-            
-            # Mostrar contador (estimado 2-5 minutos dependiendo de campañas)
-            tiempo_estimado = min(marcados * 10, 300)  # 10 segundos por campaña, máximo 5 minutos
-            root.after(0, lambda: mostrar_contador_progreso("Listando Campañas", tiempo_estimado))
-            root.after(0, lambda: actualizar_progreso("Conectando a Acumbamail"))
-            
+
             import src.listar_campanias as m
             importlib.reload(m)
-            
-            root.after(0, lambda: actualizar_progreso("Extrayendo datos de campañas"))
+
             m.main()
-            
-            root.after(0, lambda: cerrar_contador_progreso())
             root.after(0, lambda: notify("Completado", "Listado de campañas finalizado con éxito", "info"))
-            
+
         except Exception as e:
-            root.after(0, lambda: cerrar_contador_progreso())
             root.after(0, lambda: notify("Error", f"Error al listar campañas: {e}", "error"))
         finally:
             root.after(0, lambda: btn.config(state=tk.NORMAL))
             root.after(0, lambda: root.config(cursor=""))
-    
+
     btn.config(state=tk.DISABLED)
     root.config(cursor="watch")
     threading.Thread(target=worker, daemon=True).start()
@@ -258,10 +241,8 @@ def run_listar_campanias(btn):
 def run_obtener_suscriptores(btn):
     def worker():
         try:
-            # Validar configuración
-            valid, message = validar_configuracion()
-            if not valid:
-                root.after(0, lambda: notify("Error de Configuración", message, "error"))
+            # Validar configuración con diálogo automático
+            if not check_config_or_show_dialog(root):
                 return
             
             # Validar archivo de búsqueda
@@ -270,26 +251,27 @@ def run_obtener_suscriptores(btn):
                 root.after(0, lambda: notify("Error de Archivo", message_busqueda, "warning"))
                 return
             
-            # Mostrar información previa
-            root.after(0, lambda: notify("Iniciando", f"Obteniendo suscriptores de {marcados} campañas", "info"))
-            
             # Mostrar contador (estimado 5-15 minutos dependiendo de campañas)
-            tiempo_estimado = min(marcados * 30, 900)  # 30 segundos por campaña, máximo 15 minutos
-            root.after(0, lambda: mostrar_contador_progreso("Obteniendo Suscriptores", tiempo_estimado))
-            root.after(0, lambda: actualizar_progreso("Conectando a Acumbamail"))
+            # tiempo_estimado = min(marcados * 30, 900)  # 30 segundos por campaña, máximo 15 minutos
+            # root.after(0, lambda: mostrar_contador_progreso("Obteniendo Suscriptores", tiempo_estimado))
+            # root.after(0, lambda: actualizar_progreso("Conectando a Acumbamail"))
             
             import src.demo as m
             importlib.reload(m)
             
-            root.after(0, lambda: actualizar_progreso("Procesando campañas y extrayendo suscriptores"))
+            # root.after(0, lambda: actualizar_progreso("Procesando campañas y extrayendo suscriptores"))
             m.main()
             
-            root.after(0, lambda: cerrar_contador_progreso())
+            # root.after(0, lambda: cerrar_contador_progreso())
             root.after(0, lambda: notify("Completado", "Extracción de suscriptores finalizada con éxito", "info"))
             
         except Exception as e:
-            root.after(0, lambda: cerrar_contador_progreso())
-            root.after(0, lambda: notify("Error", f"Error al obtener suscriptores: {e}", "error"))
+            # root.after(0, lambda: cerrar_contador_progreso())
+            error_msg = str(e)
+            if "Error en campaña" in error_msg:
+                root.after(0, lambda: notify("Error de Campaña", f"La campaña seleccionada no está disponible o fue eliminada: {error_msg}", "error"))
+            else:
+                root.after(0, lambda: notify("Error", f"Error al obtener suscriptores: {error_msg}", "error"))
         finally:
             root.after(0, lambda: btn.config(state=tk.NORMAL))
             root.after(0, lambda: root.config(cursor=""))
@@ -309,10 +291,8 @@ def run_crear_lista(btn):
     """
     def worker():
         try:
-            # Validar configuración
-            valid, message = validar_configuracion()
-            if not valid:
-                root.after(0, lambda: notify("Error de Configuración", message, "error"))
+            # Validar configuración con diálogo automático
+            if not check_config_or_show_dialog(root):
                 return
             
             # Verificar que hay configuración de lista
@@ -327,21 +307,21 @@ def run_crear_lista(btn):
             root.after(0, lambda: notify("Iniciando", "Preparando subida de lista de suscriptores", "info"))
             
             # Mostrar contador (estimado 2-5 minutos dependiendo del tamaño del archivo)
-            root.after(0, lambda: mostrar_contador_progreso("Subiendo Lista", 180))  # 3 minutos estimado
-            root.after(0, lambda: actualizar_progreso("Seleccionando archivo Excel"))
+            # root.after(0, lambda: mostrar_contador_progreso("Subiendo Lista", 180))  # 3 minutos estimado
+            # root.after(0, lambda: actualizar_progreso("Seleccionando archivo Excel"))
             
             import src.crear_lista_mejorado as m
             importlib.reload(m)
             
-            root.after(0, lambda: actualizar_progreso("Validando datos y subiendo a Acumbamail"))
+            # root.after(0, lambda: actualizar_progreso("Validando datos y subiendo a Acumbamail"))
             # Ejecutar creación automática
             m.main_automatico()
             
-            root.after(0, lambda: cerrar_contador_progreso())
+            # root.after(0, lambda: cerrar_contador_progreso())
             root.after(0, lambda: notify("Completado", "Lista de suscriptores subida con éxito", "info"))
             
         except Exception as e:
-            root.after(0, lambda: cerrar_contador_progreso())
+            # root.after(0, lambda: cerrar_contador_progreso())
             root.after(0, lambda: notify("Error", f"Error al crear lista: {e}", "error"))
         finally:
             root.after(0, lambda: btn.config(state=tk.NORMAL))
@@ -354,10 +334,8 @@ def run_crear_lista(btn):
 def run_obtener_listas(btn):
     def worker():
         try:
-            # Validar configuración
-            valid, message = validar_configuracion()
-            if not valid:
-                root.after(0, lambda: notify("Error de Configuración", message, "error"))
+            # Validar configuración con diálogo automático
+            if not check_config_or_show_dialog(root):
                 return
             
             # Validar archivo de búsqueda de listas
@@ -370,21 +348,21 @@ def run_obtener_listas(btn):
             root.after(0, lambda: notify("Iniciando", f"Obteniendo información de {marcadas} listas", "info"))
             
             # Mostrar contador (estimado 1-3 minutos)
-            tiempo_estimado = min(marcadas * 5, 180)  # 5 segundos por lista, máximo 3 minutos
-            root.after(0, lambda: mostrar_contador_progreso("Obteniendo Listas", tiempo_estimado))
-            root.after(0, lambda: actualizar_progreso("Conectando a Acumbamail"))
+            # tiempo_estimado = min(marcadas * 5, 180)  # 5 segundos por lista, máximo 3 minutos
+            # root.after(0, lambda: mostrar_contador_progreso("Obteniendo Listas", tiempo_estimado))
+            # root.after(0, lambda: actualizar_progreso("Conectando a Acumbamail"))
             
             import src.obtener_listas as m
             importlib.reload(m)
             
-            root.after(0, lambda: actualizar_progreso("Extrayendo información de listas"))
+            # root.after(0, lambda: actualizar_progreso("Extrayendo información de listas"))
             m.main()
             
-            root.after(0, lambda: cerrar_contador_progreso())
+            # root.after(0, lambda: cerrar_contador_progreso())
             root.after(0, lambda: notify("Completado", "Obtención de listas finalizada con éxito", "info"))
             
         except Exception as e:
-            root.after(0, lambda: cerrar_contador_progreso())
+            # root.after(0, lambda: cerrar_contador_progreso())
             root.after(0, lambda: notify("Error", f"Error al obtener listas: {e}", "error"))
         finally:
             root.after(0, lambda: btn.config(state=tk.NORMAL))
@@ -398,10 +376,8 @@ def run_obtener_listas(btn):
 def run_descargar_suscriptores(btn):
     def worker():
         try:
-            # Validar configuración
-            valid, message = validar_configuracion()
-            if not valid:
-                root.after(0, lambda: notify("Error de Configuración", message, "error"))
+            # Validar configuración con diálogo automático
+            if not check_config_or_show_dialog(root):
                 return
             
             # Validar archivo de búsqueda de listas
@@ -414,21 +390,21 @@ def run_descargar_suscriptores(btn):
             root.after(0, lambda: notify("Iniciando", f"Descargando suscriptores de {marcadas} listas", "info"))
             
             # Mostrar contador (estimado 2-10 minutos dependiendo del tamaño de las listas)
-            tiempo_estimado = min(marcadas * 60, 600)  # 1 minuto por lista, máximo 10 minutos
-            root.after(0, lambda: mostrar_contador_progreso("Descargando Suscriptores", tiempo_estimado))
-            root.after(0, lambda: actualizar_progreso("Conectando a Acumbamail"))
+            # tiempo_estimado = min(marcadas * 60, 600)  # 1 minuto por lista, máximo 10 minutos
+            # root.after(0, lambda: mostrar_contador_progreso("Descargando Suscriptores", tiempo_estimado))
+            # root.after(0, lambda: actualizar_progreso("Conectando a Acumbamail"))
             
             import src.descargar_suscriptores as m
             importlib.reload(m)
             
-            root.after(0, lambda: actualizar_progreso("Descargando datos de suscriptores"))
+            # root.after(0, lambda: actualizar_progreso("Descargando datos de suscriptores"))
             m.main()
             
-            root.after(0, lambda: cerrar_contador_progreso())
+            # root.after(0, lambda: cerrar_contador_progreso())
             root.after(0, lambda: notify("Completado", "Descarga de suscriptores finalizada con éxito", "info"))
             
         except Exception as e:
-            root.after(0, lambda: cerrar_contador_progreso())
+            # root.after(0, lambda: cerrar_contador_progreso())
             root.after(0, lambda: notify("Error", f"Error al descargar suscriptores: {e}", "error"))
         finally:
             root.after(0, lambda: btn.config(state=tk.NORMAL))
@@ -464,18 +440,18 @@ def run_mapear_segmentos(btn):
 			root.after(0, lambda: notify("Iniciando", f"Procesando {segmentos_count} segmentos definidos", "info"))
 			
 			# Mostrar contador (estimado 5-15 minutos dependiendo del número de segmentos)
-			tiempo_estimado = min(segmentos_count * 30, 900)  # 30 segundos por segmento, máximo 15 minutos
-			root.after(0, lambda: mostrar_contador_progreso("Procesando Segmentos", tiempo_estimado))
-			root.after(0, lambda: actualizar_progreso("Conectando a Acumbamail"))
+			# tiempo_estimado = min(segmentos_count * 30, 900)  # 30 segundos por segmento, máximo 15 minutos
+			# root.after(0, lambda: mostrar_contador_progreso("Procesando Segmentos", tiempo_estimado))
+			# root.after(0, lambda: actualizar_progreso("Conectando a Acumbamail"))
 
 			import src.mapeo_segmentos as m
 			importlib.reload(m)
 
-			root.after(0, lambda: actualizar_progreso("Mapeando y creando segmentos"))
+			# root.after(0, lambda: actualizar_progreso("Mapeando y creando segmentos"))
 			# Ejecutar mapeo completo
 			resultado = m.mapear_segmentos_completo()
 
-			root.after(0, lambda: cerrar_contador_progreso())
+			# root.after(0, lambda: cerrar_contador_progreso())
 
 			if "error" in resultado:
 				root.after(0, lambda: notify("Error", f"Error en mapeo: {resultado['error']}", "error"))
@@ -511,7 +487,7 @@ def run_mapear_segmentos(btn):
 				root.after(0, lambda: notify("Procesamiento Incompleto", mensaje, "warning"))
 
 		except Exception as e:
-			root.after(0, lambda: cerrar_contador_progreso())
+			# root.after(0, lambda: cerrar_contador_progreso())
 			root.after(0, lambda: notify("Error", f"Error durante el procesamiento: {e}", "error"))
 		finally:
 			root.after(0, lambda: btn.config(state=tk.NORMAL))
@@ -560,6 +536,10 @@ if __name__ == "__main__":
     # === CONFIGURACIÓN ===
     frame_config = tk.LabelFrame(root, text="Configuración", font=("Arial", 12, "bold"), pady=5)
     frame_config.pack(pady=12, fill="x", padx=25)
+
+    btn_config = tk.Button(frame_config, text="⚙️ Configurar Credenciales", font=("Arial", 14), height=2,
+                          command=lambda: show_config_window(root), bg="#4CAF50", fg="white")
+    btn_config.pack(pady=8, fill="x", padx=15)
 
     btn_clean = tk.Button(frame_config, text="Limpiar sesión actual", font=("Arial", 14), height=2, command=limpiar_sesion)
     btn_clean.pack(pady=8, fill="x", padx=15)

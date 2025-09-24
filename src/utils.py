@@ -41,6 +41,23 @@ def cargar_id_campanias_a_buscar(archivo_busqueda: str) -> list[int]:
 
 	return ids
 
+def cargar_campanias_a_buscar(archivo_busqueda: str) -> list[tuple[int, str]]:
+	"""
+	Carga las campañas marcadas desde el archivo Excel
+	Retorna lista de tuplas (id, nombre)
+	"""
+	campanias = []
+	df = pd.read_excel(archivo_busqueda, engine="openpyxl")
+
+	for index, row in df.iterrows():
+		buscar = row['Buscar']
+		if(buscar == 'x' or buscar == 'X'):
+			id_campania = row['ID Campaña']
+			nombre_campania = row.get('Nombre', f'ID {id_campania}')  # Usar ID como fallback
+			campanias.append((id_campania, nombre_campania))
+
+	return campanias
+
 def cargar_terminos_busqueda(archivo_busqueda: str) -> list[list[str]]:
 	"""
 	Carga los términos de búsqueda desde el archivo Excel
