@@ -119,8 +119,8 @@ def scrape_subscriber_list(page: Page, list_id: int, nombre_lista: str) -> List[
 
 def extraer_suscriptores_tabla_lista(page: Page, nombre_lista: str, list_id: int) -> List[Dict[str, str]]:
     """
-    Extrae suscriptores de la tabla responsive de Acumbamail usando selectores modernos de Playwright.
-    Basado en la estructura: ul.am-responsive-table > li.am-responsive-table-row
+    Extrae suscriptores de la tabla de Acumbamail usando selectores CSS estándar.
+    Detecta automáticamente todas las columnas basándose en la estructura HTML real.
     """
     logger.start_timer("extraer_suscriptores_tabla_lista")
     suscriptores = []
@@ -132,101 +132,188 @@ def extraer_suscriptores_tabla_lista(page: Page, nombre_lista: str, list_id: int
         page.wait_for_load_state("networkidle", timeout=15000)
         page.wait_for_timeout(2000)
 
-        # Buscar el contenedor principal usando selectores modernos de Playwright
-        tabla_container = page.locator("#newsletter-subscribers").or_(
-            page.locator("div.am-responsive-table-wrapper")
-        ).first
+        # Buscar la tabla usando JavaScript con enfoque directo en la estructura HTML
+        resultado = page.evaluate("""
+            () => {
+                // Buscar todas las listas UL
+                const listas = document.querySelectorAll('ul');
 
-        if tabla_container.count() == 0:
-            print("❌ No se encontró el contenedor de la tabla")
+                // Buscar la lista que contenga enlaces de suscriptores
+                let listaTabla = null;
+                for (let ul of listas) {
+                    const items = ul.querySelectorAll('li');
+                    if (items.length > 5) {
+                        const enlaces = ul.querySelectorAll('a[href*="subscriber/detail"]');
+                        if (enlaces.length > 0) {
+                            listaTabla = ul;
+                            break;
+                        }
+                    }
+                }
+
+                if (!listaTabla) return { error: "No se encontró la tabla de suscriptores" };
+
+                const filas = listaTabla.querySelectorAll('li');
+
+                // Extraer encabezados de la primera fila usando spans y divs específicos
+                const encabezados = [];
+                if (filas.length > 0) {
+                    const filaHeader = filas[0];
+
+                    // Buscar spans que contengan texto de encabezados (excluyendo botones y controles)
+                    const elementos = filaHeader.querySelectorAll('span, div');
+                    for (let elem of elementos) {
+                        const text = elem.textContent.trim();
+                        // Filtrar solo los textos que parecen encabezados de columna
+                        if (text && text.length > 2 && text.length < 50 &&
+                            !text.includes('checkbox') && !text.includes('button') &&
+                            !text.match(/^\\d+$/) && !encabezados.includes(text)) {
+                            encabezados.push(text);
+                        }
+                    }
+                }
+
+                // Extraer datos de cada fila de manera más directa evitando duplicados
+                const datosFilas = [];
+                const emailsYaProcesados = new Set();
+
+                for (let i = 1; i < filas.length; i++) {
+                    const fila = filas[i];
+
+                    // Buscar email en los enlaces para identificar filas de suscriptores reales
+                    const linkEmail = fila.querySelector('a[href*="subscriber/detail"]');
+                    let emailEncontrado = null;
+                    if (linkEmail) {
+                        emailEncontrado = linkEmail.textContent.trim();
+                    }
+
+                    // Solo procesar si hay email y no lo hemos procesado antes
+                    if (!emailEncontrado || emailsYaProcesados.has(emailEncontrado)) {
+                        continue;
+                    }
+
+                    emailsYaProcesados.add(emailEncontrado);
+
+                    // Extraer datos usando selectores más específicos
+                    const celdas = [];
+
+                    // Método 1: Buscar spans que contengan los datos (excluyendo controles)
+                    const spans = fila.querySelectorAll('span');
+                    for (let span of spans) {
+                        const text = span.textContent.trim();
+                        if (text && text.length > 0 &&
+                            !text.includes('checkbox') && !text.includes('button') &&
+                            !text.includes('Ver') && !text.includes('Editar') &&
+                            !text.includes('Eliminar') && !text.includes('✓') &&
+                            !text.includes('×') && !text.match(/^\\d+$/) && text.length < 100) {
+                            celdas.push(text);
+                        }
+                    }
+
+                    // Si no hay suficientes celdas con spans, intentar con divs
+                    if (celdas.length < 5) {
+                        const divs = fila.querySelectorAll('div');
+                        for (let div of divs) {
+                            const text = div.textContent.trim();
+                            if (text && text.length > 0 &&
+                                !text.includes('checkbox') && !text.includes('button') &&
+                                !text.includes('Ver') && !text.includes('Editar') &&
+                                !text.includes('Eliminar') && !text.includes('✓') &&
+                                !text.includes('×') && !text.match(/^\\d+$/) &&
+                                !celdas.includes(text) && text.length < 100) {
+                                celdas.push(text);
+                            }
+                        }
+                    }
+
+                    datosFilas.push({
+                        email: emailEncontrado,
+                        textos: celdas
+                    });
+                }
+
+                return {
+                    totalFilas: filas.length,
+                    encabezados: encabezados,
+                    datosFilas: datosFilas,
+                    debug: {
+                        primeraFilaDatos: datosFilas.length > 0 ? datosFilas[0] : null
+                    }
+                };
+            }
+        """)
+
+        if resultado.get("error"):
+            print(f"❌ {resultado['error']}")
             return []
 
-        # Buscar la lista UL principal
-        lista_principal = tabla_container.locator("ul.am-responsive-table").first
-        
-        if lista_principal.count() == 0:
-            print("❌ No se encontró la lista principal")
-            return []
+        encabezados = resultado["encabezados"]
+        datos_filas = resultado["datosFilas"]
+        total_filas = resultado["totalFilas"]
 
-        # Obtener todas las filas de datos (items, excluyendo header)
-        filas_datos = lista_principal.locator("li.item.am-responsive-table-row")
-        total_filas = filas_datos.count()
-        
-        print(f"📊 Total de filas de datos: {total_filas}")
+        print(f"📊 Total de filas encontradas: {total_filas}")
+        print(f"📋 {len(encabezados)} encabezados detectados:")
+        for i, header in enumerate(encabezados):
+            nombre_normalizado = _normalizar_nombre_columna(header)
+            print(f"   {i}: '{header}' -> '{nombre_normalizado}'")
 
-        if total_filas == 0:
-            print("⚠️ No hay datos para extraer")
-            return []
+        # Debug información de la primera fila
+        debug_info = resultado.get("debug", {})
+        primera_fila = debug_info.get("primeraFilaDatos")
+        if primera_fila:
+            print(f"🔍 DEBUG - Primera fila de datos:")
+            print(f"   Email: {primera_fila.get('email', 'NO ENCONTRADO')}")
+            print(f"   Textos ({len(primera_fila.get('textos', []))}):")
+            for j, texto in enumerate(primera_fila.get('textos', [])):
+                print(f"      {j}: '{texto}'")
 
-        # Mapeo de posiciones de columnas basado en la estructura HTML observada
-        columnas_map = {
-            0: "email",           # Correo electrónico (con checkbox y link)
-            1: "estado",          # Estado (span con am-tag)
-            2: "fecha_de_alta",   # Fecha de alta
-            3: "email_1",         # EMAIL.1 (campo personalizado)
-            4: "nuevos_correos",  # NUEVOS CORREOS (campo personalizado)
-            5: "sede",            # SEDE (campo personalizado)
-            6: "organo",          # ORGANO (campo personalizado)
-            7: "n_organo",        # N ORGANO (campo personalizado)
-            8: "calidad",         # Calidad (formato XX/100)
-            # 9 sería "detalles" (columna de acciones) - la ignoramos
-        }
+        print(f"📊 Procesando {len(datos_filas)} filas de datos...")
 
         # Procesar cada fila de datos
-        for i in range(total_filas):
+        for fila_idx, datos_fila in enumerate(datos_filas):
             try:
-                fila = filas_datos.nth(i)
                 suscriptor = {"lista": nombre_lista}
 
-                # Obtener todas las celdas de la fila
-                celdas = fila.locator("div.am-responsive-table-cell")
-                total_celdas = celdas.count()
+                # Agregar el email si se encontró
+                if datos_fila["email"] and "@" in datos_fila["email"]:
+                    suscriptor["email"] = datos_fila["email"]
 
-                for j in range(total_celdas):
-                    try:
-                        celda = celdas.nth(j)
-                        campo_nombre = columnas_map.get(j, f"campo_{j}")
+                # Mapear textos con encabezados (excluyendo el email que ya está procesado)
+                textos = datos_fila["textos"]
 
-                        if campo_nombre == "email":
-                            # Extraer email del link usando get_by_role moderno
-                            link_email = celda.get_by_role("link").or_(celda.locator("a")).first
-                            if link_email.count() > 0:
-                                email = link_email.inner_text().strip()
-                                if email and "@" in email:
-                                    suscriptor["email"] = email
+                # Estrategia de mapeo inteligente - saltar el primer header (email) ya que ya lo tenemos
+                texto_idx = 0
+                for i, header in enumerate(encabezados):
+                    nombre_columna = _normalizar_nombre_columna(header)
 
-                        elif campo_nombre == "estado":
-                            # Extraer estado usando localizador por clase
-                            estado_tag = celda.locator("span.am-tag")
-                            if estado_tag.count() > 0:
-                                suscriptor["estado"] = estado_tag.inner_text().strip()
-
-                        elif j < 9:  # Ignorar última columna (detalles/acciones)
-                            # Para otros campos, extraer el texto usando get_by_text si es posible
-                            # o fallback a span
-                            span_texto = celda.locator("span").first
-                            if span_texto.count() > 0:
-                                texto = span_texto.inner_text().strip()
-                                if texto and texto != "":
-                                    suscriptor[campo_nombre] = texto
-
-                    except Exception as e:
-                        print(f"⚠️ Error en celda {j} de fila {i}: {e}")
+                    # Saltar el email - ya se agregó arriba
+                    if nombre_columna == "correo_electronico":
                         continue
+
+                    # Para otros campos, mapear con los textos disponibles
+                    if texto_idx < len(textos):
+                        valor = textos[texto_idx]
+                        if valor and valor != "" and valor != "0" and valor != suscriptor.get("email", ""):
+                            suscriptor[nombre_columna] = valor
+                        texto_idx += 1
 
                 # Solo agregar si tiene email válido
                 if suscriptor.get("email") and "@" in suscriptor["email"]:
                     suscriptores.append(suscriptor)
-                    
+
                     # Debug: mostrar primeros registros
                     if len(suscriptores) <= 3:
                         print(f"✅ Suscriptor {len(suscriptores)}: {suscriptor}")
 
+                # Progreso cada 50 registros
+                if (fila_idx + 1) % 50 == 0:
+                    print(f"   📊 Procesadas {fila_idx + 1}/{len(datos_filas)} filas, {len(suscriptores)} suscriptores extraídos")
+
             except Exception as e:
-                print(f"❌ Error procesando fila {i}: {e}")
+                print(f"❌ Error procesando fila {fila_idx}: {e}")
                 continue
 
-        print(f"📊 Total suscriptores extraídos: {len(suscriptores)}")
+        print(f"📊 Total suscriptores extraídos: {len(suscriptores)} de {len(datos_filas)} filas de datos")
         logger.end_timer("extraer_suscriptores_tabla_lista", f"Extraídos {len(suscriptores)} suscriptores")
         return suscriptores
 
@@ -240,25 +327,61 @@ def extraer_suscriptores_tabla_lista(page: Page, nombre_lista: str, list_id: int
 
 def _normalizar_nombre_columna(nombre: str) -> str:
     """
-    Normaliza nombres de columnas para crear claves consistentes en los diccionarios
+    Normaliza nombres de columnas para crear claves consistentes en los diccionarios.
+    Incluye mapeo completo basado en la estructura real de Acumbamail.
     """
-    # Mapeo de nombres comunes a claves estándar
+    # Mapeo de nombres completos observados en la tabla real
     mapeo = {
+        'correo electrónico': 'correo_electronico',
+        'correo electronico': 'correo_electronico',
         'estado': 'estado',
         'fecha de alta': 'fecha_de_alta',
-        'calidad': 'calidad',
-        'detalles': 'detalles',
-        'email.1': 'email_1',
-        'nuevos correos': 'nuevos_correos',
-        'sede': 'sede',
-        'órgano': 'organo',
-        'organo': 'organo',
+        'n organo': 'n_organo',
         'n órgano': 'n_organo',
-        'n organo': 'n_organo'
+        'observaciones': 'observaciones',
+        'creacion': 'creacion',
+        'creación': 'creacion',
+        'activo (si/no)': 'activo_si_no',
+        'activo si/no': 'activo_si_no',
+        'perfil usuario': 'perfil_usuario',
+        'funcion usuario': 'funcion_usuario',
+        'función usuario': 'funcion_usuario',
+        'id': 'id',
+        'primer apellido': 'primer_apellido',
+        'segundo apellido': 'segundo_apellido',
+        'login': 'login',
+        'rol usuario': 'rol_usuario',
+        'fecha revision': 'fecha_revision',
+        'fecha revisión': 'fecha_revision',
+        'sede': 'sede',
+        'organo': 'organo',
+        'órgano': 'organo',
+        'nombre': 'nombre',
+        'calidad': 'calidad',
+        'detalles': 'detalles'
     }
 
     nombre_lower = nombre.lower().strip()
-    return mapeo.get(nombre_lower, nombre_lower.replace(' ', '_').replace('.', '_').replace('ó', 'o').replace('í', 'i'))
+    nombre_normalizado = mapeo.get(nombre_lower)
+
+    if nombre_normalizado:
+        return nombre_normalizado
+
+    # Si no está en el mapeo, normalizar automáticamente
+    resultado = nombre_lower
+    resultado = resultado.replace(' ', '_')
+    resultado = resultado.replace('.', '_')
+    resultado = resultado.replace('(', '')
+    resultado = resultado.replace(')', '')
+    resultado = resultado.replace('/', '_')
+    resultado = resultado.replace('ó', 'o')
+    resultado = resultado.replace('í', 'i')
+    resultado = resultado.replace('á', 'a')
+    resultado = resultado.replace('é', 'e')
+    resultado = resultado.replace('ú', 'u')
+    resultado = resultado.replace('ñ', 'n')
+
+    return resultado
 
 def generar_nombre_archivo(nombre_lista: str, list_id: int) -> str:
     """
