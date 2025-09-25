@@ -155,6 +155,16 @@ def obtener_lista_suscriptor(email: str, mapa_email_lista: dict[str, str]) -> st
 	return mapa_email_lista.get(email_clean, "Lista no encontrada")
 
 def generar_general(campania, campania_complete, campaign_clics, todas_listas, page, campaign_id=None) -> list[str]:
+	from .logger import get_logger
+	logger = get_logger()
+	
+	logger.debug(f"🚀 Iniciando generación de datos generales para campaña")
+	logger.debug(f"   - Nombre campaña: {campania.name if campania.name else 'Sin nombre'}")
+	logger.debug(f"   - ID pasado como parámetro: {campaign_id}")
+	logger.debug(f"   - Objeto campania tiene atributo 'id': {hasattr(campania, 'id')}")
+	if hasattr(campania, 'id'):
+		logger.debug(f"   - Valor de campania.id: {getattr(campania, 'id', 'NO_DISPONIBLE')}")
+	
 	nombre = campania.name or ""
 	tipo = ""
 	fecha = campania.date
@@ -168,11 +178,16 @@ def generar_general(campania, campania_complete, campaign_clics, todas_listas, p
 	# Obtener URLs de la campaña mediante scraping
 	# Prioritize the passed campaign_id, but fall back to campania.id if available
 	actual_campaign_id = campaign_id if campaign_id is not None else (campania.id if hasattr(campania, 'id') else None)
+	logger.debug(f"   - ID usado para scraping de URLs: {actual_campaign_id}")
+	
 	if actual_campaign_id:
 		url_email = get_campaign_urls_with_fallback(page, actual_campaign_id)
+		logger.debug(f"   - URLs obtenidas: '{url_email}'")
 	else:
+		logger.warning("⚠️ No se pudo determinar ID de campaña para scraping de URLs")
 		url_email = ""
 	
+	logger.debug(f"✅ Finalizada generación de datos generales. URLs incluidas: {bool(url_email)}")
 	return [nombre, tipo, fecha, listas, emails, opens, clicks, url_email]
 
 def generar_abiertos(campania, openers, mapa_email_lista) -> list[list[str]]:
