@@ -117,6 +117,16 @@ class PerformanceLogger:
             self.logger.critical(f"{msg} | {extra_fields}", *args, **standard_kwargs)
         else:
             self.logger.critical(msg, *args, **kwargs)
+
+    def success(self, msg: str, *args, **kwargs) -> None:
+        # Handle structured logging by extracting extra fields
+        extra_fields = {k: v for k, v in kwargs.items() if k not in ['exc_info', 'stack_info', 'extra']}
+        if extra_fields:
+            # Only pass standard logging kwargs to the underlying logger
+            standard_kwargs = {k: v for k, v in kwargs.items() if k in ['exc_info', 'stack_info', 'extra']}
+            self.logger.info(f"✅ {msg} | {extra_fields}", *args, **standard_kwargs)
+        else:
+            self.logger.info(f"✅ {msg}", *args, **kwargs)
     
     def start_timer(self, operation: str, batch_key: Optional[str] = None) -> None:
         """Inicia el cronómetro para una operación con agrupación inteligente"""
