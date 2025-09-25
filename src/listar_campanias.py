@@ -12,15 +12,15 @@ if __name__ == "__main__":
 try:
     # Cuando se ejecuta como módulo del paquete
     from .excel_utils import agregar_datos, crear_o_cargar_libro_excel, limpiar_hoja_desde_fila, obtener_o_crear_hoja
-    from .api import API
-    from .utils import data_path, notify
-    from .logger import get_logger
+    from .infrastructure.api import API
+    from .shared.utils.legacy_utils import data_path, notify
+    from .shared.logging.legacy_logger import get_logger
 except ImportError:
     # Cuando se ejecuta directamente
-    from src.excel_utils import agregar_datos, crear_o_cargar_libro_excel, limpiar_hoja_desde_fila, obtener_o_crear_hoja
-    from src.api import API
-    from src.utils import data_path, notify
-    from src.logger import get_logger
+    from src.excel_utils import agregar_datos, crear_o_cargar_libro_excel
+    from src.infrastructure.api import API
+    from src.shared.utils.legacy_utils import data_path
+    from src.shared.logging.legacy_logger import get_logger
 
 # Rutas
 ARCHIVO_BUSQUEDA = data_path("Busqueda.xlsx")
@@ -102,7 +102,7 @@ def main():
 		logger.info("📥 Campañas obtenidas", total_campañas=len(campanias))
 
 		# Filtrar campañas válidas
-		from datetime import datetime, timedelta
+		from datetime import datetime
 		hoy = datetime.now().strftime("%Y%m%d")
 		logger.info("筛选_filtros_aplicados", fecha_actual=hoy)
 

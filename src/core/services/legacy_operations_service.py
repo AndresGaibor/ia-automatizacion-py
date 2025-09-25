@@ -1,6 +1,5 @@
 """Service for legacy operations - consolidates functionality from individual operation files."""
-from typing import List, Dict, Any, Optional
-from pathlib import Path
+from typing import List, Dict, Any
 
 try:
     from ...shared.logging import get_logger
@@ -8,7 +7,6 @@ try:
     from ..errors import DataProcessingError
 except ImportError:
     from src.shared.logging import get_logger
-    from src.shared.utils import data_path, load_config
     from src.core.errors import DataProcessingError
 
 logger = get_logger()

@@ -3,11 +3,9 @@ Working End-to-End tests for complete workflows
 """
 import pytest
 import os
-import time
 import tempfile
 import pandas as pd
-from typing import Dict, Any
-from unittest.mock import patch, Mock, MagicMock
+from unittest.mock import Mock
 from datetime import datetime
 
 
@@ -475,7 +473,7 @@ class TestWorkingE2EWorkflows:
             assert 'recovery_handled' in checkpoints, "Recovery should be handled"
 
             e2e_logger.info(f"✅ Error handling workflow completed in {total_time:.2f}s")
-            e2e_logger.info(f"🛡️ All error scenarios handled successfully")
+            e2e_logger.info("🛡️ All error scenarios handled successfully")
 
         except Exception as e:
             e2e_logger.error(f"❌ Error handling workflow failed: {e}")

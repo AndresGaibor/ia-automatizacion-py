@@ -1,6 +1,6 @@
 """Utilidades para convertir respuestas de API a modelos"""
 
-from typing import List, Dict, Any, TypeVar, Type
+from typing import List, Dict, TypeVar
 from .models.campanias import CampaignSummary
 
 T = TypeVar('T')

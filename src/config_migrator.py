@@ -2,7 +2,6 @@
 Migrador y validador de configuración para manejar archivos config.yaml desactualizados o corruptos
 """
 import yaml
-import os
 from pathlib import Path
 from typing import Dict, Any, List, Tuple
 import shutil

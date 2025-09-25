@@ -1,5 +1,5 @@
 from playwright.sync_api import Page
-from typing import List, Tuple, Optional
+from typing import List, Optional
 from datetime import datetime
 import pandas as pd
 

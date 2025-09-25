@@ -84,7 +84,7 @@ def test_upload_with_browser_context():
                 print("👥 Step 3: Adding subscribers...")
                 suscriptores_agregados = agregar_suscriptores_via_api(list_id, df, api)
 
-                print(f"✅ Upload completed:")
+                print("✅ Upload completed:")
                 print(f"   🆔 List ID: {list_id}")
                 print(f"   📝 List Name: {nombre_lista}")
                 print(f"   👥 Subscribers Added: {suscriptores_agregados}")

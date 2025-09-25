@@ -6,7 +6,7 @@ import json
 import sqlite3
 import time
 import os
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, Any, List
 from src.cache.universal_cache import UniversalAPICache
 from src.cache.cleanup_manager import CacheCleanupManager
@@ -140,7 +140,7 @@ class CacheAnalyzer:
         
         # Info de base de datos
         db_info = report["database_info"]
-        print(f"\n🗄️  INFORMACIÓN DE BASE DE DATOS:")
+        print("\n🗄️  INFORMACIÓN DE BASE DE DATOS:")
         print(f"   📁 Archivo: {db_info['file_path']}")
         print(f"   💾 Tamaño: {db_info['size_mb']} MB")
         print(f"   📋 Total entradas: {db_info['total_entries']}")
@@ -148,7 +148,7 @@ class CacheAnalyzer:
         print(f"   🔗 Endpoints únicos: {db_info['unique_endpoints']}")
         
         # Estadísticas por endpoint
-        print(f"\n📈 ESTADÍSTICAS POR ENDPOINT:")
+        print("\n📈 ESTADÍSTICAS POR ENDPOINT:")
         endpoint_stats = report["endpoint_stats"]
         if endpoint_stats:
             for stat in endpoint_stats:
@@ -161,7 +161,7 @@ class CacheAnalyzer:
             print("   ⚠️  No hay estadísticas disponibles")
         
         # Hit rates recientes
-        print(f"\n🎯 HIT RATES RECIENTES (últimos 7 días):")
+        print("\n🎯 HIT RATES RECIENTES (últimos 7 días):")
         hit_rates = report["recent_hit_rates"]
         if hit_rates:
             for rate in hit_rates[:10]:  # Mostrar solo los primeros 10
@@ -173,7 +173,7 @@ class CacheAnalyzer:
         # Métricas de performance
         performance = report.get("performance_metrics", {})
         if performance:
-            print(f"\n⚡ MÉTRICAS DE PERFORMANCE:")
+            print("\n⚡ MÉTRICAS DE PERFORMANCE:")
             print(f"   🎯 Hit count promedio: {performance.get('average_hit_count', 0)}")
             print(f"   🏆 Endpoint más usado: {performance.get('most_used_endpoint', 'N/A')}")
             print(f"   🚀 Eficiencia del cache: {performance.get('cache_efficiency', 'N/A')}")
@@ -194,7 +194,7 @@ class CacheAnalyzer:
             conn.execute("ANALYZE")
             results["optimized_db"] = 1
         
-        print(f"✅ Limpieza completada:")
+        print("✅ Limpieza completada:")
         print(f"   🗑️  Entradas expiradas eliminadas: {results['expired_removed']}")
         print(f"   📊 Entradas por límites eliminadas: {results['limit_cleanup']}")
         print(f"   ⚡ Base de datos optimizada: {'Sí' if results['optimized_db'] else 'No'}")
@@ -239,7 +239,7 @@ def main():
         params = test_params.get(endpoint, {})
         benchmark = analyzer.benchmark_cache_performance(endpoint, **params)
         
-        print(f"\n🏃‍♂️ BENCHMARK RESULTS:")
+        print("\n🏃‍♂️ BENCHMARK RESULTS:")
         print(f"   Endpoint: {benchmark['endpoint']}")
         print(f"   Cache time: {benchmark['cache_time_ms']} ms")
         print(f"   Estimated API time: {benchmark['estimated_api_time_ms']} ms")

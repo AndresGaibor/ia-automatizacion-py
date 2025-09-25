@@ -2,9 +2,8 @@
 import pandas as pd
 import os
 from typing import Dict, List, Any, Optional, Tuple
-from pathlib import Path
 
-from ...shared.utils import data_path, load_config, notify
+from ...shared.utils import data_path
 from ...shared.logging import get_logger
 from ..errors import DataProcessingError, ValidationError
 
@@ -132,7 +131,7 @@ class SegmentService:
         except Exception as e:
             logger.error(f"Error updating ID in Segmentos.xlsx: {e}")
             raise DataProcessingError(
-                f"Failed to update ID in segments file",
+                "Failed to update ID in segments file",
                 file_path=str(self.segments_file),
                 context={"list_name": list_name, "list_id": list_id}
             ) from e
@@ -160,7 +159,7 @@ class SegmentService:
         except Exception as e:
             logger.error(f"Error reading ID from Segmentos.xlsx: {e}")
             raise DataProcessingError(
-                f"Failed to read ID from segments file",
+                "Failed to read ID from segments file",
                 file_path=str(self.segments_file),
                 context={"list_name": list_name}
             ) from e

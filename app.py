@@ -5,12 +5,10 @@ import pandas as pd
 import importlib
 import threading
 import time
-import shutil
-from src.utils import load_config, data_path, storage_state_path, notify
+from src.shared.utils.legacy_utils import load_config, data_path, storage_state_path, notify
 from src.config_window import show_config_window
-from src.config.settings import settings
 from src.config_validator import check_config_or_show_dialog
-from src.logger import get_logger
+from src.shared.logging.legacy_logger import get_logger
 
 # Initialize logger
 logger = get_logger()
@@ -287,8 +285,9 @@ def run_listar_campanias(btn):
             root.after(0, lambda: notify("Completado", "Listado de campañas finalizado con éxito", "info"))
 
         except Exception as e:
-            logger.error(f"❌ Error al listar campañas: {e}", error=str(e))
-            root.after(0, lambda: notify("Error", f"Error al listar campañas: {e}", "error"))
+            error_msg = str(e)
+            logger.error(f"❌ Error al listar campañas: {error_msg}", error=error_msg)
+            root.after(0, lambda: notify("Error", f"Error al listar campañas: {error_msg}", "error"))
         finally:
             logger.info("🔄 Restaurando estado de la interfaz")
             root.after(0, lambda: btn.config(state=tk.NORMAL))
@@ -400,9 +399,10 @@ def run_crear_lista(btn):
             root.after(0, lambda: notify("Completado", "Lista de suscriptores subida con éxito", "info"))
             
         except Exception as e:
-            logger.error(f"❌ Error al crear lista: {e}", error=str(e))
+            error_msg = str(e)
+            logger.error(f"❌ Error al crear lista: {error_msg}", error=error_msg)
             # root.after(0, lambda: cerrar_contador_progreso())
-            root.after(0, lambda: notify("Error", f"Error al crear lista: {e}", "error"))
+            root.after(0, lambda: notify("Error", f"Error al crear lista: {error_msg}", "error"))
         finally:
             logger.info("🔄 Restaurando estado de la interfaz")
             root.after(0, lambda: btn.config(state=tk.NORMAL))
@@ -475,9 +475,10 @@ def run_obtener_listas(btn):
                 root.after(0, lambda: notify("Completado", "Obtención de listas finalizada con éxito", "info"))
 
         except Exception as e:
-            logger.error(f"❌ Error al obtener listas: {e}", error=str(e))
+            error_msg = str(e)
+            logger.error(f"❌ Error al obtener listas: {error_msg}", error=error_msg)
             # root.after(0, lambda: cerrar_contador_progreso())
-            root.after(0, lambda: notify("Error", f"Error al obtener listas: {e}", "error"))
+            root.after(0, lambda: notify("Error", f"Error al obtener listas: {error_msg}", "error"))
         finally:
             # Cerrar ventana de progreso si está abierta
             logger.info("🔄 Restaurando estado de la interfaz")
@@ -536,9 +537,10 @@ def run_descargar_suscriptores(btn):
             root.after(0, lambda: notify("Completado", "Descarga de suscriptores finalizada con éxito", "info"))
             
         except Exception as e:
-            logger.error(f"❌ Error al descargar suscriptores: {e}", error=str(e))
+            error_msg = str(e)
+            logger.error(f"❌ Error al descargar suscriptores: {error_msg}", error=error_msg)
             # root.after(0, lambda: cerrar_contador_progreso())
-            root.after(0, lambda: notify("Error", f"Error al descargar suscriptores: {e}", "error"))
+            root.after(0, lambda: notify("Error", f"Error al descargar suscriptores: {error_msg}", "error"))
         finally:
             logger.info("🔄 Restaurando estado de la interfaz")
             root.after(0, lambda: btn.config(state=tk.NORMAL))
@@ -586,8 +588,9 @@ def run_eliminar_listas(btn):
             root.after(0, lambda: notify("Resultado Eliminación", mensaje, tipo_notif))
 
         except Exception as e:
-            logger.error(f"❌ Error al eliminar listas: {e}", error=str(e))
-            root.after(0, lambda: notify("Error", f"Error al eliminar listas: {e}", "error"))
+            error_msg = str(e)
+            logger.error(f"❌ Error al eliminar listas: {error_msg}", error=error_msg)
+            root.after(0, lambda: notify("Error", f"Error al eliminar listas: {error_msg}", "error"))
         finally:
             logger.info("🔄 Restaurando estado de la interfaz")
             root.after(0, lambda: btn.config(state=tk.NORMAL))
@@ -659,24 +662,24 @@ def run_mapear_segmentos(btn):
 			logger.success(f"✅ Mapeo de segmentos completado: {exitosas} exitosas, {fallidas} fallidas", 
 				exitosas=exitosas, fallidas=fallidas, total=total)
 			
-			mensaje = f"Procesamiento de segmentos completado:\n\n"
+			mensaje = "Procesamiento de segmentos completado:\n\n"
 			mensaje += f"Listas procesadas: {exitosas}\n"
 			mensaje += f"Listas fallidas: {fallidas}\n"
 			mensaje += f"Total: {total}"
 
 			if resultado.get('listas_procesadas'):
-				mensaje += f"\n\nListas exitosas:\n"
+				mensaje += "\n\nListas exitosas:\n"
 				for lista in resultado['listas_procesadas']:
 					mensaje += f"• {lista}\n"
 
 			if resultado.get('listas_fallidas'):
-				mensaje += f"\nListas fallidas:\n"
+				mensaje += "\nListas fallidas:\n"
 				for lista in resultado['listas_fallidas']:
 					mensaje += f"• {lista}\n"
-				mensaje += f"\nSugerencias:\n"
-				mensaje += f"- Verifique que los datos en Segmentos.xlsx coincidan con los datos reales\n"
-				mensaje += f"- Revise que las condiciones de segmentación sean correctas\n"
-				mensaje += f"- Consulte los logs para más detalles sobre errores específicos"
+				mensaje += "\nSugerencias:\n"
+				mensaje += "- Verifique que los datos en Segmentos.xlsx coincidan con los datos reales\n"
+				mensaje += "- Revise que las condiciones de segmentación sean correctas\n"
+				mensaje += "- Consulte los logs para más detalles sobre errores específicos"
 
 			if exitosas > 0:
 				root.after(0, lambda: notify("Procesamiento Completado", mensaje, "info"))
@@ -684,9 +687,10 @@ def run_mapear_segmentos(btn):
 				root.after(0, lambda: notify("Procesamiento Incompleto", mensaje, "warning"))
 
 		except Exception as e:
-			logger.error(f"❌ Error durante el procesamiento de segmentos: {e}", error=str(e))
+			error_msg = str(e)
+			logger.error(f"❌ Error durante el procesamiento de segmentos: {error_msg}", error=error_msg)
 			# root.after(0, lambda: cerrar_contador_progreso())
-			root.after(0, lambda: notify("Error", f"Error durante el procesamiento: {e}", "error"))
+			root.after(0, lambda: notify("Error", f"Error durante el procesamiento: {error_msg}", "error"))
 		finally:
 			logger.info("🔄 Restaurando estado de la interfaz")
 			root.after(0, lambda: btn.config(state=tk.NORMAL))

@@ -26,10 +26,9 @@ def _early_project_root() -> str:
 os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", os.path.join(_early_project_root(), "ms-playwright"))
 os.makedirs(os.environ["PLAYWRIGHT_BROWSERS_PATH"], exist_ok=True)
 
-from playwright.sync_api import Page, TimeoutError as PWTimeoutError
+from playwright.sync_api import Page
 from playwright._impl._errors import Error as PWError
 import pandas as pd
-import json
 import yaml
 
 REAL_UA = (

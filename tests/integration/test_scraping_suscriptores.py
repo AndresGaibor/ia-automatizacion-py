@@ -346,7 +346,7 @@ class TestScrapingUtilities:
 
     def test_pagination_helpers_mock(self, mock_page, test_logger):
         """Test pagination helper functions with mocks"""
-        from src.utils import obtener_total_paginas, navegar_siguiente_pagina
+        from src.utils import obtener_total_paginas
 
         # Mock pagination elements
         mock_pagination = Mock()

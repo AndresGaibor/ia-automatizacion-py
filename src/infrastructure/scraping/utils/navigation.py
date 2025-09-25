@@ -1,9 +1,8 @@
 """
 Utilidades de navegación para scraping
 """
-from typing import Optional, Dict, Any
+from typing import Optional
 from playwright.sync_api import Page
-import time
 
 from ...logger import logger
 

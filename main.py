@@ -17,7 +17,7 @@ def pause_for_user(message: str = ""):
 	if message:
 		print(f"\n⏸️  {message}")
 	else:
-		print(f"\n⏸️  Presiona Enter para continuar...")
+		print("\n⏸️  Presiona Enter para continuar...")
 	input()
 
 def main():
@@ -115,12 +115,12 @@ def main():
 				)
 				print(f"   ✅ Usuario agregado con ID: {result}")
 				
-				print(f"\n🎉 PROCESO COMPLETADO")
-				print(f"📝 Resumen:")
+				print("\n🎉 PROCESO COMPLETADO")
+				print("📝 Resumen:")
 				print(f"   • Lista: {target_list_id} (Prueba_SEGMENTOS)")
 				print(f"   • Usuario: {target_email}")
 				print(f"   • Nuevo segmento: {nuevo_segmento}")
-				print(f"   • Acción: Usuario agregado (no existía previamente)")
+				print("   • Acción: Usuario agregado (no existía previamente)")
 				print(f"   • Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 				
 				pause_for_user("Usuario agregado exitosamente. Presiona Enter para finalizar.")
@@ -130,8 +130,8 @@ def main():
 			# Si no hay suscriptores en la lista o el usuario no existe
 			error_str = str(e)
 			if "400" in error_str and "No subscribers for selected parameters" in error_str:
-				print(f"   ℹ️  Lista vacía o el usuario no existe en la lista (esto es normal)")
-				print(f"   � La API devuelve error 400 cuando no encuentra suscriptores con los parámetros dados")
+				print("   ℹ️  Lista vacía o el usuario no existe en la lista (esto es normal)")
+				print("   � La API devuelve error 400 cuando no encuentra suscriptores con los parámetros dados")
 			else:
 				print(f"   ⚠️  Error inesperado buscando usuario: {e}")
 			
@@ -149,12 +149,12 @@ def main():
 				)
 				print(f"   ✅ Usuario agregado/actualizado con ID: {result}")
 				
-				print(f"\n🎉 PROCESO COMPLETADO")
-				print(f"📝 Resumen:")
+				print("\n🎉 PROCESO COMPLETADO")
+				print("📝 Resumen:")
 				print(f"   • Lista: {target_list_id} (Prueba_SEGMENTOS)")
 				print(f"   • Usuario: {target_email}")
 				print(f"   • Nuevo segmento: {nuevo_segmento}")
-				print(f"   • Acción: Usuario agregado/actualizado con nuevo segmento")
+				print("   • Acción: Usuario agregado/actualizado con nuevo segmento")
 				print(f"   • Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 				
 				pause_for_user("Usuario procesado exitosamente. Presiona Enter para finalizar.")
@@ -167,7 +167,7 @@ def main():
 		pause_for_user("Usuario encontrado en la lista. Continuar con eliminación?")
 		
 		# 3. ELIMINAR EL USUARIO EXISTENTE
-		print(f"\n3️⃣ Eliminando usuario existente...")
+		print("\n3️⃣ Eliminando usuario existente...")
 		try:
 			# Usar el método individual de eliminación
 			api.suscriptores.delete_subscriber(list_id=target_list_id, email=target_email)
@@ -200,7 +200,7 @@ def main():
 		pause_for_user("Usuario agregado exitosamente. Continuar con verificación final?")
 		
 		# 5. VERIFICAR EL RESULTADO
-		print(f"\n5️⃣ Verificando resultado final...")
+		print("\n5️⃣ Verificando resultado final...")
 		try:
 			# Verificar que el usuario está en la lista con el nuevo segmento
 			subscribers_final = api.suscriptores.get_subscribers(
@@ -212,7 +212,7 @@ def main():
 			
 			if isinstance(subscribers_final, dict) and target_email in subscribers_final:
 				user_final = subscribers_final[target_email]
-				print(f"   ✅ Verificación exitosa:")
+				print("   ✅ Verificación exitosa:")
 				print(f"      📧 Email: {target_email}")
 				print(f"      📊 Status: {user_final.get('status', 'N/A')}")
 				print(f"      🆔 ID: {user_final.get('id', 'N/A')}")
@@ -223,22 +223,22 @@ def main():
 						list_id=target_list_id,
 						subscriber=target_email
 					)
-					print(f"      🎯 Detalles obtenidos del suscriptor")
+					print("      🎯 Detalles obtenidos del suscriptor")
 					print(f"      🎯 Segmento: Se asignó '{nuevo_segmento}' (verificar en interfaz)")
 				except:
 					print(f"      🎯 Segmento: Se asignó '{nuevo_segmento}' (verificar en interfaz)")
 			else:
-				print(f"   ⚠️  No se pudo verificar el usuario en la lista")
+				print("   ⚠️  No se pudo verificar el usuario en la lista")
 				
 		except Exception as e:
 			print(f"   ⚠️  Error en verificación final: {e}")
 		
-		print(f"\n🎉 PROCESO COMPLETADO")
-		print(f"📝 Resumen:")
+		print("\n🎉 PROCESO COMPLETADO")
+		print("📝 Resumen:")
 		print(f"   • Lista: {target_list_id} (Prueba_SEGMENTOS)")
 		print(f"   • Usuario: {target_email}")
 		print(f"   • Nuevo segmento: {nuevo_segmento}")
-		print(f"   • Acción: Usuario eliminado y re-agregado con nuevo segmento")
+		print("   • Acción: Usuario eliminado y re-agregado con nuevo segmento")
 		print(f"   • Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 		
 		pause_for_user("¡Proceso completado exitosamente! Presiona Enter para finalizar.")

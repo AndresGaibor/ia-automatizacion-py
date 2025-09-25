@@ -2,10 +2,7 @@
 Unit tests for logging system
 """
 import pytest
-import tempfile
-import os
-import json
-from unittest.mock import patch, mock_open, MagicMock
+from unittest.mock import patch, mock_open
 from datetime import datetime
 
 from src.shared.logging import get_logger

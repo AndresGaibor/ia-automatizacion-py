@@ -6,7 +6,6 @@ y solo se pueden obtener mediante scraping.
 """
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
-from datetime import datetime
 
 
 class ScrapedNonOpener(BaseModel):

@@ -1,8 +1,8 @@
 """
 Clases base para scraping de Acumbamail
 """
-from typing import Optional, Dict, Any, List, Callable
-from playwright.sync_api import Page, Browser
+from typing import Optional, Any, List, Callable
+from playwright.sync_api import Page
 from pathlib import Path
 import time
 from dataclasses import dataclass

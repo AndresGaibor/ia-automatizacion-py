@@ -2,13 +2,11 @@
 Modelos para datos de suscriptores obtenidos por scraping
 Extienden los modelos de API con información específica de scraping
 """
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
 
-from ...api.models.suscriptores import ActualSubscriber
-from ...api.models.campanias import CampaignBasicInfo
 
 
 class SubscriberQuality(str, Enum):

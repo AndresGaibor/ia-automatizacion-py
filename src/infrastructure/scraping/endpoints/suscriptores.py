@@ -1,14 +1,12 @@
 from playwright.sync_api import Page
-from typing import List, Tuple, Optional, Dict, Any
+from typing import List, Tuple, Optional
 from datetime import datetime
-import re
 
 from ..models.suscriptores import (
     SubscriberScrapingData,
     SubscriberTableData,
     SubscriberFilterResult,
     CampaignSubscriberReport,
-    PageNavigationInfo,
     ScrapingSession,
     SubscriberExtractionConfig
 )

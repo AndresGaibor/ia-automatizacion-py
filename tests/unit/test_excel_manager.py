@@ -5,8 +5,7 @@ import pytest
 import tempfile
 import os
 import pandas as pd
-from unittest.mock import patch, MagicMock
-from typing import Dict, List
+from unittest.mock import patch
 
 # Mock the ExcelManager and ExcelProcessingError for unit tests
 class ExcelManager:

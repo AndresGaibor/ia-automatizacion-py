@@ -7,7 +7,6 @@ try:
 except Exception:
 	# Fallback relativo cuando el import anterior no está disponible aún
 	import yaml
-	import sys
 	def load_config(defaults: Dict[str, Any] | None = None) -> Dict[str, Any]:
 		project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 		path = os.path.join(project_root, "config.yaml")

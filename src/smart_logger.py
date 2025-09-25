@@ -5,10 +5,9 @@ Este módulo extiende el PerformanceLogger existente para que respete
 la configuración debug en config.yaml y proporcione logging inteligente.
 """
 
-from .logger import PerformanceLogger, get_logger as _get_base_logger, LogLevel, ErrorSeverity
+from .logger import PerformanceLogger
 from .utils import load_config
 from typing import Optional, Dict, Any
-import os
 
 class SmartLogger(PerformanceLogger):
     """Logger inteligente que respeta configuración de config.yaml"""

@@ -10,8 +10,7 @@ import re
 from .utils import data_path, load_config, crear_contexto_navegador, configurar_navegador, obtener_total_paginas, navegar_siguiente_pagina
 from .autentificacion import login
 from .logger import get_logger
-from playwright.sync_api import sync_playwright, Page, TimeoutError as PlaywrightTimeoutError
-from .api import API
+from playwright.sync_api import sync_playwright, Page
 
 logger = get_logger()
 
@@ -261,7 +260,7 @@ def extraer_suscriptores_tabla_lista(page: Page, nombre_lista: str, list_id: int
         debug_info = resultado.get("debug", {})
         primera_fila = debug_info.get("primeraFilaDatos")
         if primera_fila:
-            print(f"🔍 DEBUG - Primera fila de datos:")
+            print("🔍 DEBUG - Primera fila de datos:")
             print(f"   Email: {primera_fila.get('email', 'NO ENCONTRADO')}")
             print(f"   Textos ({len(primera_fila.get('textos', []))}):")
             for j, texto in enumerate(primera_fila.get('textos', [])):

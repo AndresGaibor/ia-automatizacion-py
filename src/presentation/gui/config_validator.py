@@ -5,7 +5,7 @@ from typing import Tuple
 
 from ...shared.utils import load_config, data_path
 from ...shared.logging import get_logger
-from ...core.errors import ValidationError, DataProcessingError
+from ...core.errors import DataProcessingError
 
 logger = get_logger()
 

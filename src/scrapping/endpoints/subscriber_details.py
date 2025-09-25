@@ -3,23 +3,20 @@ Endpoint para scraping de detalles de suscriptores
 Contiene la lógica extraída de demo.py con mejores prácticas aplicadas
 """
 from playwright.sync_api import Page, TimeoutError as PWTimeoutError
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 import time
 import re
 
 from ...utils import obtener_total_paginas, navegar_siguiente_pagina, load_config
 from ...logger import get_logger
 from ...structured_logger import (
-    log_success, log_error, log_warning, log_info, log_performance,
-    log_browser_action, log_data_extraction, log_operation, timer_decorator
+    log_success, log_error, log_warning, log_info, log_browser_action, log_data_extraction, log_operation, timer_decorator
 )
 from ...api.models.campanias import CampaignBasicInfo
 from ..models import (
     HardBounceSubscriber,
     NoOpenSubscriber,
-    ScrapingPaginationInfo,
     FilterInfo,
-    ScrapingError,
     SubscriberStatus,
     SubscriberQuality
 )
@@ -68,12 +65,12 @@ class SubscriberDetailsService:
                 return True
 
             except PWTimeoutError as e:
-                log_error(f"Timeout navegando a detalles de suscriptores", 
+                log_error("Timeout navegando a detalles de suscriptores", 
                          campaign_id=campaign_id, timeout_ms=self.timeouts['navigation'], error=str(e))
                 # Los timeouts generalmente indican que la página no existe
                 raise Exception(f"Campaña {campaign_id} no existe o no está disponible: timeout navegando")
             except Exception as e:
-                log_error(f"Error navegando a detalles de suscriptores", 
+                log_error("Error navegando a detalles de suscriptores", 
                          campaign_id=campaign_id, error_type=type(e).__name__, error=str(e))
                 # Otros errores de navegación también indican problemas críticos
                 raise Exception(f"Campaña {campaign_id} no disponible: {e}")
@@ -111,7 +108,7 @@ class SubscriberDetailsService:
                 return filter_info
 
             except Exception as e:
-                log_error(f"Error seleccionando filtro", 
+                log_error("Error seleccionando filtro", 
                          filter_name=filter_name, error_type=type(e).__name__, error=str(e))
                 # No lanzar excepción, solo retornar FilterInfo con error
                 return FilterInfo(

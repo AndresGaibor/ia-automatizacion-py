@@ -8,8 +8,7 @@ import os
 import sys
 import time
 from functools import wraps
-from typing import Optional, Dict, Any
-from datetime import datetime
+from typing import Optional, Dict
 
 colorama_init(autoreset=True)
 console = Console()

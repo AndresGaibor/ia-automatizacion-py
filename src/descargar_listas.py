@@ -16,11 +16,9 @@ Uso:
 
 import pandas as pd
 import os
-import json
 import sys
 from pathlib import Path
 from typing import List, Dict, Any, Optional
-from datetime import datetime
 import re
 
 # Agregar el directorio raíz al path cuando se ejecuta directamente
@@ -517,7 +515,7 @@ if __name__ == "__main__":
         print("🚀 Iniciando descarga de listas marcadas...")
         resultados = procesar_listas_marcadas()
         
-        print(f"\n📊 === RESUMEN DE RESULTADOS ===")
+        print("\n📊 === RESUMEN DE RESULTADOS ===")
         print(f"Total listas procesadas: {resultados['total_listas']}")
         print(f"Exitosas: {resultados['exitosas']}")
         print(f"Fallidas: {resultados['fallidas']}")
@@ -546,7 +544,7 @@ if __name__ == "__main__":
             print("   2. Marca con 'x' las listas que quieres descargar en la columna 'Buscar'")
             print("   3. Ejecuta este script nuevamente")
         else:
-            print(f"\n🎉 Proceso completado exitosamente!")
+            print("\n🎉 Proceso completado exitosamente!")
         
     except Exception as e:
         print(f"\n❌ Error durante la ejecución: {e}")

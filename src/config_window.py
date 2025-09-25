@@ -1,7 +1,6 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 import yaml
-import os
 from pathlib import Path
 
 class ConfigWindow:
@@ -197,7 +196,6 @@ class ConfigWindow:
         # Crear una configuración temporal para probar
         try:
             from .api import API
-            import tempfile
 
             # Crear config temporal
             temp_config = {

@@ -2,7 +2,7 @@
 Utilidad para obtener los campos disponibles en una lista de Acumbamail mediante scraping
 Utiliza la misma técnica que descargar_suscriptores.py para detectar campos dinámicamente
 """
-from typing import List, Dict, Set, Optional
+from typing import List, Dict
 from playwright.sync_api import Page
 from .logger import get_logger
 
@@ -58,7 +58,7 @@ def obtener_campos_disponibles_acumba(page: Page, list_id: int) -> Dict[str, Lis
                     totalEncontrados: campos.length
                 };
             }
-        """);
+        """)
 
         logger.info(f"Campos detectados desde página de campos: {campos_desde_pagina_campos}")
 

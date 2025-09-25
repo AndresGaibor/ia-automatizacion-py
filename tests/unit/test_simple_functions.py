@@ -5,7 +5,6 @@ import pytest
 import tempfile
 import os
 import pandas as pd
-from typing import Dict, List
 
 
 @pytest.mark.unit
@@ -216,7 +215,6 @@ class TestErrorHandling:
 
     def test_mock_error_simulation(self, mock_httpx_client):
         """Test error simulation with mocks"""
-        from unittest.mock import Mock
 
         # Simulate network error
         mock_httpx_client.get.side_effect = ConnectionError("Network error")

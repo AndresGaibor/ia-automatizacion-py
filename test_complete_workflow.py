@@ -41,7 +41,7 @@ def test_complete_workflow():
         print(f"❌ Archivo de segmentos no encontrado: {archivo_segmentos}")
         return False
 
-    print(f"✅ Archivos encontrados:")
+    print("✅ Archivos encontrados:")
     print(f"   📄 Lista: {archivo_lista}")
     print(f"   📄 Segmentos: {archivo_segmentos}")
 
@@ -59,7 +59,7 @@ def test_complete_workflow():
         list_id = resultado_lista.get('list_id')
         nombre_lista = resultado_lista.get('nombre_lista', 'Lista_Prueba_Segmentos')
 
-        print(f"✅ Lista creada/actualizada:")
+        print("✅ Lista creada/actualizada:")
         print(f"   🆔 ID: {list_id}")
         print(f"   📝 Nombre: {nombre_lista}")
         print(f"   👥 Suscriptores: {resultado_lista.get('suscriptores_agregados', 0)}")
@@ -70,7 +70,7 @@ def test_complete_workflow():
 
         resultado_segmentos = mapear_segmentos_completo()
 
-        print(f"✅ Segmentos procesados:")
+        print("✅ Segmentos procesados:")
         if isinstance(resultado_segmentos, dict):
             listas_procesadas = resultado_segmentos.get('listas_procesadas', [])
             errores = resultado_segmentos.get('errores', [])
@@ -101,7 +101,7 @@ def test_complete_workflow():
             if lista_encontrada:
                 print(f"✅ Lista verificada en servidor (ID: {list_id})")
             else:
-                print(f"⚠️ Lista no encontrada en servidor")
+                print("⚠️ Lista no encontrada en servidor")
 
             # Verificar segmentos (si la API lo permite)
             try:
@@ -115,14 +115,14 @@ def test_complete_workflow():
                         elif hasattr(seg, 'name'):
                             print(f"      • {seg.name}")
                 else:
-                    print(f"⚠️ No se encontraron segmentos")
+                    print("⚠️ No se encontraron segmentos")
             except Exception as e:
                 print(f"⚠️ Error verificando segmentos: {e}")
 
         except Exception as e:
             print(f"⚠️ Error en verificación: {e}")
 
-        print(f"\n✅ WORKFLOW COMPLETO EXITOSO")
+        print("\n✅ WORKFLOW COMPLETO EXITOSO")
         return True
 
     except Exception as e:
@@ -141,7 +141,7 @@ def test_field_optimization():
         archivo_lista = data_path("listas/Lista_Prueba_Segmentos.xlsx")
         df = pd.read_excel(archivo_lista, sheet_name="Datos")
 
-        print(f"📊 Archivo de prueba:")
+        print("📊 Archivo de prueba:")
         print(f"   📄 {len(df)} suscriptores")
         print(f"   📋 Campos: {list(df.columns)}")
 
@@ -159,7 +159,7 @@ def test_field_optimization():
 
         resultado = filtrar_campos_necesarios(list(df.columns), campos_acumba_simulados)
 
-        print(f"\n📊 Análisis de campos:")
+        print("\n📊 Análisis de campos:")
         print(f"   🆕 Para crear: {resultado['crear']}")
         print(f"   🔗 Para mapear: {resultado['mapear']}")
         print(f"   🚫 Para ignorar: {resultado['ignorar']}")
@@ -169,7 +169,7 @@ def test_field_optimization():
         total_crear = len(resultado['crear'])
         total_mapear = len(resultado['mapear'])
 
-        print(f"\n📈 Eficiencia:")
+        print("\n📈 Eficiencia:")
         print(f"   📊 Campos en Excel: {total_excel}")
         print(f"   🆕 Nuevos a crear: {total_crear}")
         print(f"   🔗 Existentes a mapear: {total_mapear}")

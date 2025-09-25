@@ -22,7 +22,7 @@ def debug_segment_matching():
     # Filtrar solo Prueba_SEGMENTOS2
     df_prueba = df_segmentos[df_segmentos['NOMBRE LISTA'] == 'Prueba_SEGMENTOS2']
 
-    print(f"\n🎯 SEGMENTOS PARA 'Prueba_SEGMENTOS2':")
+    print("\n🎯 SEGMENTOS PARA 'Prueba_SEGMENTOS2':")
     print("=" * 60)
     print(df_prueba.to_string())
 
@@ -31,20 +31,20 @@ def debug_segment_matching():
     print(f"\n📊 Leyendo {lista_file}")
     df_lista = pd.read_excel(lista_file)
 
-    print(f"\n📋 ESTRUCTURA DE Prueba_SEGMENTOS2.xlsx:")
+    print("\n📋 ESTRUCTURA DE Prueba_SEGMENTOS2.xlsx:")
     print("=" * 60)
     print(f"Shape: {df_lista.shape}")
     print(f"Columnas: {list(df_lista.columns)}")
 
     # Mostrar primeras 5 filas
-    print(f"\n📝 PRIMERAS 5 FILAS:")
+    print("\n📝 PRIMERAS 5 FILAS:")
     print("=" * 60)
     print(df_lista.head().to_string())
 
     # Analizar valores únicos de cada columna de segmentación
     segmento_cols = ['SEDE', 'ORGANO', 'N ORGANO', 'ROL USUARIO', 'PERFIL USUARIO']
 
-    print(f"\n🔍 VALORES ÚNICOS EN COLUMNAS DE SEGMENTACIÓN:")
+    print("\n🔍 VALORES ÚNICOS EN COLUMNAS DE SEGMENTACIÓN:")
     print("=" * 60)
 
     for col in segmento_cols:
@@ -55,7 +55,7 @@ def debug_segment_matching():
             print(f"{col}: [COLUMNA NO EXISTE]")
 
     # Ahora comparar con las condiciones de los segmentos
-    print(f"\n🎯 COMPARACIÓN CON CONDICIONES DE SEGMENTOS:")
+    print("\n🎯 COMPARACIÓN CON CONDICIONES DE SEGMENTOS:")
     print("=" * 60)
 
     for _, seg_row in df_prueba.iterrows():

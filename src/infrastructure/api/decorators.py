@@ -2,7 +2,7 @@
 Decoradores para endpoints de la API
 """
 import functools
-from typing import Callable, Any, Optional, Dict, TypeVar
+from typing import Callable, Optional, Dict, TypeVar
 try:  # Python 3.10+ has ParamSpec in typing, fallback to typing_extensions otherwise
     from typing import ParamSpec  # type: ignore
 except Exception:  # pragma: no cover - fallback for older runtimes

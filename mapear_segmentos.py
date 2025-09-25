@@ -23,7 +23,7 @@ from pathlib import Path
 # Agregar el directorio src al path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
-from src.mapeo_segmentos import mapear_segmentos_completo, main as mapeo_main
+from src.mapeo_segmentos import mapear_segmentos_completo
 from src.logger import get_logger
 
 def main():
@@ -52,21 +52,21 @@ def main():
         print(f"❌ Listas fallidas: {len(resultado['listas_fallidas'])}")
 
         if resultado['listas_procesadas']:
-            print(f"\n🎉 Listas procesadas exitosamente:")
+            print("\n🎉 Listas procesadas exitosamente:")
             for lista in resultado['listas_procesadas']:
                 print(f"   • {lista}")
 
         if resultado['listas_fallidas']:
-            print(f"\n⚠️  Listas que fallaron:")
+            print("\n⚠️  Listas que fallaron:")
             for lista in resultado['listas_fallidas']:
                 print(f"   • {lista}")
 
-        print(f"\n📁 Campos de segmentación utilizados:")
+        print("\n📁 Campos de segmentación utilizados:")
         for header in resultado.get('headers', []):
             print(f"   • {header}")
 
         # Resumen de archivos generados
-        print(f"\n📄 Archivos generados en data/listas/:")
+        print("\n📄 Archivos generados en data/listas/:")
         listas_dir = Path("data/listas")
         if listas_dir.exists():
             for archivo in sorted(listas_dir.glob("*.xlsx")):

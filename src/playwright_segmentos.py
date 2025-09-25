@@ -2,9 +2,7 @@
 Módulo para gestionar segmentos en Acumbamail usando Playwright MCP.
 Maneja la creación de segmentos y subida de usuarios a través de la interfaz web.
 """
-import asyncio
-import time
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any, Optional
 from .logger import get_logger
 from .utils import get_config
 

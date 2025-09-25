@@ -3,7 +3,6 @@
 Test script for segment processing - comprehensive error case analysis
 """
 import sys
-import os
 from pathlib import Path
 
 # Add src to path
@@ -126,7 +125,7 @@ def test_single_segment_case(page, test_case):
             result["warnings"].append(f"Slow navigation: {navigation_time:.1f}s")
 
         # Test extraction
-        print(f"🧪 Testing extraction...")
+        print("🧪 Testing extraction...")
         extraction_start = time.time()
 
         suscriptores = extraer_suscriptores_tabla_lista(page, test_case["name"], test_case["list_id"])
@@ -205,13 +204,13 @@ def analyze_test_results(results):
     total_tests = len(results)
     successful_tests = len([r for r in results if r["success"]])
 
-    print(f"📊 OVERALL RESULTS:")
+    print("📊 OVERALL RESULTS:")
     print(f"   - Total tests: {total_tests}")
     print(f"   - Successful: {successful_tests}")
     print(f"   - Failed: {total_tests - successful_tests}")
     print(f"   - Success rate: {(successful_tests/total_tests)*100:.1f}%")
 
-    print(f"\n🔍 DETAILED ANALYSIS:")
+    print("\n🔍 DETAILED ANALYSIS:")
     for result in results:
         print(f"\n📋 {result['name']} (ID: {result['list_id']}):")
         print(f"   ✅ Success: {result['success']}")
@@ -234,7 +233,7 @@ def analyze_test_results(results):
                 print(f"      • {warning}")
 
         if result["data_sample"]:
-            print(f"   📄 Sample data:")
+            print("   📄 Sample data:")
             for key, value in result["data_sample"].items():
                 print(f"      {key}: {value}")
 
@@ -246,7 +245,7 @@ def analyze_test_results(results):
         all_warnings.extend(result["warnings"])
 
     if all_errors:
-        print(f"\n❌ COMMON ERROR PATTERNS:")
+        print("\n❌ COMMON ERROR PATTERNS:")
         error_types = {}
         for error in all_errors:
             error_type = error.split(":")[0]
@@ -256,7 +255,7 @@ def analyze_test_results(results):
             print(f"   • {error_type}: {count} occurrences")
 
     if all_warnings:
-        print(f"\n⚠️ COMMON WARNING PATTERNS:")
+        print("\n⚠️ COMMON WARNING PATTERNS:")
         warning_types = {}
         for warning in all_warnings:
             warning_type = warning.split(":")[0]
@@ -265,7 +264,7 @@ def analyze_test_results(results):
         for warning_type, count in warning_types.items():
             print(f"   • {warning_type}: {count} occurrences")
 
-    print(f"\n💡 RECOMMENDATIONS:")
+    print("\n💡 RECOMMENDATIONS:")
     print("   • Monitor timeout issues for slow networks")
     print("   • Implement field mapping validation")
     print("   • Add duplicate detection and removal")

@@ -5,7 +5,6 @@ Test script to verify segment processing fixes:
 2. Saltar segmentos cuando no existe lista en /listas
 """
 import sys
-import os
 from pathlib import Path
 
 # Add src to path
@@ -14,8 +13,7 @@ sys.path.insert(0, str(current_dir / "src"))
 
 try:
     from src.field_scraper import obtener_campos_disponibles_acumba, filtrar_campos_necesarios
-    from src.crear_lista_mejorado import crear_campos_personalizados
-    from src.mapeo_segmentos import obtener_id_lista_desde_archivo, procesar_lista_individual
+    from src.mapeo_segmentos import obtener_id_lista_desde_archivo
     from src.utils import crear_contexto_navegador, configurar_navegador, load_config
     from src.autentificacion import login
     from src.api import API
@@ -60,7 +58,7 @@ def test_field_filtering():
     # Test filtering
     resultado = filtrar_campos_necesarios(campos_excel, campos_acumba)
 
-    print(f"\n📊 FILTERING RESULTS:")
+    print("\n📊 FILTERING RESULTS:")
     print(f"   🆕 To create: {resultado['crear']}")
     print(f"   🔗 To map: {resultado['mapear']}")
     print(f"   🚫 To ignore: {resultado['ignorar']}")

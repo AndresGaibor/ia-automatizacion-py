@@ -107,7 +107,7 @@ def create_test_excel():
     print(f"✅ Excel file created: {excel_path}")
     print(f"📊 Columns: {list(df.columns)}")
     print(f"👥 Users: {len(df)}")
-    print(f"🔍 Sample data:")
+    print("🔍 Sample data:")
     print(df[['Correo Electrónico', 'PERFIL USUARIO', 'ROL USUARIO', 'SEDE']].head(3))
 
     return excel_path

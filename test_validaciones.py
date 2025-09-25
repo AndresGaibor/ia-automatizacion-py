@@ -5,12 +5,11 @@ Script de prueba para verificar las validaciones y notificaciones
 
 import os
 import sys
-from pathlib import Path
 
 # Agregar src al path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
-from src.utils import load_config, notify
+from src.utils import notify
 
 def test_validaciones():
     """Prueba todas las validaciones implementadas"""

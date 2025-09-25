@@ -4,7 +4,6 @@ Script de prueba para verificar la optimización de verificación de segmentos e
 """
 
 import sys
-import os
 from pathlib import Path
 
 # Agregar el directorio src al path

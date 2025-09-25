@@ -1,9 +1,8 @@
 import logging
 import time
-import json
 from datetime import datetime
 from functools import wraps
-from typing import Dict, Optional, Any, Callable, List, Union
+from typing import Dict, Optional, Any, Callable, List
 from enum import Enum
 import os
 import signal
@@ -253,7 +252,7 @@ class PerformanceLogger:
                         signal.alarm(0)
                         signal.signal(signal.SIGALRM, old_handler)
                     raise
-                except Exception as e:
+                except Exception:
                     if hasattr(signal, 'SIGALRM') and old_handler is not None:
                         signal.alarm(0)
                         signal.signal(signal.SIGALRM, old_handler)

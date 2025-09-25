@@ -1,5 +1,4 @@
 import unicodedata
-from typing import Optional
 from urllib.parse import urlparse  # <-- añadido
 
 try:

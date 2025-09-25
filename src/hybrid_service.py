@@ -7,13 +7,9 @@ from datetime import datetime
 import uuid
 
 from .api import API
-from .api.models.campanias import CampaignBasicInfo, CampaignDetailedInfo
-from .api.models.suscriptores import ListSummary
+from .api.models.campanias import CampaignBasicInfo
 from .scrapping import (
     SubscriberDetailsService,
-    HardBounceSubscriber,
-    NoOpenSubscriber,
-    SoftBounceSubscriber,
     ScrapingResult,
     ScrapingSession
 )

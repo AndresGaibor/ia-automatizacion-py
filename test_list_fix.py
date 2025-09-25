@@ -31,7 +31,7 @@ def test_list_assignment_fix():
         return False
 
     with API() as api:
-        print(f"\n🔌 Conectado a API")
+        print("\n🔌 Conectado a API")
 
         # Obtener todas las listas
         try:
@@ -60,7 +60,7 @@ def test_list_assignment_fix():
                     break
 
             if not campaign_id:
-                print(f"❌ No se encontró la campaña")
+                print("❌ No se encontró la campaña")
                 return False
 
         except Exception as e:
@@ -68,7 +68,7 @@ def test_list_assignment_fix():
             return False
 
         # TEST: Usar el nuevo método de asignación
-        print(f"\n🧪 PROBANDO NUEVO MÉTODO DE ASIGNACIÓN")
+        print("\n🧪 PROBANDO NUEVO MÉTODO DE ASIGNACIÓN")
         print("-" * 50)
 
         emails_set = {email.strip().lower() for email in sample_emails}
@@ -79,12 +79,12 @@ def test_list_assignment_fix():
                 api, id_listas_campania, emails_set, mapa_listas
             )
 
-            print(f"✅ Función ejecutada exitosamente")
+            print("✅ Función ejecutada exitosamente")
             print(f"📊 Resultados obtenidos: {len(mapa_resultado)} de {len(emails_set)} emails")
 
             # Mostrar resultados detallados
             if mapa_resultado:
-                print(f"\n📋 ASIGNACIONES EXITOSAS:")
+                print("\n📋 ASIGNACIONES EXITOSAS:")
                 for email, list_id in mapa_resultado.items():
                     lista_nombre = mapa_listas.get(list_id, f"Lista_{list_id}")
                     print(f"   ✅ {email} → {lista_nombre} (ID: {list_id})")
@@ -93,17 +93,17 @@ def test_list_assignment_fix():
                 print(f"\n🎯 Tasa de éxito: {success_rate:.1f}%")
 
                 if success_rate >= 80:
-                    print(f"🎉 ¡EXCELENTE! El fix funciona correctamente")
+                    print("🎉 ¡EXCELENTE! El fix funciona correctamente")
                     return True
                 elif success_rate >= 50:
-                    print(f"⚠️  PARCIAL: El fix funciona pero con limitaciones")
+                    print("⚠️  PARCIAL: El fix funciona pero con limitaciones")
                     return True
                 else:
-                    print(f"❌ PROBLEMÁTICO: El fix necesita ajustes")
+                    print("❌ PROBLEMÁTICO: El fix necesita ajustes")
                     return False
 
             else:
-                print(f"❌ No se asignaron listas para ningún email")
+                print("❌ No se asignaron listas para ningún email")
                 return False
 
         except Exception as e:
@@ -114,11 +114,11 @@ def main():
     success = test_list_assignment_fix()
 
     if success:
-        print(f"\n🎉 TEST EXITOSO: El fix está funcionando")
-        print(f"💡 Puede proceder a ejecutar demo.py completo")
+        print("\n🎉 TEST EXITOSO: El fix está funcionando")
+        print("💡 Puede proceder a ejecutar demo.py completo")
     else:
-        print(f"\n❌ TEST FALLIDO: El fix necesita revisión")
-        print(f"💡 Revise la lógica antes de ejecutar demo.py")
+        print("\n❌ TEST FALLIDO: El fix necesita revisión")
+        print("💡 Revise la lógica antes de ejecutar demo.py")
 
 if __name__ == "__main__":
     main()

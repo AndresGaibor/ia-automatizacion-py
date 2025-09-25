@@ -3,7 +3,6 @@ from typing import List, Dict, Any, Optional
 from openpyxl import Workbook
 from openpyxl.worksheet.worksheet import Worksheet
 from pathlib import Path
-import os
 
 from ...core.errors import DataProcessingError
 from ...shared.logging import get_logger
@@ -117,7 +116,7 @@ class ExcelManager:
     ) -> str:
         """Create comprehensive campaign report Excel file."""
         try:
-            logger.info(f"Creating campaign report Excel file", filename=filename)
+            logger.info("Creating campaign report Excel file", filename=filename)
 
             wb = cls.create_workbook()
 

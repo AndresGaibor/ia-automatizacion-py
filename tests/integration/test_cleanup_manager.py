@@ -3,10 +3,8 @@ Tests for cleanup and data isolation mechanisms
 """
 import pytest
 import time
-from datetime import datetime
 
 from src.api import API
-from src.api.models.suscriptores import SubscriberData
 
 
 @pytest.mark.integration

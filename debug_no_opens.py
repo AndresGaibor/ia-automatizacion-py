@@ -3,7 +3,6 @@
 Script de prueba para debuggear la extracción de no opens
 """
 import sys
-import os
 sys.path.append('src')
 
 from playwright.sync_api import sync_playwright

@@ -1,6 +1,6 @@
 """Legacy main window - extracted from app.py for better organization."""
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import messagebox
 import os
 import threading
 
@@ -12,7 +12,7 @@ except ImportError:
 try:
     from ...shared.utils import load_config, data_path, storage_state_path, notify
 except ImportError:
-    from src.shared.utils import load_config, data_path, storage_state_path, notify
+    from src.shared.utils import data_path, storage_state_path, notify
 
 try:
     from ...shared.logging import get_logger

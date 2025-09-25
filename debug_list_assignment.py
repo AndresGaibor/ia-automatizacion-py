@@ -37,10 +37,10 @@ def debug_list_assignment():
     print(f"📋 Listas en 'No abiertos': {listas_encontradas}")
 
     with API() as api:
-        print(f"\n🔌 Conectado a API")
+        print("\n🔌 Conectado a API")
 
         # 1. OBTENER TODAS LAS LISTAS
-        print(f"\n1️⃣ OBTENIENDO TODAS LAS LISTAS")
+        print("\n1️⃣ OBTENIENDO TODAS LAS LISTAS")
         print("-" * 40)
         try:
             todas_listas = api.suscriptores.get_lists()
@@ -58,7 +58,7 @@ def debug_list_assignment():
             return
 
         # 2. BUSCAR EMAILS ESPECÍFICOS EN LISTAS
-        print(f"\n2️⃣ BUSCANDO EMAILS ESPECÍFICOS EN LISTAS")
+        print("\n2️⃣ BUSCANDO EMAILS ESPECÍFICOS EN LISTAS")
         print("-" * 50)
 
         for email in sample_emails[:3]:  # Solo los primeros 3 para no hacer muchas llamadas
@@ -85,7 +85,7 @@ def debug_list_assignment():
                 print(f"   ❌ Error en search_subscriber para {email}: {e}")
 
             # Método 2: Buscar en cada lista manualmente (sample de primeras 3 listas)
-            print(f"   🔍 Búsqueda manual en listas...")
+            print("   🔍 Búsqueda manual en listas...")
             encontrado_en = []
 
             for lista in todas_listas[:3]:  # Solo primeras 3 listas para testing
@@ -109,10 +109,10 @@ def debug_list_assignment():
                     continue
 
             if not encontrado_en:
-                print(f"      ❌ No encontrado en las primeras 3 listas")
+                print("      ❌ No encontrado en las primeras 3 listas")
 
         # 3. ANALIZAR CAMPAÑA ESPECÍFICA
-        print(f"\n3️⃣ ANALIZANDO CAMPAÑA ESPECÍFICA")
+        print("\n3️⃣ ANALIZANDO CAMPAÑA ESPECÍFICA")
         print("-" * 40)
 
         # Buscar el ID de campaña del archivo Excel
@@ -140,7 +140,7 @@ def debug_list_assignment():
                         nombre = mapa_listas.get(int(list_id), f"Lista_{list_id}")
                         listas_campania.append(f"{nombre} (ID: {list_id})")
 
-                    print(f"📋 Nombres de listas en campaña:")
+                    print("📋 Nombres de listas en campaña:")
                     for lista in listas_campania:
                         print(f"   - {lista}")
 
@@ -153,20 +153,20 @@ def debug_list_assignment():
             print(f"❌ Error analizando campaña: {e}")
 
         # 4. COMPARAR CON DATOS DE "NO ABIERTOS"
-        print(f"\n4️⃣ COMPARACIÓN CON DATOS CORRECTOS")
+        print("\n4️⃣ COMPARACIÓN CON DATOS CORRECTOS")
         print("-" * 45)
 
         print(f"📊 En 'No abiertos' aparecen estas listas: {list(listas_encontradas)}")
-        print(f"📊 Estas corresponden a las listas de la campaña ✅")
-        print(f"")
-        print(f"🤔 HIPÓTESIS DEL PROBLEMA:")
-        print(f"   1. Los emails de 'Abiertos' SÍ pertenecen a listas")
-        print(f"   2. El sistema de búsqueda API no los está encontrando")
-        print(f"   3. Posibles causas:")
-        print(f"      - Rate limiting impidió completar la búsqueda")
-        print(f"      - Parámetros incorrectos en get_subscribers")
-        print(f"      - Los emails están en estado diferente a 'activo'")
-        print(f"      - Diferencias en formato de email (mayúsculas, espacios)")
+        print("📊 Estas corresponden a las listas de la campaña ✅")
+        print("")
+        print("🤔 HIPÓTESIS DEL PROBLEMA:")
+        print("   1. Los emails de 'Abiertos' SÍ pertenecen a listas")
+        print("   2. El sistema de búsqueda API no los está encontrando")
+        print("   3. Posibles causas:")
+        print("      - Rate limiting impidió completar la búsqueda")
+        print("      - Parámetros incorrectos en get_subscribers")
+        print("      - Los emails están en estado diferente a 'activo'")
+        print("      - Diferencias en formato de email (mayúsculas, espacios)")
 
 def main():
     debug_list_assignment()

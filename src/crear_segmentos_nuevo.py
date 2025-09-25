@@ -3,12 +3,12 @@ Módulo para crear segmentos en listas de suscriptores (DEPRECADO).
 NOTA: Esta funcionalidad ha sido reemplazada por el mapeo unificado en mapeo_segmentos.py
 que procesa archivos individuales en data/listas/ y los sube a Acumbamail automáticamente.
 """
-from .utils import data_path, notify
+from .utils import data_path
 from .logger import get_logger
 from .excel_helper import ExcelHelper
 import pandas as pd
 import os
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 from datetime import datetime
 
 # Rutas de archivos
@@ -276,7 +276,7 @@ def main():
         actualizar_fecha_creacion_segmentos(listas_exitosas)
     
     # Resumen final
-    print(f"\n📊 Resumen del proceso:")
+    print("\n📊 Resumen del proceso:")
     print(f"   ✅ Listas procesadas exitosamente: {len(listas_exitosas)}")
     if listas_exitosas:
         for lista in listas_exitosas:

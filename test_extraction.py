@@ -3,7 +3,6 @@
 Test script for JavaScript extraction in subscriber download
 """
 import sys
-import os
 from pathlib import Path
 
 # Add src to path
@@ -62,11 +61,11 @@ def test_extraction():
             # Call the extraction function
             suscriptores = extraer_suscriptores_tabla_lista(page, list_name, list_id)
 
-            print(f"📊 EXTRACTION RESULTS:")
+            print("📊 EXTRACTION RESULTS:")
             print(f"   - Total subscribers extracted: {len(suscriptores)}")
 
             if len(suscriptores) > 0:
-                print(f"   - Sample subscriber (first):")
+                print("   - Sample subscriber (first):")
                 primer_suscriptor = suscriptores[0]
                 for key, value in primer_suscriptor.items():
                     print(f"      {key}: {value}")

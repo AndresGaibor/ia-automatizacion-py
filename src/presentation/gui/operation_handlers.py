@@ -1,9 +1,8 @@
 """Operation handlers for GUI actions - extracted from app.py to reduce complexity."""
 import tkinter as tk
 from tkinter import messagebox
-import threading
 import importlib
-from typing import Callable, Optional
+from typing import Optional
 
 from .config_validator import ConfigValidator
 from .progress_dialog import ThreadedOperation

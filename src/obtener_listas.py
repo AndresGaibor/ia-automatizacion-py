@@ -21,7 +21,7 @@ try:
     from .excel_helper import ExcelHelper
 except ImportError:
     # Cuando se ejecuta directamente
-    from src.utils import data_path, notify
+    from src.utils import data_path
     from src.api import API
     from src.logger import get_logger
     from src.excel_helper import ExcelHelper
@@ -118,7 +118,7 @@ def obtener_listas_via_api(progress_callback: Optional[Callable[[str], None]] = 
 		datos_existentes = cargar_datos_existentes(ARCHIVO_BUSQUEDA)
 		listas_existentes = {int(fila[1]): fila for fila in datos_existentes if fila[1] and str(fila[1]).isdigit()}
 		
-		logger.info(f"Conectando a la API para obtener listas...")
+		logger.info("Conectando a la API para obtener listas...")
 		api = API()
 		logger.info("Conexión a API establecida, obteniendo listas...")
 		

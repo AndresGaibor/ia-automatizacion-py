@@ -3,8 +3,7 @@ Unit tests for API Client
 """
 import pytest
 import httpx
-from unittest.mock import patch, Mock, MagicMock
-from typing import Dict, Any
+from unittest.mock import patch, Mock
 
 from src.infrastructure.api.client import APIClient
 from src.core.errors.exceptions import APIError, AuthenticationError

@@ -4,7 +4,6 @@ Test script to verify the duplicate field fix
 Tests the enhanced field scraping and deduplication logic
 """
 import sys
-import os
 from pathlib import Path
 
 # Add src to path
@@ -90,7 +89,7 @@ def test_field_filtering_logic():
 
     resultado = filtrar_campos_necesarios(campos_excel, campos_acumba)
 
-    print(f"\n📊 FILTERING RESULTS:")
+    print("\n📊 FILTERING RESULTS:")
     print(f"   🆕 To create: {resultado['crear']}")
     print(f"   🔗 To map: {resultado['mapear']}")
     print(f"   🚫 To ignore: {resultado['ignorar']}")

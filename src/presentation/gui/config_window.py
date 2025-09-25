@@ -1,7 +1,6 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 import yaml
-import os
 from pathlib import Path
 
 class ConfigWindow:

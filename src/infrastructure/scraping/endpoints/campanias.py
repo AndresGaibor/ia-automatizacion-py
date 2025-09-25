@@ -4,7 +4,7 @@ Scraper para endpoints de campañas que NO existen en la API de Acumbamail
 IMPORTANTE: Este archivo contiene métodos ESQUELETO que necesitas implementar.
 Cada método tiene comentarios TODO indicando qué necesitas hacer.
 """
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict
 from playwright.sync_api import Page
 import time
 from datetime import datetime

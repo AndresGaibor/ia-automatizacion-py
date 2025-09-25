@@ -9,10 +9,9 @@ Este agente se encarga de:
 """
 
 import ast
-import os
 import re
 import yaml
-from typing import Dict, List, Tuple, Optional, Any
+from typing import Dict, List, Optional, Any
 from pathlib import Path
 from dataclasses import dataclass
 from enum import Enum
@@ -614,7 +613,7 @@ def main():
         print(agent.create_logging_report())
     elif args.analyze:
         analysis = agent.analyze_project()
-        print(f"📊 Análisis completado:")
+        print("📊 Análisis completado:")
         print(f"   Archivos: {analysis['total_files']}")
         print(f"   Print statements: {analysis['total_print_statements']}")
         print(f"   Recomendaciones: {len(analysis['recommendations'])}")
@@ -624,7 +623,7 @@ def main():
         if 'error' in result:
             print(f"   ❌ Error: {result['error']}")
         else:
-            print(f"   ✅ Análisis completado")
+            print("   ✅ Análisis completado")
             print(f"   📊 Print statements: {len(result['analysis']['print_statements'])}")
     else:
         print("Usa --help para ver opciones disponibles")

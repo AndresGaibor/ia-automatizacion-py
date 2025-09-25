@@ -4,7 +4,6 @@ These are primarily read-only tests since campaign creation requires more comple
 """
 import pytest
 from datetime import datetime, timedelta
-from typing import List
 
 from src.api import API
 from src.api.models.campanias import CampaignSummary, CampaignComplete, CampaignBasicInfo

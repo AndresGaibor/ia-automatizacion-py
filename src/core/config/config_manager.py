@@ -2,7 +2,6 @@
 from typing import Dict, Any, Optional
 import yaml
 from pathlib import Path
-import os
 
 
 class ConfigurationError(Exception):
@@ -41,7 +40,12 @@ class ConfigManager:
     def get_config(cls) -> Dict[str, Any]:
         """Get the current loaded configuration."""
         if cls._config is None:
-            raise ConfigurationError("Configuration not loaded. Call load() first.")
+            # Try to load from legacy utils
+            try:
+                from ...shared.utils.legacy_utils import load_config
+                cls._config = load_config()
+            except ImportError:
+                raise ConfigurationError("Configuration not loaded. Call load() first.")
         return cls._config
 
     @classmethod

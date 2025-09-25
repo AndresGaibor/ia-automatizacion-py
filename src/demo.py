@@ -7,24 +7,58 @@ from typing import List
 try:
     # Intentar imports relativos (cuando se ejecuta como módulo)
     from .excel_utils import agregar_datos, crear_hoja_con_datos, obtener_o_crear_hoja
-    from .autentificacion import login
-    from .utils import cargar_campanias_a_buscar, crear_contexto_navegador, configurar_navegador, load_config, data_path, notify
-    from .logger import get_logger
+    from .shared.utils.legacy_utils import cargar_campanias_a_buscar, crear_contexto_navegador, configurar_navegador, load_config, data_path, notify
+    from .shared.logging.legacy_logger import get_logger
     from .structured_logger import log_success, log_error, log_warning, log_info, log_performance, log_data_extraction
     from .hybrid_service import HybridDataService
-    from .scraping.endpoints.campaign_urls import get_campaign_urls_with_fallback
+    # Campaign URLs functionality will be handled by existing infrastructure
+    # Legacy authentication wrapper
+    from .core.authentication.authentication_service import AuthenticationService
+    from .core.config.config_manager import ConfigManager
+    from .shared.utils.legacy_utils import storage_state_path
+
+    class FileSessionStorage:
+        def __init__(self, session_path: str):
+            self.session_path = session_path
+        def save_session(self, context):
+            context.storage_state(path=self.session_path)
+        def get_session_path(self) -> str:
+            return self.session_path
+
+    def login(page, context):
+        config_manager = ConfigManager()
+        session_storage = FileSessionStorage(storage_state_path())
+        auth_service = AuthenticationService(config_manager, session_storage)
+        return auth_service.authenticate(page, context)
+
 except ImportError:
     # Imports absolutos (cuando se ejecuta como script independiente)
     import sys
     import os
     sys.path.insert(0, os.path.dirname(__file__))
     from excel_utils import agregar_datos, crear_hoja_con_datos, obtener_o_crear_hoja
-    from autentificacion import login
-    from utils import cargar_campanias_a_buscar, crear_contexto_navegador, configurar_navegador, load_config, data_path, notify
-    from logger import get_logger
-    from structured_logger import log_success, log_error, log_warning, log_info, log_performance, log_data_extraction
+    from shared.utils.legacy_utils import cargar_campanias_a_buscar, crear_contexto_navegador, configurar_navegador, load_config, data_path, notify
+    from structured_logger import log_success, log_error, log_warning, log_info, log_data_extraction
     from hybrid_service import HybridDataService
-    from scraping.endpoints.campaign_urls import get_campaign_urls_with_fallback
+    # Campaign URLs functionality will be handled by existing infrastructure
+    # Legacy authentication wrapper
+    from core.authentication.authentication_service import AuthenticationService
+    from core.config.config_manager import ConfigManager
+    from shared.utils.legacy_utils import storage_state_path
+
+    class FileSessionStorage:
+        def __init__(self, session_path: str):
+            self.session_path = session_path
+        def save_session(self, context):
+            context.storage_state(path=self.session_path)
+        def get_session_path(self) -> str:
+            return self.session_path
+
+    def login(page, context):
+        config_manager = ConfigManager()
+        session_storage = FileSessionStorage(storage_state_path())
+        auth_service = AuthenticationService(config_manager, session_storage)
+        return auth_service.authenticate(page, context)
 
 from openpyxl import Workbook
 import re
@@ -57,7 +91,7 @@ def crear_archivo_csv(general: list[list[str]], informe_detallado: list[list[lis
     Crea archivos CSV con los informes recopilados (uno por hoja)
     """
     try:
-        log_info(f"Iniciando creación de archivos CSV", 
+        log_info("Iniciando creación de archivos CSV", 
                 campania=nombre_campania, fecha_envio=fecha_envio)
         
         [abiertos, no_abiertos, clics, hard_bounces, soft_bounces] = informe_detallado
@@ -118,11 +152,11 @@ def crear_archivo_excel(general: list[list[str]], informe_detallado: list[list[l
         debug_mode = config.get("debug", False)
         
         if debug_mode:
-            log_info(f"Modo debug activado, generando archivos CSV en lugar de Excel", 
+            log_info("Modo debug activado, generando archivos CSV en lugar de Excel", 
                     campania=nombre_campania, fecha_envio=fecha_envio, debug_mode=debug_mode)
             return crear_archivo_csv(general, informe_detallado, nombre_campania, fecha_envio)
         else:
-            log_info(f"Modo normal, generando archivo Excel", 
+            log_info("Modo normal, generando archivo Excel", 
                     campania=nombre_campania, fecha_envio=fecha_envio, debug_mode=debug_mode)
         
         [abiertos, no_abiertos, clics, hard_bounces, soft_bounces] = informe_detallado
@@ -181,7 +215,7 @@ def crear_mapa_email_lista(todas_listas, api) -> dict[str, str]:
 	mapa_email_lista = {}
 
 	try:
-		log_info(f"Iniciando creación de mapa email-lista", total_listas=len(todas_listas))
+		log_info("Iniciando creación de mapa email-lista", total_listas=len(todas_listas))
 
 		for i, lista in enumerate(todas_listas):
 			try:
@@ -204,7 +238,7 @@ def crear_mapa_email_lista(todas_listas, api) -> dict[str, str]:
 						   lista_id=lista.id, error_type=type(e).__name__)
 				continue
 
-		log_success(f"Mapa email-lista completado", 
+		log_success("Mapa email-lista completado", 
 				   emails_mapeados=len(mapa_email_lista), listas_procesadas=len(todas_listas))
 		return mapa_email_lista
 
@@ -225,7 +259,7 @@ def generar_general(campania, campania_complete, campaign_clics, todas_listas, p
 	from .logger import get_logger
 	logger = get_logger()
 	
-	logger.debug(f"🚀 Iniciando generación de datos generales para campaña")
+	logger.debug("🚀 Iniciando generación de datos generales para campaña")
 	logger.debug(f"   - Nombre campaña: {campania.name if campania.name else 'Sin nombre'}")
 	logger.debug(f"   - ID pasado como parámetro: {campaign_id}")
 	logger.debug(f"   - Objeto campania tiene atributo 'id': {hasattr(campania, 'id')}")
@@ -407,10 +441,10 @@ def main():
 		
 		config = load_config()
 		extraccion_oculta = bool(config.get("headless", False))
-		log_info(f"Configuración cargada", headless=extraccion_oculta)
+		log_info("Configuración cargada", headless=extraccion_oculta)
 
 		campanias_a_buscar = cargar_campanias_a_buscar(ARCHIVO_BUSQUEDA)
-		log_info(f"Campañas a procesar", total_campanias=len(campanias_a_buscar))
+		log_info("Campañas a procesar", total_campanias=len(campanias_a_buscar))
 		
 		with sync_playwright() as p:
 			log_info("🌐 Iniciando navegador")
@@ -441,7 +475,7 @@ def main():
 					if not complete_data or not complete_data.get("campaign_basic"):
 						raise Exception(f"No se pudieron obtener datos para la campaña '{nombre_campania}'")
 					
-					log_success(f"Datos de campaña obtenidos", campania_id=id, 
+					log_success("Datos de campaña obtenidos", campania_id=id, 
 							   tiene_datos_basicos=bool(complete_data.get("campaign_basic")),
 							   tiene_scraping=bool(complete_data.get("scraping_result")))
 					
@@ -485,10 +519,10 @@ def main():
 					scraping_result = complete_data["scraping_result"]
 					hard_bounces = convert_hard_bounces_to_rows(scraping_result.hard_bounces)
 					no_abiertos = convert_no_opens_to_rows(scraping_result.no_opens)
-					log_success(f"Scraping completado", 
+					log_success("Scraping completado", 
 							   hard_bounces=len(hard_bounces), no_abiertos=len(no_abiertos))
 				else:
-					log_warning(f"No se pudieron obtener datos de scraping", campania_id=id)
+					log_warning("No se pudieron obtener datos de scraping", campania_id=id)
 
 				# Crear archivo Excel con los resultados
 				if general or abiertos2 or no_abiertos or clics or hard_bounces or soft_bounces:
@@ -523,7 +557,7 @@ def main():
 					if len(errores_campanias) == 1:
 						error_summary = errores_campanias[0]
 					else:
-						error_summary = f"Todas las campañas seleccionadas fallaron: " + "; ".join(errores_campanias[:2])
+						error_summary = "Todas las campañas seleccionadas fallaron: " + "; ".join(errores_campanias[:2])
 						if len(errores_campanias) > 2:
 							error_summary += f" (y {len(errores_campanias) - 2} más)"
 				else:

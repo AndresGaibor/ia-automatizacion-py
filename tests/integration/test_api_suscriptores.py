@@ -4,7 +4,6 @@ Tests create and cleanup their own data to avoid affecting production
 """
 import pytest
 import time
-from typing import Dict, List, Any
 
 from src.api import API
 from src.api.models.suscriptores import SubscriberData

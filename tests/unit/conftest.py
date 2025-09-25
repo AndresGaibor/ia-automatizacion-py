@@ -5,12 +5,10 @@ import pytest
 import os
 import tempfile
 import yaml
-from unittest.mock import Mock, patch, MagicMock
-from typing import Dict, Any, List
+from unittest.mock import Mock
+from typing import Any
 import pandas as pd
 
-from src.shared.logging import get_logger
-from src.core.config.config_manager import ConfigManager
 
 
 @pytest.fixture

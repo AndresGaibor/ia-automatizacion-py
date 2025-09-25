@@ -33,7 +33,6 @@ import argparse
 import sys
 import os
 from pathlib import Path
-from typing import List, Dict, Any
 
 # Agregar src al path para imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
@@ -71,13 +70,13 @@ class LoggingCLI:
         print("🔍 Analizando proyecto...")
         analysis = self.agent.analyze_project()
 
-        print(f"\n📊 Resultados del análisis:")
+        print("\n📊 Resultados del análisis:")
         print(f"   📁 Archivos analizados: {analysis['total_files']}")
         print(f"   🖨️  Print statements: {analysis['total_print_statements']}")
         print(f"   💡 Oportunidades de mejora: {len(analysis['recommendations'])}")
 
         if analysis['recommendations']:
-            print(f"\n🎯 Archivos que necesitan atención:")
+            print("\n🎯 Archivos que necesitan atención:")
             for rec in analysis['recommendations']:
                 if rec['type'] == 'high_print_usage':
                     print(f"   📄 {Path(rec['file']).name}: {rec['print_count']} prints")
@@ -100,7 +99,7 @@ class LoggingCLI:
 
         if not dry_run:
             if 'improvements' in result and result['improvements']:
-                print(f"✅ Mejoras aplicadas")
+                print("✅ Mejoras aplicadas")
                 for improvement in result['improvements']:
                     if improvement['type'] == 'file_modified':
                         print(f"   💾 Backup creado: {improvement['backup_created']}")
@@ -139,14 +138,14 @@ class LoggingCLI:
                     total_prints_converted += print_count
                     converted_files += 1
                 else:
-                    print(f"   ✅ No requiere cambios")
+                    print("   ✅ No requiere cambios")
 
-        print(f"\n🎯 Resumen:")
+        print("\n🎯 Resumen:")
         print(f"   📁 Archivos procesados: {converted_files}")
         print(f"   🖨️  Print statements {'analizados' if dry_run else 'convertidos'}: {total_prints_converted}")
 
         if dry_run and total_prints_converted > 0:
-            print(f"\n💡 Para aplicar cambios, ejecuta sin --dry-run")
+            print("\n💡 Para aplicar cambios, ejecuta sin --dry-run")
 
     def update_config(self) -> None:
         """Actualiza config.yaml con configuración de logging"""
@@ -173,7 +172,7 @@ class LoggingCLI:
             for key, value in config['logging'].items():
                 print(f"     {key}: {value}")
 
-            print(f"\n💡 Para habilitar logs en consola, cambia 'debug: true' en config.yaml")
+            print("\n💡 Para habilitar logs en consola, cambia 'debug: true' en config.yaml")
         else:
             print("ℹ️  Configuración de logging ya existe en config.yaml")
 

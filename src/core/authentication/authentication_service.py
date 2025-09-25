@@ -1,5 +1,5 @@
 """Enhanced authentication service with proper error handling and session management."""
-from typing import Protocol, Optional
+from typing import Protocol
 from playwright.sync_api import Page, BrowserContext, TimeoutError as PWTimeoutError
 from pathlib import Path
 

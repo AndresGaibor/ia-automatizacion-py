@@ -2,12 +2,11 @@
 import os
 import sys
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict
 from playwright.sync_api import Browser, BrowserContext, Page, Playwright, sync_playwright
 from playwright.sync_api import TimeoutError as PWTimeoutError
-from playwright._impl._errors import Error as PWError
 
-from ...core.errors import BrowserAutomationError, ConfigurationError
+from ...core.errors import BrowserAutomationError
 from ...core.config.config_manager import ConfigManager
 
 
@@ -161,7 +160,7 @@ class BrowserManager:
                 self.playwright.stop()
                 self.playwright = None
 
-        except Exception as e:
+        except Exception:
             # Log but don't raise on cleanup errors
             pass
 

@@ -2,11 +2,10 @@
 Unit tests for Browser Manager
 """
 import pytest
-from unittest.mock import patch, Mock, MagicMock, AsyncMock
-from typing import Dict, Any
+from unittest.mock import patch, Mock
 
 from src.infrastructure.browser.browser_manager import BrowserManager
-from src.core.errors.exceptions import BrowserError, AuthenticationError
+from src.core.errors.exceptions import BrowserError
 
 
 @pytest.mark.unit

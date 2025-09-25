@@ -12,7 +12,7 @@ sys.path.insert(0, str(current_dir / "src"))
 
 try:
     from src.crear_lista_mejorado import crear_lista_automatica
-    from src.utils import load_config, data_path
+    from src.utils import data_path
     from src.logger import get_logger
     print("✅ All imports successful")
 except Exception as e:
@@ -50,7 +50,7 @@ def test_upload_without_duplicates():
         nombre_lista = resultado.get('nombre_lista', 'Lista_Test_SinDuplicados')
         suscriptores = resultado.get('suscriptores_agregados', 0)
 
-        print(f"✅ List created successfully:")
+        print("✅ List created successfully:")
         print(f"   🆔 ID: {list_id}")
         print(f"   📝 Name: {nombre_lista}")
         print(f"   👥 Subscribers: {suscriptores}")

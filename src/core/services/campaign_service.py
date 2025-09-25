@@ -1,8 +1,7 @@
 """Service for handling campaign operations and data extraction."""
-from typing import List, Dict, Any, Tuple, Optional
+from typing import List, Dict, Any, Tuple
 from datetime import datetime
 import re
-from pathlib import Path
 
 try:
     from ...shared.utils import data_path, cargar_campanias_a_buscar

@@ -46,7 +46,7 @@ def analyze_excel_file(file_path: str, detailed: bool = False):
 
                 fill_rate = (non_null / total * 100) if total > 0 else 0
 
-                print(f"📊 Análisis columna 'Lista':")
+                print("📊 Análisis columna 'Lista':")
                 print(f"   ✅ Asignadas: {non_null}")
                 print(f"   ❌ Vacías: {null_count}")
                 print(f"   📈 Total: {total}")
@@ -67,21 +67,21 @@ def analyze_excel_file(file_path: str, detailed: bool = False):
                         count = (df['Lista'] == lista).sum()
                         print(f"      • {lista}: {count} suscriptores")
                 else:
-                    print(f"   ⚠️  Sin listas específicas")
+                    print("   ⚠️  Sin listas específicas")
 
                 if detailed and non_null > 0:
-                    print(f"   📧 Primeros 5 emails con lista:")
+                    print("   📧 Primeros 5 emails con lista:")
                     sample = df[df['Lista'].notna()].head(5)
                     for _, row in sample.iterrows():
                         if 'Correo' in row:
                             print(f"      • {row['Correo']} → {row['Lista']}")
 
             else:
-                print(f"   ℹ️  No tiene columna 'Lista'")
+                print("   ℹ️  No tiene columna 'Lista'")
                 results[sheet_name] = {'no_lista_column': True}
 
         # Resumen general
-        print(f"\n🎉 RESUMEN GENERAL")
+        print("\n🎉 RESUMEN GENERAL")
         print("=" * 60)
         print(f"📊 Total suscriptores: {total_subs}")
         print(f"✅ Con lista asignada: {total_assigned}")
@@ -92,11 +92,11 @@ def analyze_excel_file(file_path: str, detailed: bool = False):
             print(f"🎯 Tasa general de completitud: {overall_rate:.1f}%")
 
             if overall_rate > 80:
-                print(f"🎉 ¡EXCELENTE! Muy buena asignación de listas")
+                print("🎉 ¡EXCELENTE! Muy buena asignación de listas")
             elif overall_rate > 50:
-                print(f"⚠️  REGULAR: Necesita mejoras")
+                print("⚠️  REGULAR: Necesita mejoras")
             else:
-                print(f"❌ PROBLEMÁTICO: Muchas listas vacías")
+                print("❌ PROBLEMÁTICO: Muchas listas vacías")
 
         return results
 
@@ -122,17 +122,17 @@ def find_latest_excel_files(pattern: str = "*xlsx", directory: str = "data/suscr
 def compare_excel_files(file1: str, file2: str):
     """Compara dos archivos Excel para ver mejoras"""
 
-    print(f"🔄 COMPARANDO ARCHIVOS")
+    print("🔄 COMPARANDO ARCHIVOS")
     print("=" * 60)
     print(f"📊 Archivo 1: {file1}")
     print(f"📊 Archivo 2: {file2}")
 
     results1 = analyze_excel_file(file1, detailed=False)
-    print(f"\n" + "="*80 + "\n")
+    print("\n" + "="*80 + "\n")
     results2 = analyze_excel_file(file2, detailed=False)
 
     if results1 and results2:
-        print(f"\n🔄 COMPARACIÓN DE RESULTADOS")
+        print("\n🔄 COMPARACIÓN DE RESULTADOS")
         print("=" * 60)
 
         for sheet in results1:
@@ -158,7 +158,6 @@ def main():
 
     args = parser.parse_args()
 
-    import os  # Para datetime
 
     if args.file:
         analyze_excel_file(args.file, detailed=args.detailed)
@@ -183,7 +182,7 @@ def main():
             print(f"📁 Archivos Excel encontrados: {len(files)}")
             for i, file in enumerate(files[:5]):  # Mostrar los primeros 5
                 print(f"  {i+1}. {file}")
-            print(f"\nUse --latest para analizar el más reciente o --file <ruta> para uno específico")
+            print("\nUse --latest para analizar el más reciente o --file <ruta> para uno específico")
         else:
             print("❌ No se encontraron archivos Excel")
 

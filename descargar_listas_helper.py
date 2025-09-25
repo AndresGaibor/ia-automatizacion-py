@@ -103,7 +103,7 @@ Instrucciones:
         resultados = procesar_listas_marcadas(args.archivo)
         
         # Mostrar resultados
-        print(f"\n📊 === RESUMEN DE RESULTADOS ===")
+        print("\n📊 === RESUMEN DE RESULTADOS ===")
         print(f"Total listas procesadas: {resultados['total_listas']}")
         print(f"✅ Exitosas: {resultados['exitosas']}")
         print(f"❌ Fallidas: {resultados['fallidas']}")
@@ -126,11 +126,11 @@ Instrucciones:
             print("   2. Marca con 'x' las listas que quieres descargar en la columna 'Buscar'")
             print("   3. Ejecuta este script nuevamente")
         else:
-            print(f"\n🎉 ¡Proceso completado exitosamente!")
+            print("\n🎉 ¡Proceso completado exitosamente!")
             
             # Mostrar estadísticas adicionales si es verbose
             if args.verbose and resultados['detalle']:
-                print(f"\n📋 DETALLE POR LISTA:")
+                print("\n📋 DETALLE POR LISTA:")
                 for detalle in resultados['detalle']:
                     status = "✅" if detalle['exitoso'] else "❌"
                     print(f"   {status} {detalle['nombre']} (ID: {detalle['id_lista']})")

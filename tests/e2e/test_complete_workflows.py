@@ -3,13 +3,10 @@ End-to-End tests for complete workflows
 """
 import pytest
 import os
-import time
-from typing import Dict, Any
 from unittest.mock import patch
 
 from src.core.services.campaign_service import CampaignService
 from src.core.services.legacy_operations_service import LegacyOperationsService
-from src.infrastructure.browser.browser_manager import BrowserManager
 from src.infrastructure.excel.excel_manager import ExcelManager
 
 
@@ -397,7 +394,6 @@ class TestCompleteWorkflows:
         performance_monitor.start_timing("concurrent_operations")
 
         # Simulate concurrent operations using mocked services
-        from unittest.mock import patch
         from src.infrastructure.excel.excel_manager import ExcelManager
 
         try:

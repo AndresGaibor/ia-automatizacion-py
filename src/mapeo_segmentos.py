@@ -5,9 +5,7 @@ Procesa el archivo Segmentos.xlsx y aplica las condiciones a los archivos de lis
 import pandas as pd
 from collections import defaultdict
 import os
-import time
 from typing import Dict, List, Any, Optional, Tuple
-from pathlib import Path
 # from playwright.sync_api import TimeoutError as PlaywrightTimeoutError  # no longer used
 
 from .utils import data_path, load_config, notify
@@ -1318,10 +1316,10 @@ def procesar_lista_individual(nombre_lista: str, segmentos_data: List[List[Any]]
                 exito_segmentos = crear_segmentos_con_scraping_batch(list_id, segmentos_unicos, api_client)
                 
                 if exito_segmentos:
-                    print(f"  Procesamiento de segmentos completado exitosamente")
+                    print("  Procesamiento de segmentos completado exitosamente")
                     notify("Segmentos Creados", "Procesamiento de segmentos completado exitosamente", "info")
                 else:
-                    print(f"  Algunos segmentos pudieron no haberse procesado correctamente")
+                    print("  Algunos segmentos pudieron no haberse procesado correctamente")
                     logger.warning(f"Error procesando algunos segmentos para lista '{nombre_lista}'")
                     notify("Advertencia Segmentos", "Algunos segmentos pudieron no procesarse correctamente", "warning")
             except Exception as e:
@@ -1439,7 +1437,7 @@ def mapear_segmentos_completo() -> Dict[str, Any]:
                 notify("Error Lista", f"Error procesando {nombre_lista}: {e}", "warning")
 
         # Resumen final sin emojis
-        print(f"\nResumen del mapeo:")
+        print("\nResumen del mapeo:")
         print(f"   Listas procesadas: {len(estadisticas['listas_procesadas'])}")
         for lista in estadisticas["listas_procesadas"]:
             print(f"      • {lista}")
@@ -1467,7 +1465,7 @@ def mapear_segmentos_completo() -> Dict[str, Any]:
         return {"error": error_msg}
 
     # Resumen final
-    print(f"\n📊 Resumen del mapeo:")
+    print("\n📊 Resumen del mapeo:")
     print(f"   ✅ Listas procesadas: {len(estadisticas['listas_procesadas'])}")
     for lista in estadisticas["listas_procesadas"]:
         print(f"      • {lista}")

@@ -3,10 +3,7 @@ End-to-End tests for GUI workflows
 """
 import pytest
 import os
-import time
-import tkinter as tk
-from typing import Dict, Any
-from unittest.mock import patch, Mock, MagicMock
+from unittest.mock import patch, Mock
 
 from src.presentation.gui.legacy_main_window import LegacyMainWindow
 from src.infrastructure.excel.excel_manager import ExcelManager

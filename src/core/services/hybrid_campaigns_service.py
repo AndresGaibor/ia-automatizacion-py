@@ -6,7 +6,7 @@ Esta clase proporciona una interfaz unificada que:
 - Usa scraping cuando los datos no están disponibles en API (no-openers, hard bounces)
 - Combina ambos métodos para análisis completos
 """
-from typing import List, Optional, Union, Dict, Any
+from typing import List, Union, Dict, Any
 from playwright.sync_api import Page
 
 from ..api.endpoints.campanias import CampaignsAPI
@@ -17,7 +17,7 @@ from ..api.models.campanias import (
 )
 from ..scraping.endpoints.campanias import CampaignsScraper
 from ..scraping.models.campanias import (
-    ScrapedNonOpener, ScrapedHardBounce, ScrapedCampaignData
+    ScrapedNonOpener, ScrapedHardBounce
 )
 from ..logger import logger
 

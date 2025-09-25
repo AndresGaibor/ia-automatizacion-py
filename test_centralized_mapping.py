@@ -28,7 +28,7 @@ def test_centralized_mapping():
         return False
 
     with API() as api:
-        print(f"\n🔌 Conectado a API")
+        print("\n🔌 Conectado a API")
 
         # 1. OBTENER LISTAS
         try:
@@ -45,7 +45,7 @@ def test_centralized_mapping():
             return False
 
         # 2. TEST RÁPIDO: construir mapa solo para listas de campaña
-        print(f"\n🏗️ CONSTRUYENDO MAPA CENTRALIZADO (solo listas de campaña)")
+        print("\n🏗️ CONSTRUYENDO MAPA CENTRALIZADO (solo listas de campaña)")
         print("-" * 60)
 
         try:
@@ -58,7 +58,7 @@ def test_centralized_mapping():
             return False
 
         # 3. PROBAR BÚSQUEDAS
-        print(f"\n🔍 PROBANDO BÚSQUEDAS CON MAPA CENTRALIZADO")
+        print("\n🔍 PROBANDO BÚSQUEDAS CON MAPA CENTRALIZADO")
         print("-" * 60)
 
         id_listas_campania = set(campaign_list_ids)
@@ -76,32 +76,32 @@ def test_centralized_mapping():
                 emails_encontrados += 1
                 print(f"   ✅ Encontrado en: {lista_resultado}")
             else:
-                print(f"   ❌ No encontrado")
+                print("   ❌ No encontrado")
 
         # 4. RESULTADO DEL TEST
-        print(f"\n🎯 RESULTADO DEL TEST")
+        print("\n🎯 RESULTADO DEL TEST")
         print("=" * 40)
 
         success_rate = (emails_encontrados / len(test_emails)) * 100
         print(f"📊 Emails encontrados: {emails_encontrados}/{len(test_emails)} ({success_rate:.1f}%)")
 
         if success_rate >= 80:
-            print(f"🎉 ¡TEST EXITOSO! Sistema centralizado funcionando")
+            print("🎉 ¡TEST EXITOSO! Sistema centralizado funcionando")
             return True
         elif success_rate > 0:
-            print(f"⚠️  TEST PARCIAL: Funciona pero con limitaciones")
+            print("⚠️  TEST PARCIAL: Funciona pero con limitaciones")
             return True
         else:
-            print(f"❌ TEST FALLIDO: Sistema no encuentra emails")
+            print("❌ TEST FALLIDO: Sistema no encuentra emails")
             return False
 
 def main():
     success = test_centralized_mapping()
 
     if success:
-        print(f"\n💡 Sistema centralizado listo para usar en demo.py")
+        print("\n💡 Sistema centralizado listo para usar en demo.py")
     else:
-        print(f"\n💡 Revisar sistema antes de ejecutar demo.py")
+        print("\n💡 Revisar sistema antes de ejecutar demo.py")
 
 if __name__ == "__main__":
     main()

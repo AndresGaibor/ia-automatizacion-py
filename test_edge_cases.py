@@ -3,7 +3,6 @@
 Test script for edge cases and error scenarios in subscriber extraction
 """
 import sys
-import os
 from pathlib import Path
 
 # Add src to path
@@ -233,7 +232,7 @@ def test_error_recovery_scenarios():
 
 def analyze_edge_case_results(results):
     """Analyze all edge case results"""
-    print(f"\n🔍 EDGE CASE ANALYSIS RESULTS:")
+    print("\n🔍 EDGE CASE ANALYSIS RESULTS:")
 
     total_cases = len(results)
     successful_cases = len([r for r in results if r["success"]])
@@ -263,7 +262,7 @@ def analyze_edge_case_results(results):
             print(f"   • {category}: {count}")
 
     # Data quality summary
-    print(f"\n📊 DATA QUALITY SUMMARY:")
+    print("\n📊 DATA QUALITY SUMMARY:")
     for result in results:
         if result["success"] and "subscriber_count" in result["data_quality"]:
             count = result["data_quality"]["subscriber_count"]
@@ -271,7 +270,7 @@ def analyze_edge_case_results(results):
             email_valid = result["data_quality"].get("valid_email_percentage", 0)
             print(f"   • {result['name']}: {count} subscribers, {fields} fields, {email_valid:.1f}% valid emails")
 
-    print(f"\n🛡️ ROBUSTNESS ASSESSMENT:")
+    print("\n🛡️ ROBUSTNESS ASSESSMENT:")
     robustness_score = (successful_cases / total_cases) * 100
 
     if robustness_score >= 90:
@@ -283,7 +282,7 @@ def analyze_edge_case_results(results):
     else:
         print(f"   ❌ POOR ({robustness_score:.1f}%): Many edge cases fail")
 
-    print(f"\n💡 FINAL RECOMMENDATIONS:")
+    print("\n💡 FINAL RECOMMENDATIONS:")
     print("   • Implement retry logic for navigation timeouts")
     print("   • Add progress indicators for large list processing")
     print("   • Include encoding detection and conversion")
@@ -292,7 +291,6 @@ def analyze_edge_case_results(results):
     print("   • Add monitoring for performance regression")
 
 if __name__ == "__main__":
-    import time
 
     success = test_edge_cases()
 
