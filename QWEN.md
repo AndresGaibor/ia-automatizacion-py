@@ -1,6 +1,6 @@
-# AGENTS.md
+# QWEN.md
 
-This file provides guidance to AI agents (including Claude, Qwen, and other AI assistants) when working with code in this repository.
+This file provides guidance to Qwen AI (Qwen Code) when working with code in this repository.
 
 ## Project Overview
 
@@ -22,7 +22,7 @@ pip install -r requirements.txt
 playwright install
 ```
 
-**IMPORTANT for AI Agents:**
+**IMPORTANT for Qwen Code:**
 - This project uses fish shell as the primary shell environment
 - ALWAYS use fish shell commands when running Python/pip commands
 - Example: `fish -c "source .venv/bin/activate.fish; python app.py"`
@@ -272,5 +272,34 @@ When working with this project, you may need to verify certain aspects of the Ac
 - Understanding the current structure of web elements
 - Testing selector strategies before implementing automation
 - Checking if web elements behave as expected
+- Validating changes to important modules after modifications
+- Verifying Excel data mappings and structures match the Acumbamail platform
 
 When using the browser tool, always respect the platform's terms of service and rate limiting to avoid being blocked.
+
+## Validation Requirements for Important Files
+
+When modifying important modules (the main application files), you must validate changes using the MCP browser to ensure functionality remains correct:
+
+### Core Modules Requiring Validation
+The following modules are considered important and require MCP browser validation after modification:
+- **app.py**: Main GUI application
+- **src/demo.py**: Main automation script for subscriber data extraction
+- **src/listar_campanias.py**: Campaign listing automation
+- **src/crear_lista.py**: Subscriber list creation with Excel sheet selection
+- **src/autentificacion.py**: Login automation for Acumbamail
+- **src/utils.py**: Shared utilities for browser automation, file handling, and configuration
+
+After modifying any of these files, always use the MCP browser to:
+1. Verify that login functionality still works correctly
+2. Check that campaign data extraction works as expected
+3. Ensure that Excel data generation matches Acumbamail platform data
+4. Validate that browser automation flows function properly
+
+### Excel Data Validation
+When working with Excel files in the data directory (particularly Busqueda.xlsx and Lista_envio.xlsx), always cross-reference with the actual Acumbamail platform using the MCP browser to ensure:
+- Column mappings are correct
+- Data formats match what the platform expects
+- Campaign names and search terms are valid
+- Email formats and list structures are properly formatted
+- Extracted data matches what's shown in the Acumbamail interface

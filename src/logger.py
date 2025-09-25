@@ -66,21 +66,57 @@ class PerformanceLogger:
 
     # -------------------------------------------------------------
     # Passthrough API estilo logging.Logger para compatibilidad
+    # Now supports structured logging with extra fields
     # -------------------------------------------------------------
     def debug(self, msg: str, *args, **kwargs) -> None:
-        self.logger.debug(msg, *args, **kwargs)
+        # Handle structured logging by extracting extra fields
+        extra_fields = {k: v for k, v in kwargs.items() if k not in ['exc_info', 'stack_info', 'extra']}
+        if extra_fields:
+            # Only pass standard logging kwargs to the underlying logger
+            standard_kwargs = {k: v for k, v in kwargs.items() if k in ['exc_info', 'stack_info', 'extra']}
+            self.logger.debug(f"{msg} | {extra_fields}", *args, **standard_kwargs)
+        else:
+            self.logger.debug(msg, *args, **kwargs)
 
     def info(self, msg: str, *args, **kwargs) -> None:
-        self.logger.info(msg, *args, **kwargs)
+        # Handle structured logging by extracting extra fields
+        extra_fields = {k: v for k, v in kwargs.items() if k not in ['exc_info', 'stack_info', 'extra']}
+        if extra_fields:
+            # Only pass standard logging kwargs to the underlying logger
+            standard_kwargs = {k: v for k, v in kwargs.items() if k in ['exc_info', 'stack_info', 'extra']}
+            self.logger.info(f"{msg} | {extra_fields}", *args, **standard_kwargs)
+        else:
+            self.logger.info(msg, *args, **kwargs)
 
     def warning(self, msg: str, *args, **kwargs) -> None:
-        self.logger.warning(msg, *args, **kwargs)
+        # Handle structured logging by extracting extra fields
+        extra_fields = {k: v for k, v in kwargs.items() if k not in ['exc_info', 'stack_info', 'extra']}
+        if extra_fields:
+            # Only pass standard logging kwargs to the underlying logger
+            standard_kwargs = {k: v for k, v in kwargs.items() if k in ['exc_info', 'stack_info', 'extra']}
+            self.logger.warning(f"{msg} | {extra_fields}", *args, **standard_kwargs)
+        else:
+            self.logger.warning(msg, *args, **kwargs)
 
     def error(self, msg: str, *args, **kwargs) -> None:
-        self.logger.error(msg, *args, **kwargs)
+        # Handle structured logging by extracting extra fields
+        extra_fields = {k: v for k, v in kwargs.items() if k not in ['exc_info', 'stack_info', 'extra']}
+        if extra_fields:
+            # Only pass standard logging kwargs to the underlying logger
+            standard_kwargs = {k: v for k, v in kwargs.items() if k in ['exc_info', 'stack_info', 'extra']}
+            self.logger.error(f"{msg} | {extra_fields}", *args, **standard_kwargs)
+        else:
+            self.logger.error(msg, *args, **kwargs)
 
     def critical(self, msg: str, *args, **kwargs) -> None:
-        self.logger.critical(msg, *args, **kwargs)
+        # Handle structured logging by extracting extra fields
+        extra_fields = {k: v for k, v in kwargs.items() if k not in ['exc_info', 'stack_info', 'extra']}
+        if extra_fields:
+            # Only pass standard logging kwargs to the underlying logger
+            standard_kwargs = {k: v for k, v in kwargs.items() if k in ['exc_info', 'stack_info', 'extra']}
+            self.logger.critical(f"{msg} | {extra_fields}", *args, **standard_kwargs)
+        else:
+            self.logger.critical(msg, *args, **kwargs)
     
     def start_timer(self, operation: str, batch_key: Optional[str] = None) -> None:
         """Inicia el cronómetro para una operación con agrupación inteligente"""

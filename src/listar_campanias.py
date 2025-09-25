@@ -14,14 +14,18 @@ try:
     from .excel_utils import agregar_datos, crear_o_cargar_libro_excel, limpiar_hoja_desde_fila, obtener_o_crear_hoja
     from .api import API
     from .utils import data_path, notify
+    from .logger import get_logger
 except ImportError:
     # Cuando se ejecuta directamente
     from src.excel_utils import agregar_datos, crear_o_cargar_libro_excel, limpiar_hoja_desde_fila, obtener_o_crear_hoja
     from src.api import API
     from src.utils import data_path, notify
+    from src.logger import get_logger
 
 # Rutas
 ARCHIVO_BUSQUEDA = data_path("Busqueda.xlsx")
+
+logger = get_logger()
 
 def guardar_datos_en_excel(informe_detalle: list[list[str]], archivo_busqueda: str):
     """
@@ -29,6 +33,8 @@ def guardar_datos_en_excel(informe_detalle: list[list[str]], archivo_busqueda: s
     y ajusta automáticamente el ancho de las columnas
     """
     try:
+        logger.info("🚀 Iniciando guardado de datos en Excel", archivo=archivo_busqueda, registros=len(informe_detalle))
+        
         wb = crear_o_cargar_libro_excel(archivo_busqueda)
         encabezados = ["Buscar", "Nombre", "ID Campaña", "Fecha", "Total enviado", "Abierto", "No abierto"]
 
@@ -36,19 +42,24 @@ def guardar_datos_en_excel(informe_detalle: list[list[str]], archivo_busqueda: s
         if wb.worksheets:
             ws = wb.worksheets[0]  # Primera hoja
             ws.title = "Sheet"  # Asegurar que se llame Sheet
+            logger.info("📝 Usando hoja existente", titulo_hoja=ws.title)
         else:
             ws = wb.create_sheet("Sheet")
+            logger.info("🆕 Creando nueva hoja", titulo_hoja=ws.title)
 
         # Limpiar y agregar encabezados
+        logger.info("🧹 Limpiando hoja y agregando encabezados")
         ws.delete_rows(1, ws.max_row)
         ws.append(encabezados)
 
         registros_agregados = agregar_datos(ws, datos= informe_detalle)
+        logger.info("📊 Datos agregados", registros_agregados=registros_agregados)
 
         # Ajustar automáticamente el ancho de las columnas
         from openpyxl.utils import get_column_letter
         
         # Iterar por cada columna usando índices
+        logger.info("📐 Ajustando ancho de columnas")
         for col_idx in range(1, ws.max_column + 1):
             max_length = 0
             column_letter = get_column_letter(col_idx)
@@ -67,10 +78,12 @@ def guardar_datos_en_excel(informe_detalle: list[list[str]], archivo_busqueda: s
             ws.column_dimensions[column_letter].width = adjusted_width
 
         wb.save(archivo_busqueda)
-        print(f"Se agregaron {registros_agregados} registros al archivo {archivo_busqueda}")
-        print("✅ Columnas ajustadas automáticamente")
+        logger.success("✅ Archivo guardado exitosamente", archivo=archivo_busqueda, registros_agregados=registros_agregados)
+        logger.info(f"Se agregaron {registros_agregados} registros al archivo {archivo_busqueda}")
+        logger.info("✅ Columnas ajustadas automáticamente")
 
     except Exception as e:
+        logger.error("❌ Error guardando archivo Excel", error=str(e))
         print(f"Error guardando archivo Excel: {e}")
 
 api = API()
@@ -81,13 +94,19 @@ def main():
 	"""
 
 	try:
+		logger.info("🚀 Iniciando programa de listado de campañas")
+		
 		informe: list[list[str]] = []
+		logger.info("🌐 Obteniendo campañas desde la API")
 		campanias = api.campaigns.get_all(True)
+		logger.info("📥 Campañas obtenidas", total_campañas=len(campanias))
 
 		# Filtrar campañas válidas
 		from datetime import datetime, timedelta
 		hoy = datetime.now().strftime("%Y%m%d")
+		logger.info("筛选_filtros_aplicados", fecha_actual=hoy)
 
+		campanias_filtradas = 0
 		for campania in campanias:
 			nombre = campania.name
 			id = str(campania.id)
@@ -101,11 +120,19 @@ def main():
 				hoy not in nombre and  # Excluir campañas del día actual
 				total_enviado != "0"):  # Excluir campañas sin envíos
 				informe.append(['', nombre, id, fecha, total_enviado, abierto, no_abierto])
+				campanias_filtradas += 1
+		
+		logger.info("📊 Filtrado completado", campañas_filtradas=campanias_filtradas, campañas_para_guardar=len(informe))
 		
 		if informe:
+			logger.info("💾 Guardando datos en archivo Excel")
 			guardar_datos_en_excel(informe, ARCHIVO_BUSQUEDA)
+			logger.success("✅ Programa completado exitosamente")
+		else:
+			logger.warning("⚠️ No hay datos para guardar después del filtrado")
 
 	except Exception as e:
+		logger.error("❌ Error crítico en el programa", error=str(e))
 		print(f"Error crítico en el programa: {e}")
 		raise
 

@@ -834,15 +834,31 @@ def agregar_suscriptores_via_api(list_id: int, df_suscriptores: pd.DataFrame, ap
         logger.warning("DataFrame de suscriptores está vacío")
         return 0
 
-    # Verificar que tenga columna email
-    tiene_email, faltantes = ExcelHelper.verificar_columnas(df_suscriptores, ['email'])
-    if not tiene_email:
-        logger.error(f"Columna 'email' requerida no encontrada. Columnas disponibles: {list(df_suscriptores.columns)}")
+    # Detectar columna de email automáticamente (igual que en comparar_suscriptores_local_vs_remoto)
+    email_column = None
+    possible_email_columns = ['email', 'Email', 'EMAIL', 'Correo Electrónico', 'Correo', 'correo', 'e-mail', 'E-mail']
+
+    for col_name in possible_email_columns:
+        if col_name in df_suscriptores.columns:
+            email_column = col_name
+            break
+
+    if not email_column:
+        logger.error(f"Columna de email no encontrada. Columnas disponibles: {list(df_suscriptores.columns)}")
+        logger.error(f"Columnas esperadas de email: {possible_email_columns}")
         return 0
 
+    print(f"📧 Usando columna de email: '{email_column}'")
+
     try:
-        # PASO 1: Agregar suscriptores (la API debería crear campos automáticamente)
+        # PASO 1: Preparar datos con email column detectada
         print("👥 Agregando suscriptores con campos personalizados...")
+
+        # Renombrar la columna de email si es necesario para la API
+        df_trabajo = df_suscriptores.copy()
+        if email_column != 'email':
+            df_trabajo = df_trabajo.rename(columns={email_column: 'email'})
+            print(f"📧 Renombrando '{email_column}' -> 'email' para API")
 
         # Preparar datos para procesamiento en lotes
         subscribers_batch = []

@@ -71,8 +71,8 @@ def ordenar_por_fecha(fecha_str: str) -> tuple:
 	Fechas vacías van al final (más antiguas)
 	"""
 	if not fecha_str or str(fecha_str).strip() == '' or str(fecha_str).lower() == 'nan':
-		# Sin fecha = más antigua (valor máximo para que vaya al final)
-		return (9999, 0, 0, 0, 0, 0)
+		# Sin fecha = más antigua (valor mínimo)
+		return (0, 0, 0, 0, 0, 0)
 	
 	try:
 		# Intentar parsear diferentes formatos de fecha
@@ -95,8 +95,8 @@ def ordenar_por_fecha(fecha_str: str) -> tuple:
 	except (ValueError, IndexError):
 		pass
 	
-	# Si no se puede parsear, tratarla como muy antigua (al final)
-	return (9999, 0, 0, 0, 0, 0)
+	# Si no se puede parsear, tratarla como muy antigua
+	return (0, 0, 0, 0, 0, 0)
 
 
 
@@ -246,29 +246,7 @@ def obtener_listas_via_api(progress_callback: Optional[Callable[[str], None]] = 
 			else:
 				print(f"Error guardando listado inicial: {e}")
 
-		# Preparar lista de trabajo: sólo las que no tienen CREACION o SUSCRIPTORES
-		logger.info("Preparando lista de trabajo para procesamiento de estadísticas")
-		listas_a_procesar = []
-		for lista in listas:
-			lid = str(lista.id)
-			# buscar en df_main
-			row = df_main[df_main['ID_LISTA'] == lid]
-			needs = True
-			if not row.empty:
-				sus_val = str(row.iloc[0]['SUSCRIPTORES']).strip()
-				cre_val = str(row.iloc[0]['CREACION']).strip()
-				# Una lista necesita procesamiento si SUSCRIPTORES o CREACION están vacíos o son 'nan'
-				if (sus_val and sus_val.lower() not in ['', 'nan', 'none']) and \
-				   (cre_val and cre_val.lower() not in ['', 'nan', 'none']):
-					needs = False
-			if needs:
-				listas_a_procesar.append(lista)
-
-		logger.info(f"Listas que necesitan procesamiento de stats: {len(listas_a_procesar)}")
-		if listas_a_procesar:
-			logger.debug("Primeras 3 listas que necesitan procesamiento:")
-			for lista in listas_a_procesar[:3]:  # Mostrar las primeras 3
-				logger.debug(f"  - {lista.name} (ID: {lista.id})")
+		# Preparar lista de trabajo: s\u00F3lo las que no tienen CREACION o SUSCRIPTORES\n\t\tlogger.info(\"Preparando lista de trabajo para procesamiento de estad\u00EDsticas\")\n\t\tlistas_a_procesar = []\n\t\tfor lista in listas:\n\t\t\tlid = str(lista.id)\n\t\t\t# buscar en df_main\n\t\t\trow = df_main[df_main['ID_LISTA'] == lid]\n\t\t\tneeds = True\n\t\t\tif not row.empty:\n\t\t\t\tsus_val = str(row.iloc[0]['SUSCRIPTORES']).strip()\n\t\t\t\tcre_val = str(row.iloc[0]['CREACION']).strip()\n\t\t\t\t# Una lista necesita procesamiento si SUSCRIPTORES o CREACION est\u00E1n vac\u00EDos o son 'nan'\n\t\t\t\tif (sus_val and sus_val.lower() not in ['', 'nan', 'none']) and \\\n\t\t\t\t   (cre_val and cre_val.lower() not in ['', 'nan', 'none']):\n\t\t\t\t\tneeds = False\n\t\t\tif needs:\n\t\t\t\tlistas_a_procesar.append(lista)\n\n\t\tlogger.info(f\"Listas que necesitan procesamiento de stats: {len(listas_a_procesar)}\")\n\t\tif listas_a_procesar:\n\t\t\tlogger.debug(\"Primeras 3 listas que necesitan procesamiento:\")\n\t\t\tfor lista in listas_a_procesar[:3]:  # Mostrar las primeras 3\n\t\t\t\tlogger.debug(f\"  - {lista.name} (ID: {lista.id})\")
 
 		total_to_process = len(listas_a_procesar)
 		# Asumimos el rate limit documentado para get_list_stats: 10 peticiones/minuto
@@ -307,11 +285,11 @@ def obtener_listas_via_api(progress_callback: Optional[Callable[[str], None]] = 
 				else:
 					print(msg)
 
-		# Intervalo aproximado entre llamadas para distribuir llamadas dentro del minuto
+			# Intervalo aproximado entre llamadas para distribuir llamadas dentro del minuto
 		inter_call_interval = max(1, 60 / RATE_LIMIT_PER_MIN)
 		logger.debug(f"Intervalo entre llamadas: {inter_call_interval:.2f} segundos")
 
-		logger.start_timer("procesamiento_listas")
+			logger.start_timer("procesamiento_listas")
 		for i, lista in enumerate(listas_a_procesar):
 			try:
 				# Pausar entre llamadas para respetar el rate limit
@@ -385,8 +363,8 @@ def obtener_listas_via_api(progress_callback: Optional[Callable[[str], None]] = 
 				else:
 					informe_detalle.append(fila)
 					logger.debug(f"Añadida nueva fila para lista {lista.id}")
-
-			except Exception as e:
+					
+				except Exception as e:
 				error_str = str(e).lower()
 				if "429" in error_str or "rate limit" in error_str or "too many requests" in error_str:
 					# Error de rate limit: esperar más tiempo y reintentar una vez
@@ -484,7 +462,9 @@ def obtener_listas_via_api(progress_callback: Optional[Callable[[str], None]] = 
 			# Fallback: mantener el informe_detalle anterior si algo falla
 			pass
 
-		
+		# Ordenar por fecha de creación (más vieja primero, sin fecha al final)
+		logger.debug("Ordenando informe final por fecha de creación")
+		informe_detalle.sort(key=lambda x: ordenar_por_fecha(x[4]), reverse=False)
         
 		logger.info(f"Obtenidas {len(informe_detalle)} listas via API ({len(listas_nuevas)} nuevas)")
 		api.close()
