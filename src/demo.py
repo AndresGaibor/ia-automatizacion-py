@@ -10,6 +10,7 @@ try:
     from .logger import get_logger
     from .structured_logger import log_success, log_error, log_warning, log_info, log_performance, log_data_extraction
     from .hybrid_service import HybridDataService
+    from .scraping.endpoints.campaign_urls import get_campaign_urls_with_fallback
 except ImportError:
     # Imports absolutos (cuando se ejecuta como script independiente)
     import sys
@@ -21,6 +22,7 @@ except ImportError:
     from logger import get_logger
     from structured_logger import log_success, log_error, log_warning, log_info, log_performance, log_data_extraction
     from hybrid_service import HybridDataService
+    from scraping.endpoints.campaign_urls import get_campaign_urls_with_fallback
 
 from openpyxl import Workbook
 import re
@@ -152,7 +154,7 @@ def obtener_lista_suscriptor(email: str, mapa_email_lista: dict[str, str]) -> st
 	email_clean = email.lower().strip()
 	return mapa_email_lista.get(email_clean, "Lista no encontrada")
 
-def generar_general(campania, campania_complete, campaign_clics, todas_listas) -> list[str]:
+def generar_general(campania, campania_complete, campaign_clics, todas_listas, page, campaign_id=None) -> list[str]:
 	nombre = campania.name or ""
 	tipo = ""
 	fecha = campania.date
@@ -162,7 +164,14 @@ def generar_general(campania, campania_complete, campaign_clics, todas_listas) -
 	emails = str(campania_complete.total_delivered)
 	opens = str(campania_complete.opened or 0)
 	clicks = str(len(campaign_clics))
-	url_email = ""
+	
+	# Obtener URLs de la campaña mediante scraping
+	# Prioritize the passed campaign_id, but fall back to campania.id if available
+	actual_campaign_id = campaign_id if campaign_id is not None else (campania.id if hasattr(campania, 'id') else None)
+	if actual_campaign_id:
+		url_email = get_campaign_urls_with_fallback(page, actual_campaign_id)
+	else:
+		url_email = ""
 	
 	return [nombre, tipo, fecha, listas, emails, opens, clicks, url_email]
 
@@ -381,7 +390,7 @@ def main():
 				mapa_email_lista = crear_mapa_email_lista(listas_campania, api)
 
 				# Datos básicos
-				general = [generar_general(campania, campania_complete, campaign_clics, todas_listas)]
+				general = [generar_general(campania, campania_complete, campaign_clics, todas_listas, page, campania.id if hasattr(campania, 'id') else id)]
 				abiertos2 = generar_abiertos(campania, openers, mapa_email_lista)
 				clics = generar_clics(campania, campaign_clics, mapa_email_lista)
 				soft_bounces = generar_soft_bounces(campania, soft_bounce_list, mapa_email_lista)
