@@ -1,3 +1,5 @@
+import csv
+from pathlib import Path
 from playwright.sync_api import sync_playwright
 from datetime import datetime
 from typing import List
@@ -50,13 +52,78 @@ def generar_nombre_archivo_informe(nombre_campania: str = "", fecha_envio: str =
 		
 	return nombre_archivo
 
+def crear_archivo_csv(general: list[list[str]], informe_detallado: list[list[list[str]]], nombre_campania: str = "", fecha_envio: str = ""):
+    """
+    Crea archivos CSV con los informes recopilados (uno por hoja)
+    """
+    try:
+        log_info(f"Iniciando creación de archivos CSV", 
+                campania=nombre_campania, fecha_envio=fecha_envio)
+        
+        [abiertos, no_abiertos, clics, hard_bounces, soft_bounces] = informe_detallado
+        
+        # Generar nombre base para los archivos CSV
+        nombre_archivo_base = Path(generar_nombre_archivo_informe(nombre_campania, fecha_envio))
+        nombre_base = nombre_archivo_base.stem  # Nombre sin extensión
+        directorio = nombre_archivo_base.parent
+        directorio_csv = directorio / "csv"
+        directorio_csv.mkdir(parents=True, exist_ok=True)  # Crear directorio CSV si no existe
+        
+        # Crear archivo CSV para la hoja general
+        encabezados_general = ["Nombre", "Tipo", "Fecha envio", "Listas", "Emails", "Abiertos", "Clics", "URL de Correo"]
+        archivo_general = directorio_csv / f"{nombre_base}_General.csv"
+        
+        with open(archivo_general, 'w', newline='', encoding='utf-8') as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(encabezados_general)  # Escribir encabezados
+            writer.writerows(general)  # Escribir datos
+        log_data_extraction("General", len(general), "CSV")
+        
+        # Definir configuraciones para los archivos CSV detallados
+        archivos_config = [
+            ("Abiertos", abiertos, ["Proyecto", "Lista", "Correo", "Fecha apertura", "País apertura", "Aperturas", "Lista", "Estado", "Calidad"]),
+            ("No abiertos", no_abiertos, ["Proyecto", "Lista", "Correo", "Lista", "Estado", "Calidad"]),
+            ("Clics", clics, ["Proyecto", "Lista", "Correo", "Fecha primer clic", "País apertura", "Lista", "Estado", "Calidad"]),
+            ("Hard bounces", hard_bounces, ["Proyecto", "Lista", "Correo", "Lista", "Estado", "Calidad"]),
+            ("Soft bounces", soft_bounces, ["Proyecto", "Lista", "Correo", "Lista", "Estado", "Calidad"])
+        ]
+
+        # Crear archivos CSV detallados usando la configuración
+        for nombre_archivo, datos, columnas in archivos_config:
+            archivo_path = directorio_csv / f"{nombre_base}_{nombre_archivo}.csv"
+            with open(archivo_path, 'w', newline='', encoding='utf-8') as csvfile:
+                writer = csv.writer(csvfile)
+                writer.writerow(columnas)  # Escribir encabezados
+                writer.writerows(datos)  # Escribir datos
+            log_data_extraction(nombre_archivo, len(datos), "CSV")
+
+        log_success(f"Archivos CSV creados exitosamente en: {directorio_csv}", 
+                   total_archivos=len(archivos_config)+1, directorio=directorio_csv)
+        
+        return str(directorio_csv)
+        
+    except Exception as e:
+        log_error(f"Error creando archivos CSV: {e}", 
+                 campania=nombre_campania, fecha_envio=fecha_envio)
+        raise
+
+
 def crear_archivo_excel(general: list[list[str]], informe_detallado: list[list[list[str]]], nombre_campania: str = "", fecha_envio: str = ""):
     """
     Crea el archivo Excel con los informes recopilados
     """
     try:
-        log_info(f"Iniciando creación de archivo Excel", 
-                campania=nombre_campania, fecha_envio=fecha_envio)
+        # Cargar la configuración para verificar si estamos en modo debug
+        config = load_config()
+        debug_mode = config.get("debug", False)
+        
+        if debug_mode:
+            log_info(f"Modo debug activado, generando archivos CSV en lugar de Excel", 
+                    campania=nombre_campania, fecha_envio=fecha_envio, debug_mode=debug_mode)
+            return crear_archivo_csv(general, informe_detallado, nombre_campania, fecha_envio)
+        else:
+            log_info(f"Modo normal, generando archivo Excel", 
+                    campania=nombre_campania, fecha_envio=fecha_envio, debug_mode=debug_mode)
         
         [abiertos, no_abiertos, clics, hard_bounces, soft_bounces] = informe_detallado
         
@@ -434,13 +501,16 @@ def main():
 						fecha_envio_raw = general[0][2]  # Tercer campo: fecha de envío
 						fecha_envio_param = formatear_fecha_envio(fecha_envio_raw)
 
+					config = load_config()
+					debug_mode = config.get("debug", False)
+					log_info(f"📁 Generando archivo ({'CSV' if debug_mode else 'Excel'}) para campaña: {nombre_campania_param or id}, debug_mode: {debug_mode}")
 					archivo_creado = crear_archivo_excel(
 						general,
 						[abiertos2, no_abiertos, clics, hard_bounces, soft_bounces],
 						nombre_campania_param,
 						fecha_envio_param
 					)
-					log_success(f"Archivo Excel creado", archivo=archivo_creado, campania_id=id)
+					log_success(f"Archivo {'CSV' if debug_mode else 'Excel'} creado", archivo=archivo_creado, campania_id=id, debug_mode=debug_mode)
 					campanias_exitosas += 1
 
 			browser.close()
