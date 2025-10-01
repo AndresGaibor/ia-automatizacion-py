@@ -237,22 +237,31 @@ def navegar_a_reportes(page: Page):
 
 def obtener_total_paginas(page: Page) -> int:
 	"""
-	Obtiene el número total de páginas de reportes calculando desde elementos totales
+	Obtiene el número total de páginas de reportes calculando desde elementos totales.
+	Optimiza automáticamente a la máxima cantidad de elementos por página disponible.
 	"""
+	items_por_pagina = 15  # Valor por defecto
+
 	try:
 		print("🔍 Optimizando elementos por página...")
 
-		# Intentar optimizar a 200 elementos por página primero
+		# Buscar el selector de items por página
 		items_selector = page.locator('select').filter(has=page.locator('option', has_text="15"))
 		if items_selector.count() > 0:
-			# Seleccionar 200 elementos por página para optimizar
+			# Obtener la última opción (máximo disponible)
 			ultimo_option = items_selector.locator('option').last
 			value_ultimo_option = ultimo_option.get_attribute('value')
+			text_ultimo_option = ultimo_option.inner_text()
+
+			# Seleccionar la última opción
 			items_selector.select_option(value=value_ultimo_option)
-			# Usar domcontentloaded en lugar de networkidle para mayor velocidad
+
+			# Esperar a que la página se recargue con los nuevos items
 			page.wait_for_load_state("domcontentloaded", timeout=15000)
-			page.wait_for_timeout(2000)  # Espera mínima para que se actualice
-			print("✅ Optimizado a 200 elementos por página")
+			page.wait_for_timeout(1000)  # Espera breve para estabilización
+
+			print(f"✅ Optimizado a {text_ultimo_option} elementos por página")
+			items_por_pagina = int(text_ultimo_option)
 
 	except Exception as e:
 		print(f"⚠️ Error optimizando items por página: {e}")
@@ -260,33 +269,33 @@ def obtener_total_paginas(page: Page) -> int:
 	# Calcular páginas usando elementos totales
 	try:
 		# Buscar el total de elementos en el texto "de X elementos"
-		elementos_info = page.locator("span.font-color-darkblue-1").filter(
-			has_text=re.compile(r"elementos", re.IGNORECASE)
-		)
-		info_count = elementos_info.count()
-		if info_count > 0:
-			# Si hay varios, tomar el último (suele ser el de la paginación)
-			target = elementos_info.last if info_count > 1 else elementos_info.first
-			total_elementos_texto = target.inner_text(timeout=5000)
+		elementos_info = page.locator("text=/de \\d+ elementos/i")
 
-			# Extraer el último número del texto (e.g., "de 1.234 elementos")
-			numeros = re.findall(r"\d[\d\.,]*", total_elementos_texto)
-			if not numeros:
-				raise ValueError(f"No se encontraron números en: {total_elementos_texto}")
-			total_elementos = int(numeros[-1].replace('.', '').replace(',', ''))
+		if elementos_info.count() > 0:
+			total_elementos_texto = elementos_info.first.inner_text(timeout=5000)
 
-			# Obtener elementos por página actual
-			items_por_pagina = 200  # Por defecto después de optimización
-			try:
-				# Algunos navegadores no mantienen el atributo [selected], usar :checked como alternativa
-				select_actual = page.locator('select option[selected], select option:checked')
-				if select_actual.count() > 0:
-					option_value = select_actual.first.get_attribute('value')
-					if option_value and 'items_per_page=' in option_value:
-						items_text = option_value.split('items_per_page=')[1].split('&')[0]
-						items_por_pagina = int(items_text)
-			except Exception:
-				pass
+			# Extraer el número del texto (e.g., "de 38 elementos")
+			match = re.search(r'de\s+(\d+)\s+elementos', total_elementos_texto, re.IGNORECASE)
+			if match:
+				total_elementos = int(match.group(1))
+			else:
+				# Fallback: extraer cualquier número
+				numeros = re.findall(r"\d+", total_elementos_texto)
+				if not numeros:
+					raise ValueError(f"No se encontraron números en: {total_elementos_texto}")
+				total_elementos = int(numeros[-1])
+
+			# Verificar elementos por página actual si no se pudo optimizar
+			if items_por_pagina == 15:
+				try:
+					# Obtener el valor seleccionado actual
+					select_actual = page.locator('select').filter(has=page.locator('option', has_text="15")).first
+					selected_option = select_actual.locator('option[selected]')
+					if selected_option.count() > 0:
+						selected_text = selected_option.inner_text()
+						items_por_pagina = int(selected_text)
+				except Exception:
+					pass
 
 			# Calcular total de páginas
 			total_paginas = (total_elementos + items_por_pagina - 1) // items_por_pagina

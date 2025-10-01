@@ -43,79 +43,56 @@ class SubscriberDetailsService:
                 timeouts=self.timeouts, 
                 service_version="1.0.0")
 
-    def navigate_to_subscriber_details(self, campaign_id: int) -> bool:
+    def navigate_to_subscriber_details(self, campaign_id: int, filter_index: int = 0) -> bool:
         """
-        Navega a la sección de detalles de suscriptores de la campaña.
-        Aplica mejores prácticas de Playwright y optimiza con 200 elementos por página.
+        Navega a la sección de detalles de suscriptores de la campaña con filtro específico.
+        Aplica mejores prácticas de Playwright y optimiza elementos por página automáticamente.
+
+        Args:
+            campaign_id: ID de la campaña
+            filter_index: Índice del filtro (0=Abiertos, 1=Hard bounces, 5=No abiertos, etc.)
         """
         with log_operation("navegacion_detalles_suscriptores", campaign_id=campaign_id):
             try:
                 url_base = self.config.get("url_base", "")
-                # Navegar directamente a la página de suscriptores con 200 elementos por página
-                url = f"{url_base}/report/campaign/{campaign_id}/subscribers/?items_per_page=200"
+                # Navegar directamente con el filtro aplicado (la página ignora items_per_page en URL)
+                url = f"{url_base}/report/campaign/{campaign_id}/subscribers/?filter_index={filter_index}"
 
-                log_browser_action("navegacion_optimizada", url, campaign_id=campaign_id, items_per_page=200)
+                log_browser_action("navegacion_con_filtro", url, campaign_id=campaign_id, filter_index=filter_index)
                 # Usar navegación con timeout configurado
                 self.page.goto(url, timeout=self.timeouts['navigation'])
 
-                # Esperar a que la página esté completamente cargada
-                self.page.wait_for_load_state("networkidle", timeout=self.timeouts['network_idle'])
+                # Esperar a que la página esté cargada (domcontentloaded es más rápido que networkidle)
+                self.page.wait_for_load_state("domcontentloaded", timeout=self.timeouts['page_load'])
 
-                log_success("Navegación completada con 200 elementos por página", campaign_id=campaign_id, url=url)
+                log_success("Navegación completada con filtro aplicado", campaign_id=campaign_id, filter_index=filter_index, url=url)
                 return True
 
             except PWTimeoutError as e:
-                log_error("Timeout navegando a detalles de suscriptores", 
+                log_error("Timeout navegando a detalles de suscriptores",
                          campaign_id=campaign_id, timeout_ms=self.timeouts['navigation'], error=str(e))
                 # Los timeouts generalmente indican que la página no existe
                 raise Exception(f"Campaña {campaign_id} no existe o no está disponible: timeout navegando")
             except Exception as e:
-                log_error("Error navegando a detalles de suscriptores", 
+                log_error("Error navegando a detalles de suscriptores",
                          campaign_id=campaign_id, error_type=type(e).__name__, error=str(e))
                 # Otros errores de navegación también indican problemas críticos
                 raise Exception(f"Campaña {campaign_id} no disponible: {e}")
 
-    def select_filter(self, filter_name: str) -> FilterInfo:
+    def _get_total_from_page(self) -> Optional[int]:
         """
-        Selecciona un filtro en el selector de la página actual.
-        Retorna información sobre el filtro aplicado.
+        Extrae el total de elementos del texto 'de X elementos' en la paginación.
         """
-        with log_operation("seleccion_filtro", filter_name=filter_name):
-            try:
-                # Usar localizador más específico
-                select_filtro = self.page.locator("#query-filter")
-
-                # Esperar a que el selector esté disponible
-                select_filtro.wait_for(state="visible", timeout=self.timeouts['element_wait'])
-
-                log_browser_action("select_option", filter_name, selector="#query-filter")
-                select_filtro.select_option(label=filter_name, timeout=self.timeouts['element_wait'])
-
-                # Esperar a que la página se actualice
-                self.page.wait_for_load_state("networkidle", timeout=self.timeouts['network_idle'])
-
-                # Intentar obtener el total de resultados si está disponible
-                total_results = self._get_filter_total_results()
-
-                filter_info = FilterInfo(
-                    filter_name=filter_name,
-                    filter_value=filter_name,  # Agregar el parámetro faltante
-                    total_results=total_results
-                )
-
-                log_success("Filtro aplicado exitosamente", 
-                           filter_name=filter_name, total_results=total_results)
-                return filter_info
-
-            except Exception as e:
-                log_error("Error seleccionando filtro", 
-                         filter_name=filter_name, error_type=type(e).__name__, error=str(e))
-                # No lanzar excepción, solo retornar FilterInfo con error
-                return FilterInfo(
-                    filter_name=filter_name,
-                    filter_value=filter_name,  # Agregar el parámetro faltante
-                    total_results=0
-                )
+        try:
+            elementos_text = self.page.locator("text=/de \\d+ elementos/i")
+            if elementos_text.count() > 0:
+                text_content = elementos_text.first.inner_text(timeout=3000)
+                match = re.search(r'de\s+(\d+)\s+elementos', text_content, re.IGNORECASE)
+                if match:
+                    return int(match.group(1))
+            return None
+        except:
+            return None
 
     def _get_filter_total_results(self) -> Optional[int]:
         """Intenta obtener el total de resultados del filtro actual"""
@@ -137,64 +114,66 @@ class SubscriberDetailsService:
     @timer_decorator("extract_subscribers_table")
     def extract_subscribers_from_table(self, expected_columns: int = 4) -> List[List[str]]:
         """
-        Extrae datos de suscriptores de la tabla actual.
-        Restaurada la lógica original que funcionaba.
+        Extrae datos de suscriptores de la tabla actual de forma optimizada.
         """
         try:
             log_info("Iniciando extracción de datos de tabla", expected_columns=expected_columns)
 
-            # Esperar a que la tabla esté visible
-            self.page.wait_for_load_state("networkidle", timeout=self.timeouts['network_idle'])
+            # Esperar a que la página esté lista (domcontentloaded es más rápido que networkidle)
+            self.page.wait_for_load_state("domcontentloaded", timeout=30000)
 
-            # Localizador idéntico al original
-            contenedor_tabla = self.page.locator("div").filter(
-                has_text="Abiertos No abiertos Clics"
-            ).nth(1)
+            # Localizador más específico usando la estructura conocida de la tabla
+            # Buscar la lista de suscriptores (ul que contiene los li con datos)
+            tabla_locator = self.page.locator('ul').filter(
+                has=self.page.locator("li", has_text="Correo electrónico")
+            )
 
-            filas = contenedor_tabla.locator("ul > li")
+            if tabla_locator.count() == 0:
+                log_warning("No se encontró tabla de suscriptores")
+                return []
+
+            filas = tabla_locator.locator('> li')
             filas_total = filas.count()
 
             log_info("Tabla localizada", filas_totales=filas_total, expected_columns=expected_columns)
 
             suscriptores = []
 
-            # Lógica original: empezar desde 1 para saltar el header
+            # Empezar desde 1 para saltar el header (primera fila)
             for fila_i in range(1, filas_total):
                 try:
-                    campos = filas.nth(fila_i).locator("> div")
-                    campos_arr = []
-                    
-                    # Contar campos disponibles en esta fila
+                    # Obtener todos los divs de la fila
+                    campos = filas.nth(fila_i).locator("> div, > a")
                     campos_disponibles = campos.count()
-                    
-                    # Extraer todos los campos disponibles, hasta expected_columns
+
+                    # Extraer textos de los primeros expected_columns elementos
+                    campos_arr = []
                     for i in range(0, min(campos_disponibles, expected_columns)):
                         try:
                             campo_text = campos.nth(i).inner_text().strip()
                             campos_arr.append(campo_text)
                         except Exception:
-                            # Si no hay más campos, agregar vacío
                             campos_arr.append("")
 
-                    # Completar con campos vacíos si faltan
+                    # Completar con vacíos si faltan
                     while len(campos_arr) < expected_columns:
                         campos_arr.append("")
 
-                    # Agregar la fila si tiene al menos un campo no vacío
+                    # Agregar solo si tiene al menos un campo no vacío
                     if any(campo.strip() for campo in campos_arr):
                         suscriptores.append(campos_arr)
 
                 except Exception as e:
-                    log_warning(f"Error extrayendo fila {fila_i}", 
+                    log_warning(f"Error extrayendo fila {fila_i}",
                               fila_index=fila_i, error_type=type(e).__name__, error=str(e))
                     continue
 
-            log_data_extraction("suscriptores", len(suscriptores), "scraping_table", 
+            log_data_extraction("suscriptores", len(suscriptores), "scraping_table",
                               filas_procesadas=filas_total-1, filas_exitosas=len(suscriptores))
             return suscriptores
 
         except Exception as e:
-            log_error("Error extrayendo suscriptores de tabla", 
+            log_error("Error extrayendo suscriptores de tabla",
                      expected_columns=expected_columns, error_type=type(e).__name__, error=str(e))
             return []
 
@@ -224,21 +203,21 @@ class SubscriberDetailsService:
         """
         suscriptores: List[HardBounceSubscriber] = []
 
-        with log_operation("extraccion_hard_bounces", 
+        with log_operation("extraccion_hard_bounces",
                           campaign_id=campaign_id, campaign_name=campaign.name):
             try:
-                # Navegar a detalles si no estamos ya allí
-                if not self.navigate_to_subscriber_details(campaign_id):
+                # Navegar directamente con el filtro Hard bounces (filter_index=1)
+                if not self.navigate_to_subscriber_details(campaign_id, filter_index=1):
                     return suscriptores
 
-                # Seleccionar filtro de hard bounces
-                filter_info = self.select_filter("Hard bounces")
-                log_info("Filtro Hard bounces aplicado", 
-                        total_results=filter_info.total_results, campaign_id=campaign_id)
+                # Obtener total de elementos de la página
+                total_elements = self._get_total_from_page()
+                log_info("Filtro Hard bounces aplicado",
+                        total_results=total_elements, campaign_id=campaign_id)
 
-                # Obtener información de paginación
+                # Obtener información de paginación y optimizar items por página
                 total_pages = obtener_total_paginas(self.page)
-                log_info("Información de paginación obtenida", 
+                log_info("Información de paginación obtenida",
                         total_pages=total_pages, campaign_id=campaign_id)
 
                 # Procesar todas las páginas
@@ -327,21 +306,25 @@ class SubscriberDetailsService:
     def extract_no_opens(self, campaign: CampaignBasicInfo, campaign_id: int) -> List[NoOpenSubscriber]:
         """
         Extrae suscriptores que no abrieron el email usando scraping con mejores prácticas.
-        Asume que ya estamos en la vista de 'Detalles suscriptores' de la campaña.
+        Navega directamente al filtro de No abiertos.
         """
         suscriptores: List[NoOpenSubscriber] = []
 
-        with log_operation("extraccion_no_abiertos", 
+        with log_operation("extraccion_no_abiertos",
                           campaign_id=campaign_id, campaign_name=campaign.name):
             try:
-                # Seleccionar filtro de no abiertos
-                filter_info = self.select_filter("No abiertos")
-                log_info("Filtro No abiertos aplicado", 
-                        total_results=filter_info.total_results, campaign_id=campaign_id)
+                # Navegar directamente con el filtro No abiertos (filter_index=5)
+                if not self.navigate_to_subscriber_details(campaign_id, filter_index=5):
+                    return suscriptores
 
-                # Obtener información de paginación
+                # Obtener total de elementos de la página
+                total_elements = self._get_total_from_page()
+                log_info("Filtro No abiertos aplicado",
+                        total_results=total_elements, campaign_id=campaign_id)
+
+                # Obtener información de paginación y optimizar items por página
                 total_pages = obtener_total_paginas(self.page)
-                log_info("Información de paginación obtenida", 
+                log_info("Información de paginación obtenida",
                         total_pages=total_pages, campaign_id=campaign_id)
 
                 # Procesar todas las páginas
@@ -435,169 +418,3 @@ class SubscriberDetailsService:
                 # Otros errores menos críticos, continuar devolviendo lista vacía
 
         return suscriptores
-
-    def get_expected_no_opens_count(self, campaign_id: int) -> int:
-        """
-        Obtiene el número total esperado de suscriptores no abiertos desde la interfaz.
-        """
-        try:
-            # Navegar a la página de detalles de suscriptores
-            url = f"https://acumbamail.com/report/campaign/{campaign_id}/subscribers/?filter_index=5&items_per_page=200"
-            log_browser_action("navegar_detalles_verificacion", url, campaign_id=campaign_id)
-
-            self.page.goto(url, timeout=self.timeouts['navigation'])
-            self.page.wait_for_load_state("networkidle", timeout=self.timeouts['network_idle'])
-
-            # Esperar a que aparezca el filtro
-            select_filtro = self.page.locator("select[name='filter_index']")
-            select_filtro.wait_for(state="visible", timeout=self.timeouts['element_wait'])
-
-            # Seleccionar filtro "No abiertos" (índice 5)
-            select_filtro.select_option("5")
-            log_info("Filtro No abiertos aplicado para verificación", campaign_id=campaign_id)
-
-            # Esperar a que se actualice la página
-            self.page.wait_for_load_state("networkidle", timeout=self.timeouts['network_idle'])
-
-            # Extraer el total de resultados del texto "Mostrando X de Y elementos"
-            pagination_text = self.page.locator("text=/Mostrando \\d+ de \\d+ elementos/").text_content(timeout=self.timeouts['element_wait'])
-
-            if pagination_text:
-                # Usar regex para extraer el total
-                match = re.search(r'Mostrando \d+ de (\d+) elementos', pagination_text)
-                if match:
-                    expected_total = int(match.group(1))
-                    log_info("Total esperado de no abiertos obtenido", expected_total=expected_total, campaign_id=campaign_id)
-                    return expected_total
-                else:
-                    log_warning("No se pudo extraer el total esperado de la paginación", pagination_text=pagination_text, campaign_id=campaign_id)
-                    return 0
-            else:
-                log_warning("No se encontró texto de paginación", campaign_id=campaign_id)
-                return 0
-
-        except Exception as e:
-            log_error("Error obteniendo total esperado de no abiertos", campaign_id=campaign_id, error=str(e))
-            return 0
-
-    def extract_no_opens_with_retry(self, campaign: CampaignBasicInfo, campaign_id: int, max_retries: int = 5) -> List[NoOpenSubscriber]:
-        """
-        Extrae suscriptores no abiertos con verificación de integridad y reintentos automáticos.
-        Garantiza que se extraigan todos los datos o se alcance el límite de reintentos.
-        """
-        log_info("Iniciando extracción con verificación de integridad",
-                campaign_id=campaign_id, max_retries=max_retries)
-
-        # Obtener el total esperado de la interfaz
-        expected_total = self.get_expected_no_opens_count(campaign_id)
-        if expected_total == 0:
-            log_warning("No se pudo obtener el total esperado, procediendo sin verificación",
-                       campaign_id=campaign_id)
-            return self.extract_no_opens(campaign, campaign_id)
-
-        log_info("Total esperado obtenido, iniciando extracción con verificación",
-                expected_total=expected_total, campaign_id=campaign_id)
-
-        last_attempt_data = []
-        last_attempt_count = 0
-
-        for attempt in range(1, max_retries + 1):
-            try:
-                log_info(f"Intento {attempt}/{max_retries} de extracción",
-                        attempt=attempt, max_retries=max_retries, campaign_id=campaign_id)
-
-                # Aumentar timeouts progresivamente en cada reintento
-                if attempt > 1:
-                    self._increase_timeouts_for_retry(attempt)
-                    log_info("Timeouts aumentados para reintento",
-                            attempt=attempt, timeouts=self.timeouts, campaign_id=campaign_id)
-
-                # Extraer datos
-                extracted_data = self.extract_no_opens(campaign, campaign_id)
-                extracted_count = len(extracted_data)
-
-                log_info(f"Intento {attempt} completado",
-                        extracted_count=extracted_count, expected_total=expected_total,
-                        attempt=attempt, campaign_id=campaign_id)
-
-                # Verificar si tenemos todos los datos (con tolerancia del 5% para conexiones lentas)
-                tolerance = max(1, int(expected_total * 0.05))  # 5% de tolerancia, mínimo 1
-                missing_count = expected_total - extracted_count
-
-                if extracted_count >= expected_total or missing_count <= tolerance:
-                    status_msg = "✅ Extracción completa - todos los datos obtenidos" if extracted_count >= expected_total else f"✅ Extracción completa con tolerancia - faltantes: {missing_count}/{tolerance} permitidos"
-                    log_success(status_msg,
-                               extracted_count=extracted_count, expected_total=expected_total,
-                               missing_count=missing_count, tolerance=tolerance,
-                               attempt=attempt, campaign_id=campaign_id)
-                    return extracted_data
-
-                # Si no tenemos todos los datos, guardar para comparación
-                last_attempt_data = extracted_data
-                last_attempt_count = extracted_count
-
-                log_warning(f"❌ Datos incompletos en intento {attempt}",
-                           extracted_count=extracted_count, expected_total=expected_total,
-                           missing_count=missing_count, tolerance=tolerance, attempt=attempt, campaign_id=campaign_id)
-
-                # Si no es el último intento, esperar antes del siguiente
-                if attempt < max_retries:
-                    wait_time = min(60 * attempt, 300)  # Espera progresiva más larga: 60s, 120s, 180s, 240s, 300s máximo
-                    log_info(f"Esperando {wait_time}s antes del siguiente intento",
-                            wait_time=wait_time, attempt=attempt + 1, campaign_id=campaign_id)
-                    time.sleep(wait_time)
-
-            except Exception as e:
-                log_error(f"Error en intento {attempt}",
-                         attempt=attempt, error=str(e), campaign_id=campaign_id)
-
-                if attempt < max_retries:
-                    wait_time = min(60 * attempt, 300)  # Misma espera progresiva tras error
-                    log_info(f"Esperando {wait_time}s antes del siguiente intento tras error",
-                            wait_time=wait_time, attempt=attempt + 1, campaign_id=campaign_id)
-                    time.sleep(wait_time)
-                else:
-                    # En el último intento, devolver lo que tengamos
-                    log_error("Todos los intentos fallaron, devolviendo datos parciales",
-                             last_attempt_count=last_attempt_count, expected_total=expected_total,
-                             campaign_id=campaign_id)
-                    return last_attempt_data
-
-        # Si llegamos aquí, todos los intentos fallaron pero tenemos datos parciales
-        log_error("❌ Extracción incompleta después de todos los reintentos",
-                 last_attempt_count=last_attempt_count, expected_total=expected_total,
-                 max_retries=max_retries, campaign_id=campaign_id)
-        return last_attempt_data
-
-    def _increase_timeouts_for_retry(self, attempt: int):
-        """
-        Aumenta los timeouts progresivamente para reintentos, con límites máximos altos para conexiones lentas.
-        """
-        multiplier = 1 + (attempt * 0.3)  # 1.3x, 1.6x, 1.9x, etc. (más gradual)
-
-        # Límites máximos muy altos para conexiones extremadamente lentas
-        max_limits = {
-            'navigation': 600000,  # 10 minutos máximo
-            'element_wait': 240000,  # 4 minutos máximo
-            'network_idle': 180000,  # 3 minutos máximo
-            'table_extraction': 480000,  # 8 minutos máximo
-            'page_load': 360000   # 6 minutos máximo
-        }
-
-        self.timeouts['navigation'] = min(int(self.timeouts['navigation'] * multiplier), max_limits['navigation'])
-        self.timeouts['element_wait'] = min(int(self.timeouts['element_wait'] * multiplier), max_limits['element_wait'])
-        self.timeouts['network_idle'] = min(int(self.timeouts['network_idle'] * multiplier), max_limits['network_idle'])
-        self.timeouts['table_extraction'] = min(int(self.timeouts['table_extraction'] * multiplier), max_limits['table_extraction'])
-        self.timeouts['page_load'] = min(int(self.timeouts['page_load'] * multiplier), max_limits['page_load'])
-        """Retorna metadatos sobre la extracción actual"""
-        metadata = {
-            "service_version": "1.0.0",
-            "timeouts": self.timeouts,
-            "extraction_timestamp": time.time()
-        }
-        
-        log_info("Metadatos de extracción generados", 
-                service_version=metadata["service_version"], 
-                timeouts=metadata["timeouts"])
-        
-        return metadata

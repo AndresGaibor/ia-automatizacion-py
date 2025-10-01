@@ -95,8 +95,8 @@ class HybridDataService:
             # Extraer hard bounces (no disponible en API)
             hard_bounces = self.scraping_service.extract_hard_bounces(campaign, campaign_id)
 
-            # Extraer no abiertos (no disponible en API) - con verificación de integridad y reintentos
-            no_opens = self.scraping_service.extract_no_opens_with_retry(campaign, campaign_id)
+            # Extraer no abiertos (no disponible en API)
+            no_opens = self.scraping_service.extract_no_opens(campaign, campaign_id)
 
             # Crear resultado de scraping
             scraping_result = ScrapingResult(
