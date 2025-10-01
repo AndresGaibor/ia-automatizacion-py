@@ -20,7 +20,8 @@ logger = get_logger()
 def _early_project_root() -> str:
 	if getattr(sys, "frozen", False):
 		return os.path.dirname(sys.executable)
-	return os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+	# From src/shared/utils/legacy_utils.py, go up 3 levels to reach project root
+	return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 
 # Forzar ruta de navegadores de Playwright antes de importar la librería
 os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", os.path.join(_early_project_root(), "ms-playwright"))
@@ -101,7 +102,8 @@ def project_root() -> str:
 	"""
 	if getattr(sys, "frozen", False):  # PyInstaller --onefile
 		return os.path.dirname(sys.executable)
-	return os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+	# From src/shared/utils/legacy_utils.py, go up 3 levels to reach project root
+	return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 
 def config_path() -> str:
 	return os.path.join(project_root(), "config.yaml")

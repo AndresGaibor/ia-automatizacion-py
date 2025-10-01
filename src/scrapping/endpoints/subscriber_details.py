@@ -7,12 +7,12 @@ from typing import List, Optional
 import time
 import re
 
-from ...utils import obtener_total_paginas, navegar_siguiente_pagina, load_config
-from ...logger import get_logger
-from ...structured_logger import (
+from src.shared.utils.legacy_utils import obtener_total_paginas, navegar_siguiente_pagina, load_config
+from src.shared.logging.logger import get_logger
+from src.structured_logger import (
     log_success, log_error, log_warning, log_info, log_browser_action, log_data_extraction, log_operation, timer_decorator
 )
-from ...api.models.campanias import CampaignBasicInfo
+from src.infrastructure.api.models.campanias import CampaignBasicInfo
 from ..models import (
     HardBounceSubscriber,
     NoOpenSubscriber,

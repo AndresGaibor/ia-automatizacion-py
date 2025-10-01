@@ -4,7 +4,9 @@ Utilidades de navegación para scraping
 from typing import Optional
 from playwright.sync_api import Page
 
-from ...logger import logger
+from src.shared.logging.logger import get_logger
+
+logger = get_logger()
 
 
 class NavigationHelper:

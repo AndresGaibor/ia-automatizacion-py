@@ -13,8 +13,8 @@ from ..models.listas import (
     ListExtractionConfig,
     ListElementInfo
 )
-from ...utils import obtener_total_paginas, navegar_siguiente_pagina, data_path
-from ...logger import get_logger
+from src.shared.utils.legacy_utils import obtener_total_paginas, navegar_siguiente_pagina, data_path
+from src.shared.logging.logger import get_logger
 
 class ListsScraper:
     """Scraper para extraer datos de listas de suscriptores"""

@@ -7,8 +7,8 @@ import time
 
 from playwright.sync_api import Page, TimeoutError as PlaywrightTimeoutError, sync_playwright
 
-from ...logger import get_logger
-from ...utils import load_config, crear_contexto_navegador
+from src.shared.logging.logger import get_logger
+from src.shared.utils.legacy_utils import load_config, crear_contexto_navegador
 
 
 class SegmentsScrapingService:

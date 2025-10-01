@@ -6,14 +6,14 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 import uuid
 
-from .api import API
-from .api.models.campanias import CampaignBasicInfo
-from .scrapping import (
+from src.infrastructure.api import API
+from src.infrastructure.api.models.campanias import CampaignBasicInfo
+from src.scrapping import (
     SubscriberDetailsService,
     ScrapingResult,
     ScrapingSession
 )
-from .logger import get_logger
+from src.shared.logging.logger import get_logger
 
 
 class HybridDataService:

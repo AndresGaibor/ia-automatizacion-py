@@ -10,9 +10,9 @@ from ..models.suscriptores import (
     ScrapingSession,
     SubscriberExtractionConfig
 )
-from ...api.models.campanias import CampaignBasicInfo
-from ...utils import obtener_total_paginas, navegar_siguiente_pagina, load_config
-from ...logger import get_logger
+from src.infrastructure.api.models.campanias import CampaignBasicInfo
+from src.shared.utils.legacy_utils import obtener_total_paginas, navegar_siguiente_pagina, load_config
+from src.shared.logging.logger import get_logger
 
 class SubscribersScraper:
     """Scraper para extraer datos de suscriptores de campañas"""

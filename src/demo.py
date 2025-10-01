@@ -8,7 +8,7 @@ try:
     # Intentar imports relativos (cuando se ejecuta como módulo)
     from .excel_utils import agregar_datos, crear_hoja_con_datos, obtener_o_crear_hoja
     from .shared.utils.legacy_utils import cargar_campanias_a_buscar, crear_contexto_navegador, configurar_navegador, load_config, data_path, notify
-    from .shared.logging.legacy_logger import get_logger
+    from .shared.logging.logger import get_logger
     from .structured_logger import log_success, log_error, log_warning, log_info, log_performance, log_data_extraction
     from .hybrid_service import HybridDataService
     # Campaign URLs functionality will be handled by existing infrastructure
@@ -198,6 +198,15 @@ def crear_archivo_excel(general: list[list[str]], informe_detallado: list[list[l
         log_error(f"Error creando archivo Excel: {e}", 
                  campania=nombre_campania, fecha_envio=fecha_envio)
         raise
+
+def get_campaign_urls_with_fallback(page, campaign_id: int) -> str:
+	"""
+	Obtiene las URLs de una campaña mediante scraping.
+	TODO: Implementar lógica de scraping de URLs
+	"""
+	# Placeholder implementation - returns empty string
+	# This functionality needs to be implemented based on the scraping infrastructure
+	return ""
 
 def generar_listas(todas_listas, id_listas: list[str]) -> str:
 	listas_ar = []

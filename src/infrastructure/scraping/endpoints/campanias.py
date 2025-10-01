@@ -20,7 +20,9 @@ from ..models.campanias import (
 )
 from ..utils.selectors import CampaignSelectors, CommonSelectors
 from ..utils.navigation import NavigationHelper
-from ...logger import logger
+from src.shared.logging.logger import get_logger
+
+logger = get_logger()
 
 
 class CampaignsScraper(BaseScraper):
