@@ -202,11 +202,92 @@ def crear_archivo_excel(general: list[list[str]], informe_detallado: list[list[l
 def get_campaign_urls_with_fallback(page, campaign_id: int) -> str:
 	"""
 	Obtiene las URLs de una campaña mediante scraping.
-	TODO: Implementar lógica de scraping de URLs
+	Extrae las URLs de la página de seguimiento de URLs y las separa por comas.
 	"""
-	# Placeholder implementation - returns empty string
-	# This functionality needs to be implemented based on the scraping infrastructure
-	return ""
+	from src.shared.logging.logger import get_logger
+	logger = get_logger()
+
+	try:
+		logger.start_timer(f"scraping_urls_campaign_{campaign_id}")
+		logger.info(f"🔗 Extrayendo URLs de la campaña {campaign_id}")
+
+		# Navegar a la página de seguimiento de URLs
+		url_tracking_page = f"https://acumbamail.com/report/campaign/{campaign_id}/url/"
+		page.goto(url_tracking_page, wait_until="networkidle")
+		logger.debug(f"   Navegado a: {url_tracking_page}")
+
+		# Esperar a que la página cargue completamente
+		page.wait_for_load_state("domcontentloaded")
+
+		# Intentar diferentes selectores para encontrar los elementos de URL
+		# La estructura puede variar, así que probamos varios selectores
+		url_elements = []
+
+		# Intento 1: Buscar tabla con clase específica
+		try:
+			# Esperar un momento para que el contenido dinámico cargue
+			page.wait_for_timeout(2000)
+
+			# Buscar todos los list items que contengan URLs (http:// o https://)
+			url_elements = page.locator("li:has-text('http')").all()
+			logger.debug(f"   Encontrados {len(url_elements)} elementos con 'http'")
+		except Exception as e:
+			logger.debug(f"   Intento 1 falló: {e}")
+
+		# Si no encontramos elementos, intentar extraer del HTML directamente
+		if not url_elements or len(url_elements) == 0:
+			logger.debug("   Intentando extracción directa del contenido de la página")
+			page_content = page.content()
+			import re
+
+			# Buscar URLs en el contenido HTML que tengan el formato esperado
+			# Patrón: URL seguida de número y porcentaje
+			pattern = r'(https?://[^\s<>"]+)\s+\d+\s+\([^)]+abridores\)'
+			matches = re.findall(pattern, page_content)
+
+			if matches:
+				logger.debug(f"   Encontradas {len(matches)} URLs mediante regex en HTML")
+				result = ", ".join(matches)
+				logger.end_timer(f"scraping_urls_campaign_{campaign_id}",
+				                f"Extraídas {len(matches)} URLs (método directo)")
+				logger.success(f"✅ URLs de campaña {campaign_id} extraídas exitosamente: {len(matches)} URLs")
+				return result
+
+		# Extraer las URLs del texto de cada elemento
+		urls: List[str] = []
+		import re
+
+		for elem in url_elements:
+			text = elem.inner_text().strip()
+			# Saltar el header "Url Han hecho clic Acciones"
+			if "Url" in text and "Han hecho clic" in text:
+				continue
+
+			# Saltar elementos que no contengan URLs
+			if not text or not ("http://" in text or "https://" in text):
+				continue
+
+			# Extraer URL usando regex - captura todo antes del primer espacio seguido de números
+			# Formato esperado: "http://example.com 67 (13,8% abridores)"
+			match = re.match(r'^(https?://[^\s]+)', text)
+			if match:
+				url: str = match.group(1)
+				urls.append(url)
+				logger.debug(f"   URL extraída: {url}")
+
+		# Unir las URLs con comas
+		result = ", ".join(urls)
+		logger.end_timer(f"scraping_urls_campaign_{campaign_id}",
+		                f"Extraídas {len(urls)} URLs")
+		logger.success(f"✅ URLs de campaña {campaign_id} extraídas exitosamente: {len(urls)} URLs")
+
+		return result
+
+	except Exception as e:
+		logger.error(f"❌ Error extrayendo URLs de campaña {campaign_id}: {e}")
+		logger.end_timer(f"scraping_urls_campaign_{campaign_id}", f"Error: {e}")
+		# En caso de error, devolver cadena vacía para no bloquear el proceso
+		return ""
 
 def generar_listas(todas_listas, id_listas: list[str]) -> str:
 	listas_ar = []
