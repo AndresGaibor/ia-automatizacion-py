@@ -7,8 +7,8 @@ Lista ID: 1168867 (Prueba_SEGMENTOS)
 import sys
 sys.path.insert(0, '.')
 
-from src.api import API
-from src.api.models.suscriptores import ListSummary
+from src.infrastructure.api import API
+from src.infrastructure.api.models.suscriptores import ListSummary
 from datetime import datetime
 from typing import List, Optional
 

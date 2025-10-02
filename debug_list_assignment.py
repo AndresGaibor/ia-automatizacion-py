@@ -6,7 +6,7 @@ Script de debug para investigar por qué las listas están vacías
 import sys
 sys.path.insert(0, '.')
 
-from src.api import API
+from src.infrastructure.api import API
 import pandas as pd
 
 def debug_list_assignment():

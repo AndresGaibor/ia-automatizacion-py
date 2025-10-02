@@ -16,13 +16,13 @@ if __name__ == "__main__":
 try:
     # Cuando se ejecuta como módulo del paquete
     from .utils import data_path, notify
-    from .api import API
+    from .infrastructure.api import API
     from .logger import get_logger
     from .excel_helper import ExcelHelper
 except ImportError:
     # Cuando se ejecuta directamente
     from src.utils import data_path
-    from src.api import API
+    from src.infrastructure.api import API
     from src.logger import get_logger
     from src.excel_helper import ExcelHelper
 

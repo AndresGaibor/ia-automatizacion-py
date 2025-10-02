@@ -241,7 +241,31 @@ def obtener_total_paginas(page: Page) -> int:
 	Optimiza automáticamente a la máxima cantidad de elementos por página disponible.
 	"""
 	items_por_pagina = 15  # Valor por defecto
+	total_elementos = None
 
+	# PASO 1: Obtener el total de elementos ANTES de cambiar el selector
+	# Esto evita el error "Execution context was destroyed" que ocurre después de la navegación
+	try:
+		# Buscar el total de elementos en el texto "de X elementos"
+		elementos_info = page.locator("text=/de \\d+ elementos/i")
+
+		if elementos_info.count() > 0:
+			total_elementos_texto = elementos_info.first.inner_text(timeout=5000)
+
+			# Extraer el número del texto (e.g., "de 396 elementos")
+			match = re.search(r'de\s+(\d+)\s+elementos', total_elementos_texto, re.IGNORECASE)
+			if match:
+				total_elementos = int(match.group(1))
+			else:
+				# Fallback: extraer cualquier número
+				numeros = re.findall(r"\d+", total_elementos_texto)
+				if numeros:
+					total_elementos = int(numeros[-1])
+
+	except Exception as e:
+		print(f"⚠️ Error obteniendo total de elementos: {e}")
+
+	# PASO 2: Optimizar items por página (esto causa navegación/recarga)
 	try:
 		print("🔍 Optimizando elementos por página...")
 
@@ -256,9 +280,11 @@ def obtener_total_paginas(page: Page) -> int:
 			# Seleccionar la última opción
 			items_selector.select_option(value=value_ultimo_option)
 
-			# Esperar a que la página se recargue con los nuevos items
-			page.wait_for_load_state("domcontentloaded", timeout=15000)
-			page.wait_for_timeout(1000)  # Espera breve para estabilización
+			# Esperar a que la página se recargue completamente con los nuevos items
+			# Usar networkidle para asegurar que la página está completamente cargada
+			page.wait_for_load_state("networkidle", timeout=30000)
+			# Espera adicional para que la tabla se renderice completamente
+			page.wait_for_timeout(2000)
 
 			print(f"✅ Optimizado a {text_ultimo_option} elementos por página")
 			items_por_pagina = int(text_ultimo_option)
@@ -266,44 +292,12 @@ def obtener_total_paginas(page: Page) -> int:
 	except Exception as e:
 		print(f"⚠️ Error optimizando items por página: {e}")
 
-	# Calcular páginas usando elementos totales
-	try:
-		# Buscar el total de elementos en el texto "de X elementos"
-		elementos_info = page.locator("text=/de \\d+ elementos/i")
-
-		if elementos_info.count() > 0:
-			total_elementos_texto = elementos_info.first.inner_text(timeout=5000)
-
-			# Extraer el número del texto (e.g., "de 38 elementos")
-			match = re.search(r'de\s+(\d+)\s+elementos', total_elementos_texto, re.IGNORECASE)
-			if match:
-				total_elementos = int(match.group(1))
-			else:
-				# Fallback: extraer cualquier número
-				numeros = re.findall(r"\d+", total_elementos_texto)
-				if not numeros:
-					raise ValueError(f"No se encontraron números en: {total_elementos_texto}")
-				total_elementos = int(numeros[-1])
-
-			# Verificar elementos por página actual si no se pudo optimizar
-			if items_por_pagina == 15:
-				try:
-					# Obtener el valor seleccionado actual
-					select_actual = page.locator('select').filter(has=page.locator('option', has_text="15")).first
-					selected_option = select_actual.locator('option[selected]')
-					if selected_option.count() > 0:
-						selected_text = selected_option.inner_text()
-						items_por_pagina = int(selected_text)
-				except Exception:
-					pass
-
-			# Calcular total de páginas
-			total_paginas = (total_elementos + items_por_pagina - 1) // items_por_pagina
-			print(f"📊 {total_elementos} elementos total, {items_por_pagina} por página = {total_paginas} páginas")
-			return max(1, total_paginas)
-
-	except Exception as e:
-		print(f"⚠️ Error calculando desde elementos totales: {e}")
+	# PASO 3: Calcular páginas usando el total de elementos obtenido antes de la navegación
+	if total_elementos is not None:
+		# Calcular total de páginas
+		total_paginas = (total_elementos + items_por_pagina - 1) // items_por_pagina
+		print(f"📊 {total_elementos} elementos total, {items_por_pagina} por página = {total_paginas} páginas")
+		return max(1, total_paginas)
 
 	# Fallback: buscar navegación tradicional
 	try:

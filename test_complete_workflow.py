@@ -14,7 +14,7 @@ try:
     from src.crear_lista_mejorado import crear_lista_automatica
     from src.mapeo_segmentos import mapear_segmentos_completo
     from src.utils import load_config, data_path
-    from src.api import API
+    from src.infrastructure.api import API
     from src.logger import get_logger
     print("✅ All imports successful")
 except Exception as e:

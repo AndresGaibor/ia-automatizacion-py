@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 from playwright.sync_api import Page
 
 from src.scraping.endpoints.suscriptores import SubscribersScraper
-from src.api.models.campanias import CampaignBasicInfo
+from src.infrastructure.api.models.campanias import CampaignBasicInfo
 from src.scraping.models.suscriptores import (
     SubscriberExtractionConfig,
     CampaignSubscriberReport,

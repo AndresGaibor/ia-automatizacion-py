@@ -5,8 +5,8 @@ These are primarily read-only tests since campaign creation requires more comple
 import pytest
 from datetime import datetime, timedelta
 
-from src.api import API
-from src.api.models.campanias import CampaignSummary, CampaignComplete, CampaignBasicInfo
+from src.infrastructure.api import API
+from src.infrastructure.api.models.campanias import CampaignSummary, CampaignComplete, CampaignBasicInfo
 
 
 @pytest.mark.integration

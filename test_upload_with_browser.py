@@ -14,7 +14,7 @@ try:
     from src.crear_lista_mejorado import crear_lista_via_api, crear_campos_personalizados, agregar_suscriptores_via_api
     from src.utils import load_config, data_path, crear_contexto_navegador, configurar_navegador
     from src.autentificacion import login
-    from src.api import API
+    from src.infrastructure.api import API
     from src.logger import get_logger
     from playwright.sync_api import sync_playwright
     import pandas as pd

@@ -9,8 +9,8 @@ Funcionalidades:
 """
 
 from .utils import data_path, notify, load_config
-from .api import API
-from .api.models.suscriptores import SubscriberData, FieldType
+from .infrastructure.api import API
+from .infrastructure.api.models.suscriptores import SubscriberData, FieldType
 from .logger import get_logger
 from .excel_helper import ExcelHelper
 import pandas as pd

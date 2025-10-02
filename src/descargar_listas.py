@@ -32,15 +32,15 @@ try:
     # Cuando se ejecuta como módulo del paquete
     from .logger import get_logger
     from .utils import load_config, data_path, notify
-    from .api.client import APIClient
-    from .api.endpoints.suscriptores import SuscriptoresAPI
+    from .infrastructure.api.client import APIClient
+    from .infrastructure.api.endpoints.suscriptores import SuscriptoresAPI
     from .excel_utils import crear_o_cargar_libro_excel, obtener_o_crear_hoja, agregar_datos
 except ImportError:
     # Cuando se ejecuta directamente
     from src.logger import get_logger
     from src.utils import load_config
-    from src.api.client import APIClient
-    from src.api.endpoints.suscriptores import SuscriptoresAPI
+    from src.infrastructure.api.client import APIClient
+    from src.infrastructure.api.endpoints.suscriptores import SuscriptoresAPI
     from src.excel_utils import crear_o_cargar_libro_excel, obtener_o_crear_hoja, agregar_datos
 
 logger = get_logger()

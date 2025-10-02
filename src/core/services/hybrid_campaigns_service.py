@@ -356,7 +356,7 @@ class HybridCampaignsAPI:
 """
 🚀 EJEMPLO DE USO:
 
-from src.api.client import APIClient
+from src.infrastructure.api.client import APIClient
 from src.hybrid.campanias import HybridCampaignsAPI
 from ..core.authentication.authentication_service import AuthenticationService, FileSessionStorage
 from ..core.config.config_manager import ConfigManager

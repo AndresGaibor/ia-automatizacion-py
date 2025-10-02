@@ -195,7 +195,7 @@ class ConfigWindow:
 
         # Crear una configuración temporal para probar
         try:
-            from .api import API
+            from .infrastructure.api import API
 
             # Crear config temporal
             temp_config = {

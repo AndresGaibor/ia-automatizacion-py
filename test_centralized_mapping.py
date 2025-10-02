@@ -6,7 +6,7 @@ Test del sistema centralizado de mapeo email → lista
 import sys
 sys.path.insert(0, '.')
 
-from src.api import API
+from src.infrastructure.api import API
 from src.demo import construir_mapa_global_email_lista, obtener_lista_de_email
 import pandas as pd
 

@@ -6,7 +6,7 @@ Test específico para validar el fix de asignación de listas
 import sys
 sys.path.insert(0, '.')
 
-from src.api import API
+from src.infrastructure.api import API
 from src.demo import _construir_mapa_email_listas_desde_search
 import pandas as pd
 

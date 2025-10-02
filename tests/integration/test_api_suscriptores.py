@@ -5,8 +5,8 @@ Tests create and cleanup their own data to avoid affecting production
 import pytest
 import time
 
-from src.api import API
-from src.api.models.suscriptores import SubscriberData
+from src.infrastructure.api import API
+from src.infrastructure.api.models.suscriptores import SubscriberData
 
 
 @pytest.mark.integration

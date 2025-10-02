@@ -356,7 +356,7 @@ class HybridCampaignsAPI:
 """
 🚀 EJEMPLO DE USO:
 
-from src.api.client import APIClient
+from src.infrastructure.api.client import APIClient
 from src.hybrid.campanias import HybridCampaignsAPI
 from src.autentificacion import login_acumbamail
 

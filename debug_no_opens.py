@@ -6,12 +6,12 @@ import sys
 sys.path.append('src')
 
 from playwright.sync_api import sync_playwright
-from src.api.client import AcumbaClient
+from src.infrastructure.api.client import AcumbaClient
 from src.config import load_config
 from src.logger import get_logger
 from src.structured_logger import log_info, log_success, log_error
 from src.scrapping.endpoints.subscriber_details import SubscriberDetailsService
-from src.api.models.campanias import CampaignBasicInfo
+from src.infrastructure.api.models.campanias import CampaignBasicInfo
 
 def test_no_opens_extraction():
     """Prueba la extracción de no opens para debuggear"""

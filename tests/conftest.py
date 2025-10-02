@@ -8,7 +8,7 @@ import time
 from datetime import datetime
 import pandas as pd
 
-from src.api import API
+from src.infrastructure.api import API
 from src.utils import load_config
 from src.logger import get_logger
 

@@ -11,7 +11,7 @@ from typing import Dict, List, Any, Optional, Tuple
 from .utils import data_path, load_config, notify
 from .logger import get_logger
 from .excel_helper import ExcelHelper
-from .api import API
+from .infrastructure.api import API
 from .crear_lista_mejorado import extraer_id_desde_nombre_archivo
 from .scrapping.endpoints import SegmentsScrapingService
 
@@ -859,7 +859,7 @@ def subir_usuarios_actualizados(df: pd.DataFrame, list_id: int, api_client: API)
         Número de usuarios subidos exitosamente
     """
     try:
-        from .api.models.suscriptores import SubscriberData
+        from .infrastructure.api.models.suscriptores import SubscriberData
         
         usuarios_subidos = 0
         subscribers_batch = []

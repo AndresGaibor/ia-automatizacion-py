@@ -6,8 +6,8 @@ import importlib
 import threading
 import time
 from src.shared.utils.legacy_utils import load_config, data_path, storage_state_path, notify
-from src.config.config_window import show_config_window
-from src.config.config_validator import check_config_or_show_dialog
+from src.config_window import show_config_window
+from src.config_validator import check_config_or_show_dialog
 from src.shared.logging.logger import PerformanceLogger, get_logger
 
 # Initialize logger

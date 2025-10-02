@@ -4,7 +4,7 @@ Tests for cleanup and data isolation mechanisms
 import pytest
 import time
 
-from src.api import API
+from src.infrastructure.api import API
 
 
 @pytest.mark.integration

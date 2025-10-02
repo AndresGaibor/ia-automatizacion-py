@@ -10,7 +10,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from src.mapeo_segmentos import crear_segmentos_con_scraping_batch
-from src.api import API
+from src.infrastructure.api import API
 from src.logger import get_logger
 
 logger = get_logger()

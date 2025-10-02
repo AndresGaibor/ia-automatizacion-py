@@ -5,13 +5,6 @@
       "args": [
         "@browsermcp/mcp@latest"
       ]
-    },
-    "byterover-mcp": {
-      "type": "http",
-      "url": "https://mcp.byterover.dev/v2/mcp",
-      "headers": {
-        "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJwdWJsaWNLZXkiOiJway1ici0zY2UyNDk1OC00YmNlLTRiZmQtYWZjYi1jZDMxNTNkYTc4MjkiLCJ1c2VySWQiOiJhbmRyb3ltYXJ0aW45OUBnbWFpbC5jb20iLCJpYXQiOjE3NTg5MDk0NjEsImV4cCI6MTc2NDA5MzQ2MSwiaXNzIjoiQllURVJPVkVSIE1DUCBTRVJWRVIifQ.gtmW0lf_C2UM1sLQ4_iPSSG5jno0VJLedxAaNFAihVo"
-      }
     }
   }
 }

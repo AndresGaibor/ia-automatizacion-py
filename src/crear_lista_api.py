@@ -3,8 +3,8 @@ Módulo para crear listas de suscriptores usando la API de Acumbamail.
 Reemplaza la implementación anterior que usaba Playwright.
 """
 from .utils import data_path, load_config
-from .api import API
-from .api.models.suscriptores import SubscriberData
+from .infrastructure.api import API
+from .infrastructure.api.models.suscriptores import SubscriberData
 from .logger import get_logger
 from .excel_helper import ExcelHelper
 import pandas as pd

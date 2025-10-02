@@ -16,7 +16,7 @@ try:
     from src.mapeo_segmentos import obtener_id_lista_desde_archivo
     from src.utils import crear_contexto_navegador, configurar_navegador, load_config
     from src.autentificacion import login
-    from src.api import API
+    from src.infrastructure.api import API
     from playwright.sync_api import sync_playwright
     import pandas as pd
     print("✅ All imports successful")
