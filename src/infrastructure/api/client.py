@@ -32,7 +32,8 @@ class APIClient:
 				base_url=self.base_url,
 				timeout=timeout,
 				# Límites de conexión para evitar problemas de pool
-				limits=httpx.Limits(max_keepalive_connections=5, max_connections=10)
+				limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
+				verify=True
 			)
 		return self._client
 	
