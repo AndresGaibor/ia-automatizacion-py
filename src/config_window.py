@@ -207,7 +207,7 @@ class ConfigWindow:
             # Probar API
             api = API()
             # Hacer una llamada simple para probar
-            campaigns = api.campaigns.get_all_summary(limit=1)
+            campaigns = api.campaigns.get_all(complete_info=False)
 
             if campaigns is not None:
                 messagebox.showinfo("Éxito", "✅ Conexión exitosa con Acumbamail")

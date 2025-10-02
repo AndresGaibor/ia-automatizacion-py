@@ -201,91 +201,65 @@ def crear_archivo_excel(general: list[list[str]], informe_detallado: list[list[l
 
 def get_campaign_urls_with_fallback(page, campaign_id: int) -> str:
 	"""
-	Obtiene las URLs de una campaña mediante scraping.
-	Extrae las URLs de la página de seguimiento de URLs y las separa por comas.
+	Obtiene la URL del correo de una campaña mediante scraping.
+	Extrae la URL del botón "Ver email" que enlaza a clickacm.com
 	"""
 	from src.shared.logging.logger import get_logger
 	logger = get_logger()
 
 	try:
-		logger.start_timer(f"scraping_urls_campaign_{campaign_id}")
-		logger.info(f"🔗 Extrayendo URLs de la campaña {campaign_id}")
+		logger.start_timer(f"scraping_email_url_campaign_{campaign_id}")
+		logger.info(f"📧 Extrayendo URL del correo de la campaña {campaign_id}")
 
-		# Navegar a la página de seguimiento de URLs
-		url_tracking_page = f"https://acumbamail.com/report/campaign/{campaign_id}/url/"
-		page.goto(url_tracking_page, wait_until="networkidle")
-		logger.debug(f"   Navegado a: {url_tracking_page}")
+		# Navegar a la página de reportes de la campaña (donde está el botón "Ver email")
+		report_page = f"https://acumbamail.com/report/campaign/{campaign_id}/"
+		page.goto(report_page, wait_until="networkidle")
+		logger.debug(f"   Navegado a: {report_page}")
 
 		# Esperar a que la página cargue completamente
 		page.wait_for_load_state("domcontentloaded")
+		page.wait_for_timeout(1000)
 
-		# Intentar diferentes selectores para encontrar los elementos de URL
-		# La estructura puede variar, así que probamos varios selectores
-		url_elements = []
-
-		# Intento 1: Buscar tabla con clase específica
-		try:
-			# Esperar un momento para que el contenido dinámico cargue
-			page.wait_for_timeout(2000)
-
-			# Buscar todos los list items que contengan URLs (http:// o https://)
-			url_elements = page.locator("li:has-text('http')").all()
-			logger.debug(f"   Encontrados {len(url_elements)} elementos con 'http'")
-		except Exception as e:
-			logger.debug(f"   Intento 1 falló: {e}")
-
-		# Si no encontramos elementos, intentar extraer del HTML directamente
-		if not url_elements or len(url_elements) == 0:
-			logger.debug("   Intentando extracción directa del contenido de la página")
-			page_content = page.content()
-			import re
-
-			# Buscar URLs en el contenido HTML que tengan el formato esperado
-			# Patrón: URL seguida de número y porcentaje
-			pattern = r'(https?://[^\s<>"]+)\s+\d+\s+\([^)]+abridores\)'
-			matches = re.findall(pattern, page_content)
-
-			if matches:
-				logger.debug(f"   Encontradas {len(matches)} URLs mediante regex en HTML")
-				result = ", ".join(matches)
-				logger.end_timer(f"scraping_urls_campaign_{campaign_id}",
-				                f"Extraídas {len(matches)} URLs (método directo)")
-				logger.success(f"✅ URLs de campaña {campaign_id} extraídas exitosamente: {len(matches)} URLs")
-				return result
-
-		# Extraer las URLs del texto de cada elemento
-		urls: List[str] = []
+		# Buscar el enlace "Ver email" que contiene la URL de clickacm.com
 		import re
 
-		for elem in url_elements:
-			text = elem.inner_text().strip()
-			# Saltar el header "Url Han hecho clic Acciones"
-			if "Url" in text and "Han hecho clic" in text:
-				continue
+		# Método 1: Buscar elemento con texto "Ver email"
+		try:
+			email_link = page.get_by_text("Ver email").get_attribute("href", timeout=5000)
+			if email_link and "clickacm.com" in email_link:
+				logger.debug(f"   URL del email encontrada (método 1): {email_link}")
+				logger.end_timer(f"scraping_email_url_campaign_{campaign_id}",
+				                f"URL extraída exitosamente")
+				logger.success(f"✅ URL del email de campaña {campaign_id} extraída: {email_link}")
+				return email_link
+		except Exception as e:
+			logger.debug(f"   Método 1 falló: {e}")
 
-			# Saltar elementos que no contengan URLs
-			if not text or not ("http://" in text or "https://" in text):
-				continue
+		# Método 2: Buscar en el HTML usando regex
+		page_content = page.content()
 
-			# Extraer URL usando regex - captura todo antes del primer espacio seguido de números
-			# Formato esperado: "http://example.com 67 (13,8% abridores)"
-			match = re.match(r'^(https?://[^\s]+)', text)
-			if match:
-				url: str = match.group(1)
-				urls.append(url)
-				logger.debug(f"   URL extraída: {url}")
+		# Buscar URL de clickacm.com en el HTML
+		# Patrón: https://clickacm.com/show/[uuid]/
+		pattern = r'(https://clickacm\.com/show/[a-f0-9-]+/)'
+		matches = re.findall(pattern, page_content)
 
-		# Unir las URLs con comas
-		result = ", ".join(urls)
-		logger.end_timer(f"scraping_urls_campaign_{campaign_id}",
-		                f"Extraídas {len(urls)} URLs")
-		logger.success(f"✅ URLs de campaña {campaign_id} extraídas exitosamente: {len(urls)} URLs")
+		if matches:
+			# Tomar la primera coincidencia (debería ser única por campaña)
+			email_url = matches[0]
+			logger.debug(f"   URL del email encontrada (método 2): {email_url}")
+			logger.end_timer(f"scraping_email_url_campaign_{campaign_id}",
+			                f"URL extraída exitosamente")
+			logger.success(f"✅ URL del email de campaña {campaign_id} extraída: {email_url}")
+			return email_url
 
-		return result
+		# Si no encontramos nada
+		logger.warning(f"⚠️ No se encontró URL del email para campaña {campaign_id}")
+		logger.end_timer(f"scraping_email_url_campaign_{campaign_id}", "No encontrada")
+		return ""
 
 	except Exception as e:
-		logger.error(f"❌ Error extrayendo URLs de campaña {campaign_id}: {e}")
-		logger.end_timer(f"scraping_urls_campaign_{campaign_id}", f"Error: {e}")
+		logger.error(f"❌ Error extrayendo URL del email de campaña {campaign_id}: {e}")
+		logger.end_timer(f"scraping_email_url_campaign_{campaign_id}", f"Error: {e}")
 		# En caso de error, devolver cadena vacía para no bloquear el proceso
 		return ""
 
