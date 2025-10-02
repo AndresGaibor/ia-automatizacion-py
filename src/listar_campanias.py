@@ -14,13 +14,13 @@ try:
     from .excel_utils import agregar_datos, crear_o_cargar_libro_excel, limpiar_hoja_desde_fila, obtener_o_crear_hoja
     from .infrastructure.api import API
     from .shared.utils.legacy_utils import data_path, notify
-    from .shared.logging.legacy_logger import get_logger
+    from .shared.logging.logger import get_logger
 except ImportError:
     # Cuando se ejecuta directamente
     from src.excel_utils import agregar_datos, crear_o_cargar_libro_excel
     from src.infrastructure.api import API
     from src.shared.utils.legacy_utils import data_path
-    from src.shared.logging.legacy_logger import get_logger
+    from src.shared.logging.logger import get_logger
 
 # Rutas
 ARCHIVO_BUSQUEDA = data_path("Busqueda.xlsx")

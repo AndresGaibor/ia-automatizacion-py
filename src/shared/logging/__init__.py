@@ -1,12 +1,16 @@
 """Shared logging utilities."""
 
-# Import from the legacy logger module for backward compatibility
+# Import from the logger module
 try:
-    from .legacy_logger import get_logger
+    from .logger import get_logger
 except ImportError:
+    # Fallback for different import contexts
     try:
-        from ...logger import get_logger
+        from src.shared.logging.logger import get_logger
     except ImportError:
-        from src.logger import get_logger
+        # Last resort - create a basic logger
+        import logging
+        def get_logger():
+            return logging.getLogger('acumba_automation')
 
 __all__ = ['get_logger']
