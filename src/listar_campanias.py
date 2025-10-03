@@ -89,49 +89,51 @@ def guardar_datos_en_excel(informe_detalle: list[list[str]], archivo_busqueda: s
 api = API()
 
 def main():
-	"""
-	Función principal del programa de listado de campañas
-	"""
+    """
+    Función principal del programa de listado de campañas
+    """
 
-	try:
-		logger.info("🚀 Iniciando programa de listado de campañas")
-		
-		informe: list[list[str]] = []
-		logger.info("🌐 Obteniendo campañas desde la API")
-		campanias = api.campaigns.get_all(True)
-		logger.info("📥 Campañas obtenidas", total_campañas=len(campanias))
+    try:
+        logger.info("🚀 Iniciando programa de listado de campañas")
+        
+        informe: list[list[str]] = []
+        logger.info("🌐 Obteniendo campañas desde la API")
+        api = API()
+        campanias = api.campaigns.get_all(True)
+        logger.info("📥 Campañas obtenidas", total_campañas=len(campanias))
 
-		# Filtrar campañas válidas
-		from datetime import datetime
-		hoy = datetime.now().strftime("%Y%m%d")
-		logger.info("filtros_aplicados", fecha_actual=hoy)
+        # Filtrar campañas válidas
+        from datetime import datetime
+        hoy = datetime.now().strftime("%Y%m%d")
+        logger.info("filtros_aplicados", fecha_actual=hoy)
 
-		campanias_filtradas = 0
-		for campania in campanias:
-			nombre = campania.name
-			id = str(campania.id)
-			fecha = campania.date
-			total_enviado = str(campania.total_delivered)
-			abierto = str(campania.opened)
-			no_abierto = str(campania.unopened)
+        campanias_filtradas = 0
+        for campania in campanias:
+            nombre = campania.name
+            id = str(campania.id)
+            complete_data = api.campaigns.get_basic_info(id)
+            fecha = complete_data.date_sent
+            total_enviado = str(campania.total_delivered)
+            abierto = str(campania.opened)
+            no_abierto = str(campania.unopened)
 
-			# Filtrar campañas de prueba o del mismo día (pueden estar incompletas)
-			informe.append(['', nombre, id, fecha, total_enviado, abierto, no_abierto])
-			
-		
-		logger.info("📊 Filtrado completado", campañas_filtradas=campanias_filtradas, campañas_para_guardar=len(informe))
-		
-		if informe:
-			logger.info("💾 Guardando datos en archivo Excel")
-			guardar_datos_en_excel(informe, ARCHIVO_BUSQUEDA)
-			logger.success("✅ Programa completado exitosamente")
-		else:
-			logger.warning("⚠️ No hay datos para guardar después del filtrado")
+            # Filtrar campañas de prueba o del mismo día (pueden estar incompletas)
+            informe.append(['', nombre, id, fecha, total_enviado, abierto, no_abierto])
+            
+        
+        logger.info("📊 Filtrado completado", campañas_filtradas=campanias_filtradas, campañas_para_guardar=len(informe))
+        
+        if informe:
+            logger.info("💾 Guardando datos en archivo Excel")
+            guardar_datos_en_excel(informe, ARCHIVO_BUSQUEDA)
+            logger.success("✅ Programa completado exitosamente")
+        else:
+            logger.warning("⚠️ No hay datos para guardar después del filtrado")
 
-	except Exception as e:
-		logger.error("❌ Error crítico en el programa", error=str(e))
-		print(f"Error crítico en el programa: {e}")
-		raise
+    except Exception as e:
+        logger.error("❌ Error crítico en el programa", error=str(e))
+        print(f"Error crítico en el programa: {e}")
+        raise
 
 if __name__ == "__main__":
-	main()
+    main()

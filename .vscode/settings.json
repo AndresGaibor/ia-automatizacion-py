@@ -2,5 +2,8 @@
     "python.linting.enabled": true,
     "python.linting.ruffEnabled": true,
     "python.linting.pylintEnabled": false,
-    "python.analysis.typeCheckingMode": "standard"
+    "python.analysis.typeCheckingMode": "standard",
+    "github-actions.workflows.pinned.workflows": [
+        ".github/workflows/build-windows.yml"
+    ]
 }
