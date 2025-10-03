@@ -104,7 +104,7 @@ def main():
 		# Filtrar campañas válidas
 		from datetime import datetime
 		hoy = datetime.now().strftime("%Y%m%d")
-		logger.info("筛选_filtros_aplicados", fecha_actual=hoy)
+		logger.info("filtros_aplicados", fecha_actual=hoy)
 
 		campanias_filtradas = 0
 		for campania in campanias:
@@ -116,11 +116,8 @@ def main():
 			no_abierto = str(campania.unopened)
 
 			# Filtrar campañas de prueba o del mismo día (pueden estar incompletas)
-			if (nombre and
-				hoy not in nombre and  # Excluir campañas del día actual
-				total_enviado != "0"):  # Excluir campañas sin envíos
-				informe.append(['', nombre, id, fecha, total_enviado, abierto, no_abierto])
-				campanias_filtradas += 1
+			informe.append(['', nombre, id, fecha, total_enviado, abierto, no_abierto])
+			
 		
 		logger.info("📊 Filtrado completado", campañas_filtradas=campanias_filtradas, campañas_para_guardar=len(informe))
 		
