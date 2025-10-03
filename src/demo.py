@@ -1,3 +1,4 @@
+from .infrastructure.api.models.campanias import CampaignBasicInfo
 import csv
 from pathlib import Path
 from playwright.sync_api import sync_playwright
@@ -239,8 +240,8 @@ def get_campaign_urls_with_fallback(page, campaign_id: int) -> str:
 		page_content = page.content()
 
 		# Buscar URL de clickacm.com en el HTML
-		# Patrón: https://clickacm.com/show/[uuid]/
-		pattern = r'(https://clickacm\.com/show/[a-f0-9-]+/)'
+		# Patrón: https://clickacm.com/show/[ID alfanumérico]/
+		pattern = r'(https://clickacm\.com/show/[a-zA-Z0-9-]+/)'
 		matches = re.findall(pattern, page_content)
 
 		if matches:
@@ -319,7 +320,7 @@ def obtener_lista_suscriptor(email: str, mapa_email_lista: dict[str, str]) -> st
 	email_clean = email.lower().strip()
 	return mapa_email_lista.get(email_clean, "Lista no encontrada")
 
-def generar_general(campania, campania_complete, campaign_clics, todas_listas, page, campaign_id=None) -> list[str]:
+def generar_general(campania: CampaignBasicInfo, campania_complete, campaign_clics, todas_listas, page, campaign_id=None) -> list[str]:
 	from .logger import get_logger
 	logger = get_logger()
 	
@@ -332,7 +333,7 @@ def generar_general(campania, campania_complete, campaign_clics, todas_listas, p
 	
 	nombre = campania.name or ""
 	tipo = ""
-	fecha = campania.date
+	fecha = campania.date_sent
 	
 	id_listas = campania.lists or []
 	listas = generar_listas(todas_listas, id_listas)
@@ -550,7 +551,7 @@ def main():
 					continue  # Continuar con la siguiente campaña
 
 				# Extraer datos para compatibilidad con formato Excel existente
-				campania = complete_data["campaign_basic"]
+				campania: CampaignBasicInfo = complete_data["campaign_basic"]
 				campania_complete = complete_data["campaign_detailed"]
 				campaign_clics = complete_data["clicks"]
 				todas_listas = complete_data["lists"]
