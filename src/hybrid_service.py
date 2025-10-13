@@ -5,15 +5,22 @@ from playwright.sync_api import Page
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 import uuid
+from pathlib import Path
+import sys
 
-from src.infrastructure.api import API
-from src.infrastructure.api.models.campanias import CampaignBasicInfo
-from src.scrapping import (
+# Configurar package para imports consistentes y PyInstaller compatibility
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    __package__ = "src"
+
+from .infrastructure.api import API
+from .infrastructure.api.models.campanias import CampaignBasicInfo
+from .scrapping import (
     SubscriberDetailsService,
     ScrapingResult,
     ScrapingSession
 )
-from src.shared.logging.logger import get_logger
+from .shared.logging.logger import get_logger
 
 
 class HybridDataService:

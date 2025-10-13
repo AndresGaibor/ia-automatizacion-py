@@ -9,7 +9,7 @@ Uso:
     # Como módulo:
     from src.descargar_listas import procesar_listas_marcadas
     resultados = procesar_listas_marcadas()
-    
+
     # Ejecutar directamente:
     python src/descargar_listas.py
 """
@@ -21,27 +21,16 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 import re
 
-# Agregar el directorio raíz al path cuando se ejecuta directamente
-if __name__ == "__main__":
-    current_dir = Path(__file__).parent
-    root_dir = current_dir.parent
-    sys.path.insert(0, str(root_dir))
+# Configurar package para imports consistentes y PyInstaller compatibility
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    __package__ = "src"
 
-# Imports que funcionan tanto ejecutando directamente como módulo
-try:
-    # Cuando se ejecuta como módulo del paquete
-    from .logger import get_logger
-    from .utils import load_config, data_path, notify
-    from .infrastructure.api.client import APIClient
-    from .infrastructure.api.endpoints.suscriptores import SuscriptoresAPI
-    from .excel_utils import crear_o_cargar_libro_excel, obtener_o_crear_hoja, agregar_datos
-except ImportError:
-    # Cuando se ejecuta directamente
-    from src.logger import get_logger
-    from src.utils import load_config
-    from src.infrastructure.api.client import APIClient
-    from src.infrastructure.api.endpoints.suscriptores import SuscriptoresAPI
-    from src.excel_utils import crear_o_cargar_libro_excel, obtener_o_crear_hoja, agregar_datos
+from .logger import get_logger
+from .utils import load_config, data_path, notify
+from .infrastructure.api.client import APIClient
+from .infrastructure.api.endpoints.suscriptores import SuscriptoresAPI
+from .excel_utils import crear_o_cargar_libro_excel, obtener_o_crear_hoja, agregar_datos
 
 logger = get_logger()
 

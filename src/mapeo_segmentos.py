@@ -2,6 +2,7 @@
 Módulo para mapear segmentos de Excel a archivos de listas individuales.
 Procesa el archivo Segmentos.xlsx y aplica las condiciones a los archivos de listas correspondientes.
 """
+import logging
 import pandas as pd
 from collections import defaultdict
 import os
@@ -946,7 +947,9 @@ def procesar_lista_individual(nombre_lista: str, segmentos_data: List[List[Any]]
     Returns:
         True si se procesó exitosamente
     """
-    logger.info(f"Procesando lista: {nombre_lista}")
+    logging.info(f"🔍 Iniciando procesamiento de lista: {nombre_lista}")
+    logging.debug(f"📋 Total de segmentos a procesar: {len(segmentos_data)}")
+    logging.debug(f"📋 Headers disponibles: {headers}")
 
     try:
         # Validaciones previas
@@ -1348,7 +1351,9 @@ def mapear_segmentos_completo() -> Dict[str, Any]:
     Returns:
         Diccionario con estadísticas del proceso
     """
-    logger.info("Iniciando mapeo completo de segmentos")
+    logging.info("🔍 Iniciando mapeo completo de segmentos")
+    logging.debug(f"🌐 Archivo de segmentos: {ARCHIVO_SEGMENTOS}")
+    logging.debug(f"📁 Carpeta de listas: {CARPETA_LISTAS}")
     notify("Iniciando", "Iniciando mapeo de segmentos", "info")
 
     try:

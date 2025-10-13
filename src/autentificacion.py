@@ -1,17 +1,16 @@
+import logging
 from playwright.sync_api import BrowserContext, TimeoutError as PWTimeoutError, Page
 from .utils import load_config, storage_state_path, notify
-from .logger import get_logger
+from .shared.logging.logger import get_logger
 
 logger = get_logger()
 
-def esperar_carga_pagina(page: Page, timeout: int = 60_000):
-    """Espera a que la página cargue completamente con manejo de timeout."""
+def esperar_carga_pagina(page: Page, timeout: int = 45_000):
+    """Espera a que la página cargue completamente optimizada."""
     logger.info("⏳ Esperando carga de página", timeout=timeout)
     try:
         page.wait_for_load_state("domcontentloaded", timeout=timeout)
-        page.wait_for_load_state("networkidle", timeout=timeout)
-        # Espera adicional para asegurar que la página esté completamente cargada
-        page.wait_for_timeout(2000)
+        # Optimizado: eliminado networkidle y espera fija de 2s
         logger.success("✅ Página cargada exitosamente")
     except Exception as e:
         logger.warning(f"Página tardó en cargar: {e}. Continuando...", error=str(e))
@@ -79,7 +78,7 @@ def login(page: Page, context: BrowserContext):
 	if f"{url_base}/" != page.url:
 		logger.success("✅ Ya estás en la página principal, guardando estado de sesión...")
 		context.storage_state(path=storage_state_path())
-		page.wait_for_timeout(5_000)
+		# Optimizado: eliminada espera fija de 5s
 		logger.info("🔄 Sesion guardada exitosamente")
 		return
 
@@ -121,6 +120,5 @@ def login(page: Page, context: BrowserContext):
 	notify("Sesión", "Guardando estado de sesión", "info")
 	context.storage_state(path=storage_state_path())
 
-	# Espera adicional para asegurar que la sesión esté completamente establecida
-	page.wait_for_timeout(3000)
+	# Optimizado: eliminada espera fija de 3s
 	logger.success("✅ Estado de sesión guardado correctamente")

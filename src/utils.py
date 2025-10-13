@@ -5,12 +5,16 @@ Funciones utilitarias compartidas para automatización.
 import os
 import sys
 import re
-from playwright.sync_api import BrowserContext
+import logging
+from pathlib import Path
+from playwright.sync_api import BrowserContext, TimeoutError as PWTimeoutError
 
-try:
-    from .logger import get_logger
-except ImportError:
-    from src.logger import get_logger
+# Configurar package para imports consistentes y PyInstaller compatibility
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    __package__ = "src"
+
+from .logger import get_logger
 
 logger = get_logger()
 
@@ -136,7 +140,7 @@ def save_config(cfg: dict):
 	logger.success("✅ Configuración guardada exitosamente", path=config_path())
 
 def crear_contexto_navegador(browser, extraccion_oculta: bool = False) -> BrowserContext:
-	"""Crea contexto del navegador con configuración de sesión."""
+	"""Crea contexto del navegador con configuración de sesión optimizada."""
 	storage_state = storage_state_path() if os.path.exists(storage_state_path()) else None
 	context = browser.new_context(
 		user_agent=REAL_UA,
@@ -147,9 +151,9 @@ def crear_contexto_navegador(browser, extraccion_oculta: bool = False) -> Browse
 		storage_state=storage_state,
 	)
 
-	# Configurar timeouts básicos
-	context.set_default_timeout(120000)  # 2 minutos
-	context.set_default_navigation_timeout(120000)  # 2 minutos
+	# Configurar timeouts conservadores para evitar problemas de 60ms
+	context.set_default_timeout(30000)  # 30 segundos por defecto
+	context.set_default_navigation_timeout(60000)  # 60 segundos navegación
 
 	return context
 
@@ -423,26 +427,38 @@ def ejecutando_desde_terminal():
 
 def get_timeouts() -> dict:
 	"""
-	Retorna timeouts configurables para las operaciones de Playwright
+	Retorna timeouts configurables optimizados para las operaciones de Playwright
 	"""
 	config = load_config()
 	timeouts = config.get("timeouts", {})
-	
+
 	return {
-		"default": timeouts.get("default", 30000),        # 30 segundos
-		"navigation": timeouts.get("navigation", 60000),  # 60 segundos  
-		"element": timeouts.get("element", 15000),        # 15 segundos
-		"upload": timeouts.get("upload", 120000),         # 2 minutos
+		"default": timeouts.get("default", 25000),        # 25 segundos (reducido de 30)
+		"navigation": timeouts.get("navigation", 45000),  # 45 segundos (reducido de 60)
+		"element": timeouts.get("element", 10000),        # 10 segundos (reducido de 15)
+		"upload": timeouts.get("upload", 60000),          # 1 minuto (reducido de 2)
+		"column_mapping": timeouts.get("column_mapping", 30000),  # 30s para mapeo específico
 	}
 
 def safe_goto(page: Page, url: str, timeout: int = 60000) -> bool:
 	"""
-	Navega a una URL de forma segura con manejo de errores
+	Navega a una URL de forma segura con manejo de errores detallado
 	"""
 	try:
+		logging.info(f"🌐 Navegando a URL: {url}")
+		logging.debug(f"⏱️ Timeout configurado: {timeout}ms")
+
 		page.goto(url, timeout=timeout, wait_until="networkidle")
+
+		logging.success(f"✅ Navegación exitosa a: {url}")
 		return True
+	except PWTimeoutError as e:
+		logging.error(f"❌ PWTimeoutError navegando a {url}: {e}")
+		logging.error(f"⏱️ Timeout configurado: {timeout}ms")
+		print(f"Timeout navegando a {url}: {e}")
+		return False
 	except Exception as e:
+		logging.error(f"❌ Error navegando a {url}: {e}")
 		print(f"Error navegando a {url}: {e}")
 		return False
 
@@ -451,8 +467,15 @@ def click_element(element):
 	Hace clic en un elemento de forma segura con manejo de errores
 	"""
 	try:
+		logging.debug("🖱️ Haciendo clic en elemento")
 		element.click()
+		logging.debug("✅ Clic realizado exitosamente")
 		return True
+	except PWTimeoutError as e:
+		logging.error(f"❌ PWTimeoutError haciendo clic en elemento: {e}")
+		print(f"Timeout haciendo clic en elemento: {e}")
+		return False
 	except Exception as e:
+		logging.error(f"❌ Error haciendo clic en elemento: {e}")
 		print(f"Error haciendo clic en elemento: {e}")
 		return False

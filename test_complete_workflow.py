@@ -6,9 +6,10 @@ import sys
 import os
 from pathlib import Path
 
-# Add src to path
-current_dir = Path(__file__).parent
-sys.path.insert(0, str(current_dir / "src"))
+# Configurar package para imports consistentes y PyInstaller compatibility
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve()))
+    __package__ = "test_root"
 
 try:
     from src.crear_lista_mejorado import crear_lista_automatica

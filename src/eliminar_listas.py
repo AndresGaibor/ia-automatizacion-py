@@ -8,23 +8,14 @@ import sys
 from pathlib import Path
 from typing import List, Tuple
 
-# Agregar el directorio raíz al path cuando se ejecuta directamente
-if __name__ == "__main__":
-    current_dir = Path(__file__).parent
-    root_dir = current_dir.parent
-    sys.path.insert(0, str(root_dir))
+# Configurar package para imports consistentes y PyInstaller compatibility
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    __package__ = "src"
 
-# Imports que funcionan tanto ejecutando directamente como módulo
-try:
-    # Cuando se ejecuta como módulo del paquete
-    from .utils import data_path
-    from .infrastructure.api import API
-    from .logger import get_logger
-except ImportError:
-    # Cuando se ejecuta directamente
-    from src.utils import data_path
-    from src.infrastructure.api import API
-    from src.logger import get_logger
+from .utils import data_path
+from .infrastructure.api import API
+from .logger import get_logger
 
 
 def validar_archivo_busqueda_listas() -> Tuple[bool, str, int]:

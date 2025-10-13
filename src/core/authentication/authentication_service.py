@@ -1,4 +1,5 @@
 """Enhanced authentication service with proper error handling and session management."""
+import logging
 from typing import Protocol
 from playwright.sync_api import Page, BrowserContext, TimeoutError as PWTimeoutError
 from pathlib import Path
@@ -6,11 +7,15 @@ from pathlib import Path
 from ..errors import AuthenticationError, ConfigurationError
 from ..config.config_manager import ConfigManager
 try:
-    from ...shared.logging import get_logger
-    from ...shared.utils import notify
+    from ...shared.logging.logger import get_logger
+    from ...shared.utils.legacy_utils import notify
 except ImportError:
-    from src.shared.logging import get_logger
-    from src.shared.utils import notify
+    try:
+        from ..shared.logging.logger import get_logger
+        from ..shared.utils.legacy_utils import notify
+    except ImportError:
+        from src.shared.logging.logger import get_logger
+        from src.shared.utils.legacy_utils import notify
 
 
 logger = get_logger()
@@ -59,7 +64,7 @@ class AuthenticationService:
 
             # Check if already authenticated
             if self._is_already_authenticated(page, url_base):
-                logger.success("✅ Already authenticated")
+                logger.info("✅ Already authenticated")
                 self.session_storage.save_session(context)
                 return
 
@@ -69,10 +74,10 @@ class AuthenticationService:
             # Perform login if needed
             if not self._check_authentication_status(page):
                 self._perform_login(page, username, password)
-                logger.success("✅ Login completed successfully")
+                logger.info("✅ Login completed successfully")
                 notify("Authentication", "Login completed successfully", "info")
             else:
-                logger.success("✅ Already authenticated")
+                logger.info("✅ Already authenticated")
                 notify("Session", "Already authenticated in Acumbamail", "info")
 
             # Save session state
@@ -82,7 +87,7 @@ class AuthenticationService:
 
             # Additional wait to ensure session is fully established
             page.wait_for_timeout(3000)
-            logger.success("✅ Session state saved correctly")
+            logger.info("✅ Session state saved correctly")
 
         except Exception as e:
             logger.error(f"❌ Authentication failed: {e}")
@@ -99,7 +104,7 @@ class AuthenticationService:
         password = config.get("password", "")
 
         if not username or username == "usuario@correo.com":
-            logger.error("❌ User not configured in config.yaml", user=username)
+            logger.error(f"❌ User not configured in config.yaml - user: {username}")
             notify(
                 "Configuration Error",
                 "Error: User not configured. Edit config.yaml with your Acumbamail email.",
@@ -111,7 +116,7 @@ class AuthenticationService:
             )
 
         if not password or password == "clave":
-            logger.error("❌ Password not configured in config.yaml", user=username)
+            logger.error(f"❌ Password not configured in config.yaml - user: {username}")
             notify(
                 "Configuration Error",
                 "Error: Password not configured. Edit config.yaml with your Acumbamail password.",
@@ -126,7 +131,7 @@ class AuthenticationService:
             page.goto(url, timeout=60_000)
             self._wait_for_page_load(page)
         except Exception as e:
-            logger.error(f"❌ Error connecting to Acumbamail: {e}", url=url)
+            logger.error(f"❌ Error connecting to Acumbamail: {e} - url: {url}")
             notify("Connection Error", f"Error: Could not connect to Acumbamail: {e}", "error")
             raise AuthenticationError(
                 f"Failed to connect to Acumbamail: {e}",
@@ -142,22 +147,44 @@ class AuthenticationService:
         logger.info("🍪 Trying to accept cookies")
         try:
             page.get_by_role("button", name="Aceptar todas").click(timeout=30_000)
-            logger.success("✅ Cookies accepted successfully")
+            logger.info("✅ Cookies accepted successfully")
+        except PWTimeoutError:
+            logger.info("⏱️ Timeout accepting cookies, button not found or not responding")
+            logger.info("🔓 Continuing without accepting cookies")
         except Exception as e:
-            logger.info(f"Cookie button not found: {e}. Continuing...", error=str(e))
+            logger.warning(f"⚠️ Unexpected error accepting cookies: {e}")
+            logger.info("🔓 Continuing without accepting cookies")
 
     def _check_authentication_status(self, page: Page) -> bool:
         """Check if user is already authenticated."""
         logger.info("🔐 Checking authentication status")
         try:
-            btn_tools = page.get_by_role("navigation").get_by_role("link", name="Ir a la herramienta")
+            # Look for navigation with tools link
+            logger.debug("🔍 Looking for 'Ir a la herramienta' link in navigation")
+            nav_element = page.get_by_role("navigation")
+            btn_tools = nav_element.get_by_role("link", name="Ir a la herramienta")
+
+            # Verify the element is visible before clicking
+            is_visible = btn_tools.is_visible(timeout=10000)
+            if not is_visible:
+                logger.info("🔓 'Ir a la herramienta' link not visible, assuming not authenticated")
+                return False
+
+            logger.debug("✅ Found 'Ir a la herramienta' link, clicking...")
             self._wait_for_page_load(page)
             btn_tools.click(timeout=30_000)
             self._wait_for_page_load(page)
-            logger.success("✅ User already authenticated")
+            logger.info("✅ User already authenticated")
             return True
-        except PWTimeoutError:
-            logger.info("🔓 'Entra' button not found, assuming not authenticated")
+
+        except PWTimeoutError as e:
+            logger.info("⏱️ Timeout checking authentication status: {e}")
+            logger.info("🔓 'Ir a la herramienta' button not found or not responding, assuming not authenticated")
+            return False
+        except Exception as e:
+            logger.error(f"❌ Unexpected error checking authentication: {e}")
+            logger.error(f"Tipo de error: {type(e).__name__}")
+            logger.info("🔓 Assuming not authenticated and proceeding with login")
             return False
 
     def _perform_login(self, page: Page, username: str, password: str) -> None:
@@ -166,43 +193,133 @@ class AuthenticationService:
         notify("Authentication", "Credentials required, starting login", "info")
 
         try:
-            # Click login button
-            logger.info("🖱️ Clicking login button")
-            login_btn = page.get_by_role("link", name="Entra")
-            login_btn.click()
-            page.wait_for_load_state("networkidle")
+            # Step 1: Click login button
+            logger.info("📌 PASO 1: Localizando y haciendo clic en botón 'Entra'")
+            try:
+                logger.debug("🔍 Buscando botón 'Entra'...")
+                login_btn = page.get_by_role("link", name="Entra")
 
-            # Fill login form
-            logger.info("📝 Filling login form...")
-            page.get_by_role("textbox", name="Correo electrónico").fill(username)
-            page.get_by_role("textbox", name="Contraseña").fill(password)
-            page.locator('label[for="keepme-logged"]').click()
+                # Verify button is visible
+                is_visible = login_btn.is_visible(timeout=10000)
+                if not is_visible:
+                    logger.error("❌ ERROR PASO 1: Botón 'Entra' no visible")
+                    raise AuthenticationError("Login button not found or not visible")
 
-            # Submit form
-            logger.info("🚀 Submitting login form...")
-            with page.expect_navigation(wait_until="domcontentloaded"):
-                page.get_by_role("button", name="Entrar").click()
-                self._wait_for_page_load(page)
+                logger.debug("✅ Botón 'Entra' encontrado, haciendo clic...")
+                login_btn.click()
+                page.wait_for_load_state("networkidle", timeout=15000)
+                logger.debug("✅ Click en 'Entra' realizado, página cargando...")
 
+            except PWTimeoutError as e:
+                logger.error(f"❌ ERROR PASO 1 - Timeout: {e}")
+                raise AuthenticationError(
+                    "Login button timeout",
+                    context={"username": username, "error": str(e)}
+                ) from e
+            except Exception as e:
+                logger.error(f"❌ ERROR PASO 1 - Error: {e}")
+                logger.error(f"Tipo de error: {type(e).__name__}")
+                raise AuthenticationError(
+                    "Login button interaction failed",
+                    context={"username": username, "error": str(e)}
+                ) from e
+
+            # Step 2: Fill login form
+            logger.info("📌 PASO 2: Completando formulario de login")
+            try:
+                logger.debug("🔍 Buscando campo 'Correo electrónico'...")
+                email_input = page.get_by_role("textbox", name="Correo electrónico")
+                email_input.wait_for(state="visible", timeout=10000)
+                email_input.fill(username)
+                logger.debug("✅ Correo electrónico llenado")
+
+                logger.debug("🔍 Buscando campo 'Contraseña'...")
+                password_input = page.get_by_role("textbox", name="Contraseña")
+                password_input.wait_for(state="visible", timeout=10000)
+                password_input.fill(password)
+                logger.debug("✅ Contraseña llenada")
+
+                logger.debug("🔍 Buscando checkbox 'Mantener sesión iniciada'...")
+                keepme_checkbox = page.locator('label[for="keepme-logged"]')
+                keepme_checkbox.wait_for(state="visible", timeout=5000)
+                if keepme_checkbox.is_visible():
+                    keepme_checkbox.click()
+                    logger.debug("✅ Checkbox 'Mantener sesión iniciada' marcado")
+                else:
+                    logger.warning("⚠️ Checkbox 'Mantener sesión iniciada' no encontrado, continuando...")
+
+                logger.info("✅ Formulario de login completado")
+
+            except PWTimeoutError as e:
+                logger.error(f"❌ ERROR PASO 2 - Timeout en formulario: {e}")
+                raise AuthenticationError(
+                    "Login form timeout",
+                    context={"username": username, "error": str(e)}
+                ) from e
+            except Exception as e:
+                logger.error(f"❌ ERROR PASO 2 - Error en formulario: {e}")
+                logger.error(f"Tipo de error: {type(e).__name__}")
+                raise AuthenticationError(
+                    "Login form filling failed",
+                    context={"username": username, "error": str(e)}
+                ) from e
+
+            # Step 3: Submit form
+            logger.info("📌 PASO 3: Enviando formulario de login")
+            try:
+                logger.debug("🔍 Buscando botón 'Entrar'...")
+                submit_btn = page.get_by_role("button", name="Entrar")
+                submit_btn.wait_for(state="visible", timeout=10000)
+                logger.debug("✅ Botón 'Entrar' encontrado, enviando formulario...")
+
+                # Use expect_navigation for robust navigation handling
+                with page.expect_navigation(wait_until="domcontentloaded"):
+                    submit_btn.click()
+                    logger.debug("✅ Formulario enviado, esperando navegación...")
+                    self._wait_for_page_load(page)
+
+                logger.info("✅ Formulario de login enviado exitosamente")
+
+            except PWTimeoutError as e:
+                logger.error(f"❌ ERROR PASO 3 - Timeout enviando formulario: {e}")
+                raise AuthenticationError(
+                    "Login form submission timeout",
+                    context={"username": username, "error": str(e)}
+                ) from e
+            except Exception as e:
+                logger.error(f"❌ ERROR PASO 3 - Error enviando formulario: {e}")
+                logger.error(f"Tipo de error: {type(e).__name__}")
+                raise AuthenticationError(
+                    "Login form submission failed",
+                    context={"username": username, "error": str(e)}
+                ) from e
+
+            # Success
+            logger.info("🎉 Login process completed successfully")
+            notify("Authentication", "Login completed successfully", "info")
+
+        except AuthenticationError:
+            # Re-raise AuthenticationError as is
+            raise
         except Exception as e:
-            logger.error(f"❌ Error during login: {e}", error=str(e))
-            notify("Login Error", f"Error during login: {e}. Check your credentials.", "error")
+            logger.error(f"❌ ERROR INESPERADO en proceso de login: {e}")
+            logger.error(f"Tipo de error: {type(e).__name__}")
             raise AuthenticationError(
-                f"Login process failed: {e}",
-                context={"username": username}
+                "Login process failed unexpectedly",
+                context={"username": username, "error": str(e)}
             ) from e
 
     def _wait_for_page_load(self, page: Page, timeout: int = 60_000) -> None:
         """Wait for page to load completely with timeout handling."""
-        logger.info("⏳ Waiting for page load", timeout=timeout)
+        logger.info(f"⏳ Waiting for page load - timeout: {timeout}ms")
         try:
             page.wait_for_load_state("domcontentloaded", timeout=timeout)
             page.wait_for_load_state("networkidle", timeout=timeout)
             # Additional wait to ensure page is completely loaded
             page.wait_for_timeout(2000)
-            logger.success("✅ Page loaded successfully")
+            logger.info("✅ Page loaded successfully")
         except Exception as e:
-            logger.warning(f"Page took time to load: {e}. Continuing...", error=str(e))
+            logger.warning(f"Page took time to load: {e}. Continuing... - error: {str(e)}")
 
 
 class FileSessionStorage:

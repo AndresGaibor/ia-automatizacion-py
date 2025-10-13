@@ -5,26 +5,15 @@ import os
 import sys
 from pathlib import Path
 
-# Agregar el directorio raíz al path cuando se ejecuta directamente
-if __name__ == "__main__":
-    # Obtener el directorio raíz del proyecto (padre de src)
-    current_dir = Path(__file__).parent
-    root_dir = current_dir.parent
-    sys.path.insert(0, str(root_dir))
+# Configurar package para imports consistentes y PyInstaller compatibility
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    __package__ = "src"
 
-# Imports que funcionan tanto ejecutando directamente como módulo
-try:
-    # Cuando se ejecuta como módulo del paquete
-    from .utils import data_path, notify
-    from .infrastructure.api import API
-    from .logger import get_logger
-    from .excel_helper import ExcelHelper
-except ImportError:
-    # Cuando se ejecuta directamente
-    from src.utils import data_path
-    from src.infrastructure.api import API
-    from src.logger import get_logger
-    from src.excel_helper import ExcelHelper
+from .utils import data_path, notify
+from .infrastructure.api import API
+from .logger import get_logger
+from .excel_helper import ExcelHelper
 
 # Rutas
 ARCHIVO_BUSQUEDA = data_path("Busqueda_Listas.xlsx")

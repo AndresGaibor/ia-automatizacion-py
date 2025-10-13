@@ -1,4 +1,5 @@
 """Browser management and automation utilities."""
+import logging
 import os
 import sys
 from pathlib import Path

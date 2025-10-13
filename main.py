@@ -5,7 +5,12 @@ Lista ID: 1168867 (Prueba_SEGMENTOS)
 """
 
 import sys
-sys.path.insert(0, '.')
+from pathlib import Path
+
+# Configurar package para imports consistentes y PyInstaller compatibility
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve()))
+    __package__ = "main_root"
 
 from src.infrastructure.api import API
 from src.infrastructure.api.models.suscriptores import ListSummary

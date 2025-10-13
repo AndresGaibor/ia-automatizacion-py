@@ -352,57 +352,81 @@ def run_obtener_suscriptores(btn):
 
 def run_crear_lista(btn):
     """
-    Nueva implementación mejorada que:
+    Implementación con scraping que:
     1. Permite seleccionar archivo Excel
-    2. Automáticamente usa la hoja "Datos"
-    3. Nombre de lista = nombre del archivo
-    4. Valida diferencias con hoja "Cambios"
-    5. Sube automáticamente sin pedir confirmación
+    2. Permite seleccionar una o múltiples hojas
+    3. Sube lista(s) completa(s) mediante web scraping
+    4. Mapea todos los campos automáticamente
     """
-    logger.info("🚀 Iniciando proceso de creación de lista")
+    logger.info("🚀 Iniciando proceso de creación de lista(s) con scraping")
+
+    # Validar configuración ANTES de continuar
+    if not check_config_or_show_dialog(root):
+        logger.warning("❌ Configuración no válida, cancelando proceso")
+        return
+
+    # Importar módulo para obtener hojas
+    import src.crear_lista_scraping as m
+    archivo_excel = data_path("Listas.xlsx")
+
+    # Verificar que existe el archivo
+    if not os.path.exists(archivo_excel):
+        logger.error(f"❌ Archivo no encontrado: {archivo_excel}")
+        messagebox.showerror("Error", f"Archivo no encontrado: Listas.xlsx\nDebes crear el archivo en la carpeta data/")
+        return
+
+    # Obtener hojas disponibles
+    try:
+        hojas = m.listar_hojas(archivo_excel)
+        if not hojas:
+            logger.error("❌ No hay hojas en el archivo")
+            messagebox.showerror("Error", "El archivo Listas.xlsx no contiene hojas")
+            return
+    except Exception as e:
+        logger.error(f"❌ Error leyendo hojas: {e}", error=str(e))
+        messagebox.showerror("Error", f"No se pudieron leer las hojas del archivo: {e}")
+        return
+
+    # Mostrar diálogo para seleccionar hoja(s) (en el hilo principal)
+    # Permitir selección múltiple
+    hojas_seleccionadas = m.seleccionar_hoja_tk(archivo_excel, master=root, multiple=True)
+    if not hojas_seleccionadas:
+        logger.info("↩️ Cancelado por el usuario - no se seleccionaron hojas")
+        return
+
+    # Convertir a lista si es un solo elemento
+    if isinstance(hojas_seleccionadas, str):
+        hojas_seleccionadas = [hojas_seleccionadas]
+
+    logger.info(f"📄 Hojas seleccionadas: {len(hojas_seleccionadas)}")
+    for i, hoja in enumerate(hojas_seleccionadas, 1):
+        logger.info(f"   {i}. {hoja}")
+
+    # Ahora sí, ejecutar en worker thread
     def worker():
         try:
-            # Validar configuración con diálogo automático
-            if not check_config_or_show_dialog(root):
-                logger.warning("❌ Configuración no válida, cancelando proceso")
-                return
-            
-            # Verificar que hay configuración de lista
-            logger.info("🔍 Validando configuración de lista")
-            config = load_config()
-            lista_config = config.get('lista', {})
-            if not lista_config.get('sender_email') or lista_config.get('sender_email') == 'usuario@correo.com':
-                logger.error("❌ Configuración de lista incompleta", sender_email=lista_config.get('sender_email'))
-                root.after(0, lambda: notify("Error de Configuración", 
-                    "Error: Falta configurar los datos de la lista (sender_email, company, etc.) en config.yaml", "error"))
-                return
-            
             # Mostrar información previa
-            logger.info("📤 Preparando subida de lista de suscriptores")
-            root.after(0, lambda: notify("Iniciando", "Preparando subida de lista de suscriptores", "info"))
-            
-            # Mostrar contador (estimado 2-5 minutos dependiendo del tamaño del archivo)
-            # root.after(0, lambda: mostrar_contador_progreso("Subiendo Lista", 180))  # 3 minutos estimado
-            # root.after(0, lambda: actualizar_progreso("Seleccionando archivo Excel"))
-            
-            logger.info("📥 Importando módulo crear_lista_mejorado")
-            import src.crear_lista_mejorado as m
-            importlib.reload(m)
-            
-            # root.after(0, lambda: actualizar_progreso("Validando datos y subiendo a Acumbamail"))
-            # Ejecutar creación automática
-            logger.info("⚙️ Ejecutando función principal de creación de lista")
-            m.main_automatico()
-            
-            # root.after(0, lambda: cerrar_contador_progreso())
-            logger.success("✅ Creación de lista completada exitosamente")
-            root.after(0, lambda: notify("Completado", "Lista de suscriptores subida con éxito", "info"))
-            
+            if len(hojas_seleccionadas) == 1:
+                logger.info("📤 Preparando subida de lista de suscriptores con scraping")
+                root.after(0, lambda: notify("Iniciando", f"Subiendo lista '{hojas_seleccionadas[0]}'", "info"))
+            else:
+                logger.info(f"📤 Preparando subida múltiple de {len(hojas_seleccionadas)} listas con scraping")
+                root.after(0, lambda: notify("Iniciando", f"Subiendo {len(hojas_seleccionadas)} listas", "info"))
+
+            # Ejecutar creación con scraping pasando las hojas seleccionadas
+            logger.info("⚙️ Ejecutando función principal de creación de lista(s) con scraping")
+            m.main(nombre_hoja=hojas_seleccionadas, archivo_excel=archivo_excel, multiple=True)
+
+            logger.success("✅ Creación de lista(s) con scraping completada exitosamente")
+            if len(hojas_seleccionadas) == 1:
+                root.after(0, lambda: notify("Completado", "Lista de suscriptores subida con éxito", "info"))
+            else:
+                root.after(0, lambda: notify("Completado", f"{len(hojas_seleccionadas)} listas procesadas", "info"))
+
         except Exception as e:
             error_msg = str(e)
-            logger.error(f"❌ Error al crear lista: {error_msg}", error=error_msg)
-            # root.after(0, lambda: cerrar_contador_progreso())
-            root.after(0, lambda: notify("Error", f"Error al crear lista: {error_msg}", "error"))
+            logger.error(f"❌ Error al crear lista(s): {error_msg}", error=error_msg)
+            root.after(0, lambda: notify("Error", f"Error al crear lista(s): {error_msg}", "error"))
         finally:
             logger.info("🔄 Restaurando estado de la interfaz")
             root.after(0, lambda: btn.config(state=tk.NORMAL))
@@ -410,7 +434,7 @@ def run_crear_lista(btn):
 
     btn.config(state=tk.DISABLED)
     root.config(cursor="watch")
-    logger.info("🧵 Iniciando hilo de trabajo para creación de lista")
+    logger.info("🧵 Iniciando hilo de trabajo para creación de lista(s) con scraping")
     threading.Thread(target=worker, daemon=True).start()
 
 def run_obtener_listas(btn):
@@ -712,11 +736,38 @@ if __name__ == "__main__":
     root = tk.Tk()
     root.title("Automatización Acumbamail")
     root.geometry("450x700")
-    
+
     logger.success("✅ Aplicación iniciada exitosamente, mostrando interfaz")
 
+    # Crear canvas y scrollbar para scroll vertical
+    main_canvas = tk.Canvas(root, highlightthickness=0)
+    scrollbar = tk.Scrollbar(root, orient="vertical", command=main_canvas.yview)
+    scrollable_frame = tk.Frame(main_canvas)
+
+    # Configurar el canvas para que actualice el scroll region cuando cambie el tamaño del frame
+    scrollable_frame.bind(
+        "<Configure>",
+        lambda e: main_canvas.configure(scrollregion=main_canvas.bbox("all"))
+    )
+
+    # Crear una ventana en el canvas para el frame scrollable
+    main_canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+    main_canvas.configure(yscrollcommand=scrollbar.set)
+
+    # Empaquetar canvas y scrollbar
+    main_canvas.pack(side="left", fill="both", expand=True)
+    scrollbar.pack(side="right", fill="y")
+
+    # Configurar scroll con la rueda del mouse
+    def _on_mousewheel(event):
+        main_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+    main_canvas.bind_all("<MouseWheel>", _on_mousewheel)  # Windows/MacOS
+    main_canvas.bind_all("<Button-4>", lambda e: main_canvas.yview_scroll(-1, "units"))  # Linux scroll up
+    main_canvas.bind_all("<Button-5>", lambda e: main_canvas.yview_scroll(1, "units"))  # Linux scroll down
+
     # === SECCIÓN CAMPAÑAS ===
-    frame_campanias = tk.LabelFrame(root, text="Campañas", font=("Arial", 12, "bold"), pady=5)
+    frame_campanias = tk.LabelFrame(scrollable_frame, text="Campañas", font=("Arial", 12, "bold"), pady=5)
     frame_campanias.pack(pady=12, fill="x", padx=25)
 
     btn_listar = tk.Button(frame_campanias, text="Listar campañas", font=("Arial", 14), height=2, command=lambda: run_listar_campanias(btn_listar))
@@ -726,7 +777,7 @@ if __name__ == "__main__":
     btn_obtener.pack(pady=8, fill="x", padx=15)
 
     # === SECCIÓN LISTAS ===
-    frame_listas = tk.LabelFrame(root, text="Listas", font=("Arial", 12, "bold"), pady=5)
+    frame_listas = tk.LabelFrame(scrollable_frame, text="Listas", font=("Arial", 12, "bold"), pady=5)
     frame_listas.pack(pady=12, fill="x", padx=25)
     
     def on_click_obtener_listas():
@@ -756,14 +807,14 @@ if __name__ == "__main__":
     btn_eliminar = tk.Button(frame_listas, text="Eliminar listas marcadas", font=("Arial", 14), height=2, command=lambda: run_eliminar_listas(btn_eliminar), bg="#F44336", fg="white")
     btn_eliminar.pack(pady=8, fill="x", padx=15)
     
-    btn_crear = tk.Button(frame_listas, text="Subir lista de suscriptores", font=("Arial", 14), height=2, command=lambda: run_crear_lista(btn_crear))
+    btn_crear = tk.Button(frame_listas, text="Subir lista(s) de suscriptores", font=("Arial", 14), height=2, command=lambda: run_crear_lista(btn_crear))
     btn_crear.pack(pady=8, fill="x", padx=15)
 
     btn_mapear = tk.Button(frame_listas, text="Procesar segmentos", font=("Arial", 14), height=2, command=lambda: run_mapear_segmentos(btn_mapear))
     btn_mapear.pack(pady=8, fill="x", padx=15)
 
     # === CONFIGURACIÓN ===
-    frame_config = tk.LabelFrame(root, text="Configuración", font=("Arial", 12, "bold"), pady=5)
+    frame_config = tk.LabelFrame(scrollable_frame, text="Configuración", font=("Arial", 12, "bold"), pady=5)
     frame_config.pack(pady=12, fill="x", padx=25)
 
     btn_config = tk.Button(frame_config, text="⚙️ Configurar Credenciales", font=("Arial", 14), height=2,

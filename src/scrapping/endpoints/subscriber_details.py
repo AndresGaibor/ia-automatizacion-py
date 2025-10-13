@@ -2,6 +2,7 @@
 Endpoint para scraping de detalles de suscriptores
 Contiene la lógica extraída de demo.py con mejores prácticas aplicadas
 """
+import logging
 from playwright.sync_api import Page, TimeoutError as PWTimeoutError
 from typing import List, Optional
 import time
@@ -54,29 +55,67 @@ class SubscriberDetailsService:
         """
         with log_operation("navegacion_detalles_suscriptores", campaign_id=campaign_id):
             try:
-                url_base = self.config.get("url_base", "")
-                # Navegar directamente con el filtro aplicado (la página ignora items_per_page en URL)
-                url = f"{url_base}/report/campaign/{campaign_id}/subscribers/?filter_index={filter_index}"
+                logging.info(f"🔍 Iniciando navegación a detalles de suscriptores - Campaña: {campaign_id}, Filtro: {filter_index}")
 
-                log_browser_action("navegacion_con_filtro", url, campaign_id=campaign_id, filter_index=filter_index)
-                # Usar navegación con timeout configurado
-                self.page.goto(url, timeout=self.timeouts['navigation'])
+                # Paso 1: Construir URL
+                logging.info("📌 Paso 1: Construyendo URL de navegación")
+                try:
+                    url_base = self.config.get("url_base", "")
+                    url = f"{url_base}/report/campaign/{campaign_id}/subscribers/?filter_index={filter_index}"
+                    logging.debug(f"✅ URL construida: {url}")
+                except Exception as e:
+                    logging.error(f"❌ ERROR PASO 1 - Construyendo URL: {e}")
+                    raise Exception(f"Error construyendo URL para campaña {campaign_id}: {e}")
 
-                # Esperar a que la página esté cargada (domcontentloaded es más rápido que networkidle)
-                self.page.wait_for_load_state("domcontentloaded", timeout=self.timeouts['page_load'])
+                # Paso 2: Navegar a la página
+                logging.info("📌 Paso 2: Navegando a la página de detalles")
+                try:
+                    logging.debug(f"🌐 Iniciando navegación con timeout: {self.timeouts['navigation']}ms")
+                    log_browser_action("navegacion_con_filtro", url, campaign_id=campaign_id, filter_index=filter_index)
 
-                log_success("Navegación completada con filtro aplicado", campaign_id=campaign_id, filter_index=filter_index, url=url)
+                    # Usar navegación con timeout configurado
+                    self.page.goto(url, timeout=self.timeouts['navigation'])
+                    logging.debug("✅ Navegación iniciada correctamente")
+                except PWTimeoutError as e:
+                    logging.error(f"❌ ERROR PASO 2 - Timeout en navegación: {e}")
+                    logging.error(f"⏱️ Timeout configurado: {self.timeouts['navigation']}ms")
+                    logging.error(f"🌐 URL intentada: {url}")
+                    raise Exception(f"Campaña {campaign_id} no existe o no está disponible: timeout navegando ({self.timeouts['navigation']}ms)")
+                except Exception as e:
+                    logging.error(f"❌ ERROR PASO 2 - Error en navegación: {e}")
+                    logging.error(f"🌐 URL intentada: {url}")
+                    raise Exception(f"Error navegando a campaña {campaign_id}: {e}")
+
+                # Paso 3: Esperar carga completa de la página
+                logging.info("📌 Paso 3: Esperando carga completa de la página")
+                try:
+                    logging.debug(f"⏳ Esperando estado 'domcontentloaded' con timeout: {self.timeouts['page_load']}ms")
+                    self.page.wait_for_load_state("domcontentloaded", timeout=self.timeouts['page_load'])
+                    logging.debug("✅ Página cargada completamente (domcontentloaded)")
+                except PWTimeoutError as e:
+                    logging.error(f"❌ ERROR PASO 3 - Timeout esperando carga de página: {e}")
+                    logging.error(f"⏱️ Timeout configurado: {self.timeouts['page_load']}ms")
+                    logging.error(f"🌐 URL actual: {self.page.url}")
+                    # La navegación pudo funcionar pero la página está tardando en cargar
+                    logging.warning("⚠️ Continuando a pesar del timeout de carga")
+                except Exception as e:
+                    logging.error(f"❌ ERROR PASO 3 - Error esperando carga de página: {e}")
+                    logging.warning("⚠️ Continuando a pesar del error en espera de carga")
+
+                logging.success(f"✅ Navegación completada exitosamente - Campaña: {campaign_id}, Filtro: {filter_index}")
+                logging.debug(f"🌐 URL final: {self.page.url}")
+                log_success("Navegación completada con filtro aplicado", campaign_id=campaign_id, filter_index=filter_index, url=self.page.url)
                 return True
 
             except PWTimeoutError as e:
+                logging.error(f"❌ ERROR CRÍTICO - PWTimeoutError no manejado: {e}")
                 log_error("Timeout navegando a detalles de suscriptores",
                          campaign_id=campaign_id, timeout_ms=self.timeouts['navigation'], error=str(e))
-                # Los timeouts generalmente indican que la página no existe
                 raise Exception(f"Campaña {campaign_id} no existe o no está disponible: timeout navegando")
             except Exception as e:
+                logging.error(f"❌ ERROR CRÍTICO - Error no manejado: {e}")
                 log_error("Error navegando a detalles de suscriptores",
                          campaign_id=campaign_id, error_type=type(e).__name__, error=str(e))
-                # Otros errores de navegación también indican problemas críticos
                 raise Exception(f"Campaña {campaign_id} no disponible: {e}")
 
     def _get_total_from_page(self) -> Optional[int]:
@@ -117,34 +156,100 @@ class SubscriberDetailsService:
         Extrae datos de suscriptores de la tabla actual de forma optimizada.
         """
         try:
-            log_info("Iniciando extracción de datos de tabla", expected_columns=expected_columns)
+            logging.info(f"🔍 Iniciando extracción de datos de tabla - Columnas esperadas: {expected_columns}")
+            logging.debug(f"🌐 URL actual: {self.page.url}")
 
-            # Esperar a que la página esté lista (domcontentloaded es más rápido que networkidle)
-            self.page.wait_for_load_state("domcontentloaded", timeout=30000)
+            # Paso 1: Esperar a que la página esté lista
+            logging.info("📌 Paso 1: Verificando que la página esté lista para extracción")
+            try:
+                logging.debug("⏳ Esperando estado 'domcontentloaded' con timeout: 30000ms")
+                self.page.wait_for_load_state("domcontentloaded", timeout=30000)
+                logging.debug("✅ Página lista para extracción")
+            except PWTimeoutError as e:
+                logging.warning(f"⚠️ TIMEOUT esperando página lista - Continuando: {e}")
+                logging.warning("⏱️ La página podría estar cargando lentamente, intentando extracción de todas formas")
+            except Exception as e:
+                logging.warning(f"⚠️ Error esperando página lista - Continuando: {e}")
 
-            # Localizador más específico usando la estructura conocida de la tabla
-            # Buscar la lista de suscriptores (ul que contiene los li con datos)
-            tabla_locator = self.page.locator('ul').filter(
-                has=self.page.locator("li", has_text="Correo electrónico")
-            )
+            # Paso 2: Localizar la tabla de suscriptores
+            logging.info("📌 Paso 2: Localizando tabla de suscriptores")
+            tabla_locator = None
+            filas = None
+            try:
+                logging.debug("🔍 Buscando tabla con estructura: ul > li (con 'Correo electrónico')")
 
-            if tabla_locator.count() == 0:
-                log_warning("No se encontró tabla de suscriptores")
+                # Localizador más específico usando la estructura conocida de la tabla
+                tabla_locator = self.page.locator('ul').filter(
+                    has=self.page.locator("li", has_text="Correo electrónico")
+                )
+
+                tabla_count = tabla_locator.count()
+                logging.debug(f"🔍 Tablas encontradas: {tabla_count}")
+
+                if tabla_count == 0:
+                    logging.error("❌ ERROR PASO 2 - No se encontró tabla de suscriptores")
+                    logging.debug("🔍 Intentando selectores alternativos...")
+
+                    # Intentar selectores alternativos
+                    try:
+                        alternative_locator = self.page.locator('ul:has(li:has-text("Correo electrónico"))')
+                        if alternative_locator.count() > 0:
+                            tabla_locator = alternative_locator
+                            logging.debug("✅ Selector alternativo funcionó")
+                        else:
+                            logging.error("❌ Selectores alternativos también fallaron")
+                            log_warning("No se encontró tabla de suscriptores con ningún selector")
+                            return []
+                    except Exception as alt_e:
+                        logging.error(f"❌ Error con selectores alternativos: {alt_e}")
+                        log_warning("No se encontró tabla de suscriptores")
+                        return []
+                else:
+                    logging.debug("✅ Tabla localizada exitosamente")
+
+                # Obtener filas
+                filas = tabla_locator.locator('> li')
+                filas_total = filas.count()
+                logging.debug(f"✅ Total de filas encontradas: {filas_total}")
+
+                if filas_total <= 1:
+                    logging.warning("⚠️ Tabla encontrada pero sin datos (solo header)")
+                    return []
+
+            except PWTimeoutError as e:
+                logging.error(f"❌ ERROR PASO 2 - Timeout localizando tabla: {e}")
+                log_warning("Timeout localizando tabla de suscriptores")
+                return []
+            except Exception as e:
+                logging.error(f"❌ ERROR PASO 2 - Error localizando tabla: {e}")
+                log_warning("Error localizando tabla de suscriptores")
                 return []
 
-            filas = tabla_locator.locator('> li')
-            filas_total = filas.count()
-
+            # Paso 3: Procesar filas de datos
+            logging.info("📌 Paso 3: Procesando filas de datos")
             log_info("Tabla localizada", filas_totales=filas_total, expected_columns=expected_columns)
 
             suscriptores = []
+            filas_procesadas = 0
+            filas_exitosas = 0
+            filas_descartadas = 0
 
             # Empezar desde 1 para saltar el header (primera fila)
+            logging.debug(f"🔄 Procesando filas 1-{filas_total-1} (saltando header)")
             for fila_i in range(1, filas_total):
                 try:
+                    filas_procesadas += 1
+                    logging.debug(f"📝 Procesando fila {fila_i}/{filas_total-1}")
+
                     # Obtener todos los divs de la fila
-                    campos = filas.nth(fila_i).locator("> div, > a")
-                    campos_disponibles = campos.count()
+                    try:
+                        campos = filas.nth(fila_i).locator("> div, > a")
+                        campos_disponibles = campos.count()
+                        logging.debug(f"   📋 Campos encontrados en fila: {campos_disponibles}")
+                    except Exception as e:
+                        logging.warning(f"   ⚠️ Error obteniendo campos de fila {fila_i}: {e}")
+                        filas_descartadas += 1
+                        continue
 
                     # Extraer textos de los primeros expected_columns elementos
                     campos_arr = []
@@ -152,27 +257,62 @@ class SubscriberDetailsService:
                         try:
                             campo_text = campos.nth(i).inner_text().strip()
                             campos_arr.append(campo_text)
-                        except Exception:
+                            logging.debug(f"   📄 Campo {i}: '{campo_text}'")
+                        except Exception as e:
+                            logging.warning(f"   ⚠️ Error extrayendo campo {i} de fila {fila_i}: {e}")
                             campos_arr.append("")
 
                     # Completar con vacíos si faltan
                     while len(campos_arr) < expected_columns:
                         campos_arr.append("")
+                        logging.debug(f"   ➕ Agregando campo vacío para completar {expected_columns} columnas")
 
-                    # Agregar solo si tiene al menos un campo no vacío
-                    if any(campo.strip() for campo in campos_arr):
+                    # Verificar si la fila tiene datos válidos
+                    tiene_datos = any(campo.strip() for campo in campos_arr)
+                    email_valido = campos_arr[0].strip() if campos_arr else False
+
+                    if tiene_datos and email_valido:
                         suscriptores.append(campos_arr)
+                        filas_exitosas += 1
+                        logging.debug(f"   ✅ Fila {fila_i} agregada (email: '{campos_arr[0]}')")
+                    else:
+                        filas_descartadas += 1
+                        logging.debug(f"   ❌ Fila {fila_i} descartada (tiene_datos: {tiene_datos}, email_valido: {email_valido})")
 
+                except PWTimeoutError as e:
+                    logging.warning(f"⚠️ TIMEOUT extrayendo fila {fila_i}: {e}")
+                    filas_descartadas += 1
+                    continue
                 except Exception as e:
-                    log_warning(f"Error extrayendo fila {fila_i}",
-                              fila_index=fila_i, error_type=type(e).__name__, error=str(e))
+                    logging.warning(f"⚠️ Error extrayendo fila {fila_i}: {e}")
+                    filas_descartadas += 1
                     continue
 
+            # Paso 4: Resumen de extracción
+            logging.info("📌 Paso 4: Resumen de extracción completada")
+            logging.info(f"📊 Resultados de extracción:")
+            logging.info(f"   • Total filas procesadas: {filas_procesadas}")
+            logging.info(f"   • Filas exitosas: {filas_exitosas}")
+            logging.info(f"   • Filas descartadas: {filas_descartadas}")
+            logging.info(f"   • Suscriptores extraídos: {len(suscriptores)}")
+
             log_data_extraction("suscriptores", len(suscriptores), "scraping_table",
-                              filas_procesadas=filas_total-1, filas_exitosas=len(suscriptores))
+                              filas_procesadas=filas_procesadas, filas_exitosas=filas_exitosas, filas_descartadas=filas_descartadas)
+
+            if suscriptores:
+                logging.success(f"✅ Extracción completada exitosamente - {len(suscriptores)} suscriptores")
+            else:
+                logging.warning("⚠️ Extracción completada pero no se encontraron suscriptores")
+
             return suscriptores
 
+        except PWTimeoutError as e:
+            logging.error(f"❌ ERROR CRÍTICO - PWTimeoutError en extracción de tabla: {e}")
+            log_error("Timeout extrayendo suscriptores de tabla",
+                     expected_columns=expected_columns, error_type="PWTimeoutError", error=str(e))
+            return []
         except Exception as e:
+            logging.error(f"❌ ERROR CRÍTICO - Error en extracción de tabla: {e}")
             log_error("Error extrayendo suscriptores de tabla",
                      expected_columns=expected_columns, error_type=type(e).__name__, error=str(e))
             return []

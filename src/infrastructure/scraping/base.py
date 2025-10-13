@@ -7,7 +7,9 @@ from pathlib import Path
 import time
 from dataclasses import dataclass
 
-from ..logger import logger
+from src.shared.logging.logger import get_logger
+
+logger = get_logger()
 
 
 @dataclass

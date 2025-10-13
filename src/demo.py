@@ -1,65 +1,38 @@
-from .infrastructure.api.models.campanias import CampaignBasicInfo
 import csv
+import logging
 from pathlib import Path
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, TimeoutError as PWTimeoutError
 from datetime import datetime
 from typing import List
 
-try:
-    # Intentar imports relativos (cuando se ejecuta como módulo)
-    from .excel_utils import agregar_datos, crear_hoja_con_datos, obtener_o_crear_hoja
-    from .shared.utils.legacy_utils import cargar_campanias_a_buscar, crear_contexto_navegador, configurar_navegador, load_config, data_path, notify
-    from .shared.logging.logger import get_logger
-    from .structured_logger import log_success, log_error, log_warning, log_info, log_performance, log_data_extraction
-    from .hybrid_service import HybridDataService
-    # Campaign URLs functionality will be handled by existing infrastructure
-    # Legacy authentication wrapper
-    from .core.authentication.authentication_service import AuthenticationService
-    from .core.config.config_manager import ConfigManager
-    from .shared.utils.legacy_utils import storage_state_path
-
-    class FileSessionStorage:
-        def __init__(self, session_path: str):
-            self.session_path = session_path
-        def save_session(self, context):
-            context.storage_state(path=self.session_path)
-        def get_session_path(self) -> str:
-            return self.session_path
-
-    def login(page, context):
-        config_manager = ConfigManager()
-        session_storage = FileSessionStorage(storage_state_path())
-        auth_service = AuthenticationService(config_manager, session_storage)
-        return auth_service.authenticate(page, context)
-
-except ImportError:
-    # Imports absolutos (cuando se ejecuta como script independiente)
+# Configurar package para imports consistentes y PyInstaller compatibility
+if __package__ in (None, ""):
     import sys
-    import os
-    sys.path.insert(0, os.path.dirname(__file__))
-    from excel_utils import agregar_datos, crear_hoja_con_datos, obtener_o_crear_hoja
-    from shared.utils.legacy_utils import cargar_campanias_a_buscar, crear_contexto_navegador, configurar_navegador, load_config, data_path, notify
-    from structured_logger import log_success, log_error, log_warning, log_info, log_data_extraction
-    from hybrid_service import HybridDataService
-    # Campaign URLs functionality will be handled by existing infrastructure
-    # Legacy authentication wrapper
-    from core.authentication.authentication_service import AuthenticationService
-    from core.config.config_manager import ConfigManager
-    from shared.utils.legacy_utils import storage_state_path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    __package__ = "src"
 
-    class FileSessionStorage:
-        def __init__(self, session_path: str):
-            self.session_path = session_path
-        def save_session(self, context):
-            context.storage_state(path=self.session_path)
-        def get_session_path(self) -> str:
-            return self.session_path
+from .infrastructure.api.models.campanias import CampaignBasicInfo
+from .excel_utils import agregar_datos, crear_hoja_con_datos, obtener_o_crear_hoja
+from .shared.utils.legacy_utils import cargar_campanias_a_buscar, crear_contexto_navegador, configurar_navegador, load_config, data_path, notify, storage_state_path
+from .shared.logging.logger import get_logger
+from .structured_logger import log_success, log_error, log_warning, log_info, log_performance, log_data_extraction
+from .hybrid_service import HybridDataService
+from .core.authentication.authentication_service import AuthenticationService
+from .core.config.config_manager import ConfigManager
 
-    def login(page, context):
-        config_manager = ConfigManager()
-        session_storage = FileSessionStorage(storage_state_path())
-        auth_service = AuthenticationService(config_manager, session_storage)
-        return auth_service.authenticate(page, context)
+class FileSessionStorage:
+    def __init__(self, session_path: str):
+        self.session_path = session_path
+    def save_session(self, context):
+        context.storage_state(path=self.session_path)
+    def get_session_path(self) -> str:
+        return self.session_path
+
+def login(page, context):
+    config_manager = ConfigManager()
+    session_storage = FileSessionStorage(storage_state_path())
+    auth_service = AuthenticationService(config_manager, session_storage)
+    return auth_service.authenticate(page, context)
 
 from openpyxl import Workbook
 import re
@@ -205,21 +178,37 @@ def get_campaign_urls_with_fallback(page, campaign_id: int) -> str:
 	Obtiene la URL del correo de una campaña mediante scraping.
 	Extrae la URL del botón "Ver email" que enlaza a clickacm.com
 	"""
-	from src.shared.logging.logger import get_logger
+	from .shared.logging.logger import get_logger
 	logger = get_logger()
 
 	try:
 		logger.start_timer(f"scraping_email_url_campaign_{campaign_id}")
-		logger.info(f"📧 Extrayendo URL del correo de la campaña {campaign_id}")
+		logging.info(f"📧 Extrayendo URL del correo de la campaña {campaign_id}")
 
-		# Navegar a la página de reportes de la campaña (donde está el botón "Ver email")
-		report_page = f"https://acumbamail.com/report/campaign/{campaign_id}/"
-		page.goto(report_page, wait_until="networkidle")
-		logger.debug(f"   Navegado a: {report_page}")
+		# Paso 1: Navegar a la página de reportes
+		logging.debug("📌 Paso 1: Navegando a página de reportes de la campaña")
+		try:
+			report_page = f"https://acumbamail.com/report/campaign/{campaign_id}/"
+			logging.debug(f"🌐 Navegando a: {report_page}")
 
-		# Esperar a que la página cargue completamente
-		page.wait_for_load_state("domcontentloaded")
-		page.wait_for_timeout(1000)
+			page.goto(report_page, wait_until="networkidle", timeout=60000)
+			logger.debug(f"   Navegado a: {report_page}")
+			logging.debug("✅ Navegación a reportes completada")
+
+			# Esperar a que la página cargue completamente
+			page.wait_for_load_state("domcontentloaded", timeout=30000)
+			page.wait_for_timeout(1000)
+			logging.debug("✅ Página completamente cargada")
+
+		except PWTimeoutError as e:
+			logging.error(f"❌ ERROR PASO 1 - Timeout navegando a reportes: {e}")
+			logging.error(f"⏱️ URL intentada: {report_page}")
+			logger.end_timer(f"scraping_email_url_campaign_{campaign_id}", f"Timeout: {e}")
+			return ""
+		except Exception as e:
+			logging.error(f"❌ ERROR PASO 1 - Error navegando a reportes: {e}")
+			logger.end_timer(f"scraping_email_url_campaign_{campaign_id}", f"Error: {e}")
+			return ""
 
 		# Buscar el enlace "Ver email" que contiene la URL de clickacm.com
 		import re
@@ -321,7 +310,7 @@ def obtener_lista_suscriptor(email: str, mapa_email_lista: dict[str, str]) -> st
 	return mapa_email_lista.get(email_clean, "Lista no encontrada")
 
 def generar_general(campania: CampaignBasicInfo, campania_complete, campaign_clics, todas_listas, page, campaign_id=None) -> list[str]:
-	from .logger import get_logger
+	from .shared.logging.logger import get_logger
 	logger = get_logger()
 	
 	logger.debug("🚀 Iniciando generación de datos generales para campaña")

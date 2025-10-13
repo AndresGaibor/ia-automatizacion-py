@@ -1,13 +1,15 @@
 import unicodedata
 from urllib.parse import urlparse  # <-- añadido
+from pathlib import Path
+import sys
 
-try:
-    from .logger import get_logger
-    logger = get_logger()
-except ImportError:
-    # Fallback si no se puede importar logger
-    import logging
-    logger = logging.getLogger(__name__)
+# Configurar package para imports consistentes y PyInstaller compatibility
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    __package__ = "src"
+
+from .logger import get_logger
+logger = get_logger()
 
 # Mapa oficial value -> etiqueta (según tu <select>)
 VALUE_TO_LABEL = {

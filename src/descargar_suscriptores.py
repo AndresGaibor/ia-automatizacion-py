@@ -6,6 +6,13 @@ import os
 import pandas as pd
 from typing import List, Dict, Tuple
 import re
+from pathlib import Path
+import sys
+
+# Configurar package para imports consistentes y PyInstaller compatibility
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    __package__ = "src"
 
 from .utils import data_path, load_config, crear_contexto_navegador, configurar_navegador, obtener_total_paginas, navegar_siguiente_pagina
 from .autentificacion import login

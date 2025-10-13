@@ -1,11 +1,15 @@
+import sys
+from pathlib import Path
 from openpyxl import Workbook, load_workbook
 from openpyxl.worksheet.worksheet import Worksheet
 from typing import Optional
 
-try:
-    from .logger import get_logger
-except ImportError:
-    from src.logger import get_logger
+# Configurar package para imports consistentes y PyInstaller compatibility
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    __package__ = "src"
+
+from .logger import get_logger
 
 logger = get_logger()
 

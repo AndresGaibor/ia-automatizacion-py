@@ -245,3 +245,164 @@ class ListElementInfo(BaseModel):
                 "extraction_successful": True
             }
         }
+
+
+# ==============================================================================
+# Modelos para SUBIDA/CREACIÓN de listas
+# ==============================================================================
+
+class ListUploadColumn(BaseModel):
+    """Información de una columna del archivo a subir"""
+    index: int = Field(..., description="Índice de la columna")
+    name: str = Field(..., description="Nombre de la columna")
+    field_type: str = Field("Texto", description="Tipo de campo detectado")
+    sample_value: str = Field("", description="Valor de ejemplo")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "index": 2,
+                "name": "Nombre",
+                "field_type": "Texto",
+                "sample_value": "Juan Pérez"
+            }
+        }
+
+
+class ListUploadConfig(BaseModel):
+    """Configuración para subida de lista"""
+    nombre_lista: str = Field(..., description="Nombre de la lista a crear")
+    archivo_path: str = Field(..., description="Ruta del archivo Excel/CSV")
+    hoja_nombre: str = Field(..., description="Nombre de la hoja a usar")
+    columnas: List[ListUploadColumn] = Field(default_factory=list, description="Columnas a mapear")
+
+    # Configuraciones opcionales
+    timeout_seconds: int = Field(60, description="Timeout para operaciones")
+    wait_time_ms: int = Field(2000, description="Tiempo de espera entre acciones")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "nombre_lista": "Lista Promocional 2024",
+                "archivo_path": "/ruta/archivo.xlsx",
+                "hoja_nombre": "Datos",
+                "columnas": [],
+                "timeout_seconds": 60,
+                "wait_time_ms": 2000
+            }
+        }
+
+
+class ListUploadProgress(BaseModel):
+    """Progreso de subida de lista"""
+    stage: str = Field("iniciando", description="Etapa actual: iniciando, navegando, creando_lista, subiendo_archivo, mapeando_campos, finalizando")
+    current_column: int = Field(0, description="Columna actual siendo mapeada")
+    total_columns: int = Field(0, description="Total de columnas a mapear")
+    mensaje: str = Field("", description="Mensaje de progreso")
+    porcentaje: float = Field(0.0, description="Porcentaje de progreso (0-100)")
+
+    @property
+    def is_complete(self) -> bool:
+        """Indica si el proceso está completo"""
+        return self.stage == "finalizando" and self.porcentaje >= 100.0
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "stage": "mapeando_campos",
+                "current_column": 3,
+                "total_columns": 5,
+                "mensaje": "Mapeando columna 'Teléfono'",
+                "porcentaje": 60.0
+            }
+        }
+
+
+class ListUploadSession(BaseModel):
+    """Sesión de subida de lista"""
+    session_id: str = Field(..., description="ID único de la sesión")
+    started_at: datetime = Field(default_factory=datetime.now, description="Inicio de la sesión")
+    ended_at: Optional[datetime] = Field(None, description="Fin de la sesión")
+    config: ListUploadConfig = Field(..., description="Configuración de subida")
+    progress: ListUploadProgress = Field(default_factory=ListUploadProgress, description="Progreso actual")
+    errors_encountered: List[str] = Field(default_factory=list, description="Errores encontrados")
+    status: str = Field("active", description="Estado: active, completed, failed")
+
+    @property
+    def duration_seconds(self) -> Optional[float]:
+        """Duración de la sesión en segundos"""
+        if self.ended_at and self.started_at:
+            return (self.ended_at - self.started_at).total_seconds()
+        return None
+
+    def add_error(self, error_message: str) -> None:
+        """Agregar un error a la sesión"""
+        self.errors_encountered.append(f"{datetime.now().isoformat()}: {error_message}")
+        self.status = "failed"
+
+    def complete_session(self, success: bool = True) -> None:
+        """Marcar la sesión como completada"""
+        self.ended_at = datetime.now()
+        self.status = "completed" if success else "failed"
+        if success:
+            self.progress.stage = "finalizando"
+            self.progress.porcentaje = 100.0
+            self.progress.mensaje = "Subida completada exitosamente"
+
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat() if v else None
+        }
+        json_schema_extra = {
+            "example": {
+                "session_id": "list_upload_20240115_103000",
+                "config": {
+                    "nombre_lista": "Lista Test",
+                    "archivo_path": "/ruta/archivo.xlsx",
+                    "hoja_nombre": "Datos",
+                    "columnas": []
+                },
+                "status": "active"
+            }
+        }
+
+
+class ListUploadResult(BaseModel):
+    """Resultado de subida de lista"""
+    session_info: ListUploadSession = Field(..., description="Información de la sesión")
+    success: bool = Field(False, description="Subida exitosa")
+    list_created: bool = Field(False, description="Lista creada")
+    fields_mapped: int = Field(0, description="Campos mapeados exitosamente")
+    subscribers_uploaded: bool = Field(False, description="Suscriptores subidos")
+    error_message: Optional[str] = Field(None, description="Mensaje de error si falló")
+
+    @property
+    def summary(self) -> Dict[str, Any]:
+        """Resumen del resultado"""
+        return {
+            "success": self.success,
+            "list_created": self.list_created,
+            "fields_mapped": self.fields_mapped,
+            "subscribers_uploaded": self.subscribers_uploaded,
+            "duration_seconds": self.session_info.duration_seconds,
+            "errors_count": len(self.session_info.errors_encountered),
+            "error_message": self.error_message
+        }
+
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat() if v else None
+        }
+        json_schema_extra = {
+            "example": {
+                "session_info": {
+                    "session_id": "list_upload_20240115_103000",
+                    "status": "completed"
+                },
+                "success": True,
+                "list_created": True,
+                "fields_mapped": 5,
+                "subscribers_uploaded": True,
+                "error_message": None
+            }
+        }

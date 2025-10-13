@@ -8,6 +8,13 @@ import os
 import signal
 from collections import defaultdict, Counter
 
+# Configuración básica estándar de logging para toda la aplicación
+logging.basicConfig(
+    level=logging.DEBUG,  # Muestra mensajes desde DEBUG hacia arriba
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+
 class LogLevel(Enum):
     """Niveles de logging con severidad"""
     TRACE = 1    # Debugging detallado
@@ -467,16 +474,13 @@ class PerformanceLogger:
 
 def get_log_file_path() -> str:
     """Obtiene la ruta del archivo de log"""
-    try:
-        from .utils import data_path
-    except ImportError:
-        # Fallback for when imported directly
-        def data_path(name):
-            project_root = os.path.dirname(os.path.dirname(__file__))
-            data_dir = os.path.join(project_root, "data")
-            os.makedirs(data_dir, exist_ok=True)
-            return os.path.join(data_dir, name)
-    
+    # Fallback for when imported directly
+    def data_path(name):
+        project_root = os.path.dirname(os.path.dirname(__file__))
+        data_dir = os.path.join(project_root, "data")
+        os.makedirs(data_dir, exist_ok=True)
+        return os.path.join(data_dir, name)
+
     timestamp = datetime.now().strftime("%Y%m%d")
     return data_path(f"automation_{timestamp}.log")
 
@@ -497,10 +501,15 @@ def get_logger(verbose_level: int = 3) -> PerformanceLogger:
 def _cleanup_old_logs(max_days: int = 30):
     """Limpia logs antiguos para evitar acumulación"""
     try:
-        from .utils import data_path
         import glob
-        import os
         from datetime import datetime, timedelta
+
+        # Usar la misma función data_path local
+        def data_path(name):
+            project_root = os.path.dirname(os.path.dirname(__file__))
+            data_dir = os.path.join(project_root, "data")
+            os.makedirs(data_dir, exist_ok=True)
+            return os.path.join(data_dir, name)
 
         data_dir = os.path.dirname(data_path("dummy"))
         log_pattern = os.path.join(data_dir, "automation_*.log")
@@ -527,8 +536,6 @@ def _cleanup_old_logs(max_days: int = 30):
                 except (OSError, ValueError):
                     pass
 
-    except ImportError:
-        pass  # Fallback si no se puede importar utils
     except Exception:
         pass  # Fallar silenciosamente para no interrumpir la aplicación
 
