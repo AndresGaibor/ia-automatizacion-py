@@ -102,7 +102,7 @@ class SubscriberDetailsService:
                     logging.error(f"❌ ERROR PASO 3 - Error esperando carga de página: {e}")
                     logging.warning("⚠️ Continuando a pesar del error en espera de carga")
 
-                logging.success(f"✅ Navegación completada exitosamente - Campaña: {campaign_id}, Filtro: {filter_index}")
+                log_success(f"✅ Navegación completada exitosamente - Campaña: {campaign_id}, Filtro: {filter_index}")
                 logging.debug(f"🌐 URL final: {self.page.url}")
                 log_success("Navegación completada con filtro aplicado", campaign_id=campaign_id, filter_index=filter_index, url=self.page.url)
                 return True
@@ -262,6 +262,14 @@ class SubscriberDetailsService:
                             logging.warning(f"   ⚠️ Error extrayendo campo {i} de fila {fila_i}: {e}")
                             campos_arr.append("")
 
+                    # Log detallado para primeras filas para depuración de estructura
+                    if fila_i <= 3:  # Primeras 3 filas de datos (después del header)
+                        logging.info(f"📋 Fila {fila_i} estructura completa:")
+                        logging.info(f"   • Campos disponibles: {campos_disponibles}")
+                        logging.info(f"   • Campos esperados: {expected_columns}")
+                        logging.info(f"   • Datos crudos: {campos_arr}")
+                        logging.info(f"   • Tiene datos válidos: {any(campo.strip() for campo in campos_arr)}")
+
                     # Completar con vacíos si faltan
                     while len(campos_arr) < expected_columns:
                         campos_arr.append("")
@@ -300,7 +308,7 @@ class SubscriberDetailsService:
                               filas_procesadas=filas_procesadas, filas_exitosas=filas_exitosas, filas_descartadas=filas_descartadas)
 
             if suscriptores:
-                logging.success(f"✅ Extracción completada exitosamente - {len(suscriptores)} suscriptores")
+                log_success(f"✅ Extracción completada exitosamente - {len(suscriptores)} suscriptores")
             else:
                 logging.warning("⚠️ Extracción completada pero no se encontraron suscriptores")
 
@@ -447,6 +455,8 @@ class SubscriberDetailsService:
         """
         Extrae suscriptores que no abrieron el email usando scraping con mejores prácticas.
         Navega directamente al filtro de No abiertos.
+
+        Estructura de No abiertos: 4 columnas (Correo electrónico, Lista, Estado, Calidad)
         """
         suscriptores: List[NoOpenSubscriber] = []
 
@@ -455,12 +465,24 @@ class SubscriberDetailsService:
             try:
                 # Navegar directamente con el filtro No abiertos (filter_index=5)
                 if not self.navigate_to_subscriber_details(campaign_id, filter_index=5):
+                    log_warning("No se pudo navegar a detalles de No abiertos", campaign_id=campaign_id)
                     return suscriptores
+
+                # Verificar que estamos en la página correcta
+                current_url = self.page.url
+                log_info("URL actual después de navegación", url=current_url, campaign_id=campaign_id)
 
                 # Obtener total de elementos de la página
                 total_elements = self._get_total_from_page()
                 log_info("Filtro No abiertos aplicado",
                         total_results=total_elements, campaign_id=campaign_id)
+
+                # Verificar el título de la página para confirmar que estamos en No abiertos
+                try:
+                    page_title = self.page.locator("h1").inner_text(timeout=5000)
+                    log_info("Título de página verificado", titulo=page_title, campaign_id=campaign_id)
+                except Exception as e:
+                    log_warning("No se pudo verificar título de página", error=str(e), campaign_id=campaign_id)
 
                 # Obtener información de paginación y optimizar items por página
                 total_pages = obtener_total_paginas(self.page)
@@ -470,30 +492,55 @@ class SubscriberDetailsService:
                 # Procesar todas las páginas
                 for page_number in range(1, total_pages + 1):
                     try:
-                        log_info(f"Procesando página {page_number}/{total_pages}", 
+                        log_info(f"Procesando página {page_number}/{total_pages}",
                                page_number=page_number, total_pages=total_pages, campaign_id=campaign_id)
 
-                        # Extraer datos de la página actual
-                        raw_data = self.extract_subscribers_from_table(4)
-                        log_data_extraction("no_abiertos_raw", len(raw_data), "scraping", 
+                        # Extraer datos de la página actual - IMPORTANTE: 4 columnas para No abiertos
+                        raw_data = self.extract_subscribers_from_table(expected_columns=4)
+                        log_data_extraction("no_abiertos_raw", len(raw_data), "scraping",
                                           page_number=page_number, campaign_id=campaign_id)
 
-                        # Convertir datos raw a objetos tipados (sin validación estricta como el original)
+                        # Log detallado de los primeros registros para debug
+                        if page_number == 1 and raw_data:
+                            log_info("Muestra de datos extraídos (primeros 3 registros)",
+                                   sample_data=raw_data[:3], campaign_id=campaign_id)
+
+                        # Convertir datos raw a objetos tipados
                         page_successes = 0
                         page_discarded = 0
-                        for subscriber_data in raw_data:
+                        for i, subscriber_data in enumerate(raw_data):
                             try:
+                                # Log detallado para los primeros registros
+                                if page_number == 1 and i < 3:
+                                    log_info(f"Procesando registro {i+1}",
+                                           subscriber_data=subscriber_data,
+                                           data_length=len(subscriber_data),
+                                           campaign_id=campaign_id)
+
                                 # Asegurar que tenemos al menos 4 campos, completar con vacío si falta
                                 while len(subscriber_data) < 4:
                                     subscriber_data.append("")
+                                    if page_number == 1 and i < 3:
+                                        log_info(f"Completando campos vacíos para registro {i+1}",
+                                               final_data=subscriber_data,
+                                               campaign_id=campaign_id)
 
-                                email = subscriber_data[0]
-                                lista = subscriber_data[1]
-                                estado_text = subscriber_data[2]
-                                calidad_text = subscriber_data[3]
+                                email = subscriber_data[0].strip()
+                                lista = subscriber_data[1].strip()
+                                estado_text = subscriber_data[2].strip()
+                                calidad_text = subscriber_data[3].strip()
 
-                                # Solo procesar si tenemos al menos email
-                                if email.strip():
+                                # Log de datos procesados para primeros registros
+                                if page_number == 1 and i < 3:
+                                    log_info(f"Datos procesados para registro {i+1}",
+                                           email=email,
+                                           lista=lista,
+                                           estado=estado_text,
+                                           calidad=calidad_text,
+                                           campaign_id=campaign_id)
+
+                                # Solo procesar si tenemos al menos email válido
+                                if email and "@" in email:
                                     no_open = NoOpenSubscriber(
                                         email=email,
                                         lista=lista,
@@ -506,32 +553,41 @@ class SubscriberDetailsService:
                                     )
                                     suscriptores.append(no_open)
                                     page_successes += 1
+
+                                    # Log del primer registro exitoso
+                                    if page_number == 1 and page_successes == 1:
+                                        log_info("Primer registro procesado exitosamente",
+                                               email=email, lista=lista, campaign_id=campaign_id)
                                 else:
                                     page_discarded += 1
-                                    if page_number == total_pages:  # Solo loggear en la última página para debug
-                                        log_warning("Registro descartado por falta de email", 
-                                                  subscriber_data=str(subscriber_data)[:100], 
+                                    if page_number == 1 and i < 3:  # Solo loggear primeros registros para debug
+                                        log_warning("Registro descartado por email inválido",
+                                                  subscriber_data=subscriber_data,
+                                                  email=email,
                                                   page_number=page_number,
                                                   campaign_id=campaign_id)
+
                             except Exception as e:
-                                log_warning("Error procesando registro no abierto", 
-                                          subscriber_data=str(subscriber_data)[:100], 
-                                          error_type=type(e).__name__, 
-                                          page_number=page_number, 
+                                log_warning("Error procesando registro no abierto",
+                                          subscriber_data=str(subscriber_data)[:100],
+                                          error_type=type(e).__name__,
+                                          error=str(e),
+                                          page_number=page_number,
                                           campaign_id=campaign_id)
                                 continue
 
-                        log_success(f"Página {page_number} procesada", 
-                                  page_number=page_number, 
-                                  registros_procesados=page_successes, 
+                        log_success(f"Página {page_number} procesada",
+                                  page_number=page_number,
+                                  registros_procesados=page_successes,
+                                  registros_descartados=page_discarded,
                                   campaign_id=campaign_id)
 
                         # Navegar a siguiente página si no es la última
                         if page_number < total_pages:
-                            log_browser_action("navegar_siguiente_pagina", f"página {page_number + 1}", 
+                            log_browser_action("navegar_siguiente_pagina", f"página {page_number + 1}",
                                              page_number=page_number + 1, campaign_id=campaign_id)
                             if not navegar_siguiente_pagina(self.page, page_number):
-                                log_warning(f"No se pudo navegar a página {page_number + 1}", 
+                                log_warning(f"No se pudo navegar a página {page_number + 1}",
                                           page_number=page_number + 1, campaign_id=campaign_id)
                                 break
 
@@ -539,18 +595,26 @@ class SubscriberDetailsService:
                             time.sleep(0.5)
 
                     except Exception as e:
-                        log_error(f"Error procesando página {page_number}", 
-                                page_number=page_number, error_type=type(e).__name__, 
+                        log_error(f"Error procesando página {page_number}",
+                                page_number=page_number, error_type=type(e).__name__,
                                 campaign_id=campaign_id, error=str(e))
                         continue
 
-                log_success("Extracción de no abiertos completada", 
-                          total_no_abiertos=len(suscriptores), 
-                          pages_processed=total_pages, 
+                log_success("Extracción de no abiertos completada",
+                          total_no_abiertos=len(suscriptores),
+                          total_elements_expected=total_elements,
+                          pages_processed=total_pages,
                           campaign_id=campaign_id)
 
+                # Validación final: si esperamos elementos pero no obtuvimos ninguno
+                if total_elements and total_elements > 0 and len(suscriptores) == 0:
+                    log_error("NO se extrajeron suscriptores aunque la página indica que existen elementos",
+                             total_elements_esperados=total_elements,
+                             total_extraidos=len(suscriptores),
+                             campaign_id=campaign_id)
+
             except Exception as e:
-                log_error("Error extrayendo no abiertos", 
+                log_error("Error extrayendo no abiertos",
                          campaign_id=campaign_id, error_type=type(e).__name__, error=str(e))
                 # Si es un error crítico (campaña no existe), propagar el error
                 if any(keyword in str(e).lower() for keyword in ["timeout", "no existe", "not found"]):

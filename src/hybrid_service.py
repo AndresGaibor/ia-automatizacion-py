@@ -298,3 +298,168 @@ class HybridDataService:
             self.logger.error(f"Error generando resumen: {e}")
 
         return summary
+
+    def validate_scraping_data(self, campaign_id: int) -> Dict[str, Any]:
+        """
+        Valida los datos de scraping comparando con lo que muestra la interfaz web
+        Retorna un reporte detallado de validación
+        """
+        from .shared.utils.legacy_utils import cargar_campanias_a_buscar
+        from .infrastructure.api.models.campanias import CampaignBasicInfo
+        from .scrapping.endpoints.subscriber_details import SubscriberDetailsService
+        from .shared.logging.logger import get_logger
+
+        logger = get_logger()
+        validation_report = {
+            "campaign_id": campaign_id,
+            "timestamp": datetime.now(),
+            "validation_results": {
+                "no_abiertos": {
+                    "web_count": 0,
+                    "extracted_count": 0,
+                    "match": False,
+                    "sample_web_data": [],
+                    "sample_extracted_data": []
+                },
+                "hard_bounces": {
+                    "web_count": 0,
+                    "extracted_count": 0,
+                    "match": False,
+                    "sample_web_data": [],
+                    "sample_extracted_data": []
+                }
+            },
+            "errors": [],
+            "success": False
+        }
+
+        try:
+            logger.info(f"🔍 Iniciando validación de scraping para campaña {campaign_id}")
+
+            # Obtener conteos desde la interfaz web
+            if self.scraping_service:
+                logger.info("📊 Obteniendo conteos desde la interfaz web...")
+
+                # Navegar a página principal de suscriptores para obtener conteos
+                if self.scraping_service.navigate_to_subscriber_details(campaign_id, filter_index=0):
+                    logger.info("✅ Navegación a página de suscriptores exitosa")
+
+                    # Extraer conteos de los elementos visibles
+                    web_counts = self._extract_web_counts()
+                    validation_report["validation_results"]["no_abiertos"]["web_count"] = web_counts.get("no_abiertos", 0)
+                    validation_report["validation_results"]["hard_bounces"]["web_count"] = web_counts.get("hard_bounces", 0)
+
+                    logger.info(f"📈 Conteos desde web: No abiertos={web_counts.get('no_abiertos', 0)}, Hard bounces={web_counts.get('hard_bounces', 0)}")
+                else:
+                    logger.warning("⚠️ No se pudo navegar a la página de suscriptores")
+                    validation_report["errors"].append("No se pudo navegar a la página de suscriptores")
+
+                # Crear campaña básica para extraer datos
+                campaign_basic = CampaignBasicInfo(
+                    id=campaign_id,
+                    name=f"Campaign {campaign_id}",
+                    subject="",
+                    status="sent",  # Campo requerido
+                    date="2025-01-01 00:00:00",  # Campo requerido
+                    date_sent="2025-01-01",  # Campo requerido
+                    lists=[]
+                )
+
+                # Extraer datos usando scraping
+                logger.info("🔄 Extrayendo datos de No abiertos...")
+                no_opens = self.scraping_service.extract_no_opens(campaign_basic, campaign_id)
+                validation_report["validation_results"]["no_abiertos"]["extracted_count"] = len(no_opens)
+
+                if no_opens:
+                    validation_report["validation_results"]["no_abiertos"]["sample_extracted_data"] = [
+                        {"email": no_open.email, "lista": no_open.lista, "estado": str(no_open.estado)}
+                        for no_open in no_opens[:5]
+                    ]
+                    logger.info(f"✅ Se extrajeron {len(no_opens)} No abiertos")
+                else:
+                    logger.warning("⚠️ No se extrajeron datos de No abiertos")
+
+                logger.info("🔄 Extrayendo datos de Hard bounces...")
+                hard_bounces = self.scraping_service.extract_hard_bounces(campaign_basic, campaign_id)
+                validation_report["validation_results"]["hard_bounces"]["extracted_count"] = len(hard_bounces)
+
+                if hard_bounces:
+                    validation_report["validation_results"]["hard_bounces"]["sample_extracted_data"] = [
+                        {"email": hb.email, "lista": hb.lista, "estado": str(hb.estado)}
+                        for hb in hard_bounces[:5]
+                    ]
+                    logger.info(f"✅ Se extrajeron {len(hard_bounces)} Hard bounces")
+                else:
+                    logger.warning("⚠️ No se extrajeron datos de Hard bounces")
+
+                # Validar coincidencias
+                no_abiertos_match = (
+                    validation_report["validation_results"]["no_abiertos"]["web_count"] ==
+                    validation_report["validation_results"]["no_abiertos"]["extracted_count"]
+                )
+                validation_report["validation_results"]["no_abiertos"]["match"] = no_abiertos_match
+
+                hard_bounces_match = (
+                    validation_report["validation_results"]["hard_bounces"]["web_count"] ==
+                    validation_report["validation_results"]["hard_bounces"]["extracted_count"]
+                )
+                validation_report["validation_results"]["hard_bounces"]["match"] = hard_bounces_match
+
+                validation_report["success"] = no_abiertos_match and hard_bounces_match
+
+                logger.info(f"📊 Resultados de validación:")
+                logger.info(f"   • No abiertos: Web={validation_report['validation_results']['no_abiertos']['web_count']}, Extraídos={validation_report['validation_results']['no_abiertos']['extracted_count']}, Match={no_abiertos_match}")
+                logger.info(f"   • Hard bounces: Web={validation_report['validation_results']['hard_bounces']['web_count']}, Extraídos={validation_report['validation_results']['hard_bounces']['extracted_count']}, Match={hard_bounces_match}")
+
+            else:
+                validation_report["errors"].append("Servicio de scraping no disponible")
+                logger.error("❌ Servicio de scraping no disponible para validación")
+
+        except Exception as e:
+            error_msg = f"Error en validación: {e}"
+            logger.error(f"❌ {error_msg}")
+            validation_report["errors"].append(error_msg)
+
+        return validation_report
+
+    def _extract_web_counts(self) -> Dict[str, int]:
+        """
+        Extrae los conteos mostrados en la interfaz web
+        """
+        counts = {
+            "no_abiertos": 0,
+            "hard_bounces": 0
+        }
+
+        try:
+            # Buscar los elementos que muestran los conteos
+            # Basado en la estructura observada con BrowserMCP
+            filter_elements = self.scraping_service.page.locator('ul').filter(
+                has=self.scraping_service.page.locator("li", has_text="No abiertos")
+            ).locator('> li')
+
+            # Buscar cada tipo de suscriptor y su conteo
+            for i in range(filter_elements.count()):
+                try:
+                    element = filter_elements.nth(i)
+                    text = element.inner_text()
+
+                    if "No abiertos" in text:
+                        # Buscar el número que acompaña a "No abiertos"
+                        import re
+                        numbers = re.findall(r'\d+', text)
+                        if numbers:
+                            counts["no_abiertos"] = int(numbers[-1])  # Tomar el último número encontrado
+
+                    elif "Hard bounces" in text:
+                        import re
+                        numbers = re.findall(r'\d+', text)
+                        if numbers:
+                            counts["hard_bounces"] = int(numbers[-1])
+                except Exception:
+                    continue
+
+        except Exception as e:
+            self.logger.warning(f"Error extrayendo conteos web: {e}")
+
+        return counts

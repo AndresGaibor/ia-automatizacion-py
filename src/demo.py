@@ -490,16 +490,32 @@ def formatear_fecha_envio(fecha_str: str) -> str:
 	return fecha_envio_param
 
 def main():
+	import argparse
+
+	# Configurar argumentos de línea de comandos
+	parser = argparse.ArgumentParser(description="Extracción de datos de campañas de Acumbamail")
+	parser.add_argument("--validate", type=int, metavar="CAMPAIGN_ID",
+	                   help="Validar datos de scraping para una campaña específica")
+	parser.add_argument("--test", action="store_true",
+	                   help="Ejecutar en modo prueba (solo validar, no crear archivos)")
+
+	args = parser.parse_args()
+
 	try:
 		log_info("🚀 Iniciando proceso de extracción de campañas")
-		
+
 		config = load_config()
 		extraccion_oculta = bool(config.get("headless", False))
-		log_info("Configuración cargada", headless=extraccion_oculta)
+		log_info("Configuración cargada", headless=extraccion_oculta, validate_mode=args.validate is not None)
+
+		# Modo de validación para una campaña específica
+		if args.validate:
+			log_info(f"🔍 Modo validación activado para campaña {args.validate}")
+			return validate_campaign(args.validate, extraccion_oculta)
 
 		campanias_a_buscar = cargar_campanias_a_buscar(ARCHIVO_BUSQUEDA)
 		log_info("Campañas a procesar", total_campanias=len(campanias_a_buscar))
-		
+
 		with sync_playwright() as p:
 			log_info("🌐 Iniciando navegador")
 			browser = configurar_navegador(p, extraccion_oculta)
@@ -636,5 +652,71 @@ def main():
 		log_error(f"Error en proceso principal: {e}", error_type=type(e).__name__)
 		notify("Error en proceso", str(e))
 		
+def validate_campaign(campaign_id: int, headless: bool = False) -> bool:
+	"""
+	Valida los datos de scraping para una campaña específica
+	"""
+	try:
+		log_info(f"🔍 Iniciando validación de campaña {campaign_id}")
+
+		with sync_playwright() as p:
+			log_info("🌐 Iniciando navegador para validación")
+			browser = configurar_navegador(p, headless)
+			context = crear_contexto_navegador(browser, headless)
+
+			page = context.new_page()
+
+			log_info("🔐 Iniciando proceso de autenticación")
+			login(page, context=context)
+			log_success("Autenticación completada exitosamente")
+
+			# Inicializar servicio híbrido para validación
+			hybrid_service = HybridDataService(page)
+			log_info("🔧 Servicio híbrido inicializado para validación")
+
+			# Ejecutar validación
+			log_info(f"🔍 Ejecutando validación para campaña {campaign_id}")
+			validation_report = hybrid_service.validate_scraping_data(campaign_id)
+
+			# Mostrar resultados de validación
+			print("\n" + "="*80)
+			print(f"📊 REPORTE DE VALIDACIÓN - CAMPAÑA {campaign_id}")
+			print("="*80)
+
+			print(f"Timestamp: {validation_report['timestamp']}")
+			print(f"Success: {'✅' if validation_report['success'] else '❌'}")
+
+			print("\n📈 Resultados por tipo:")
+			for tipo, resultados in validation_report['validation_results'].items():
+				print(f"\n{tipo.title()}:")
+				print(f"  • Web count: {resultados['web_count']}")
+				print(f"  • Extracted count: {resultados['extracted_count']}")
+				print(f"  • Match: {'✅' if resultados['match'] else '❌'}")
+
+				if resultados['sample_extracted_data']:
+					print(f"  • Sample extracted data:")
+					for i, sample in enumerate(resultados['sample_extracted_data'][:3], 1):
+						print(f"    {i}. {sample}")
+
+			if validation_report['errors']:
+				print(f"\n❌ Errores encontrados:")
+				for error in validation_report['errors']:
+					print(f"  • {error}")
+
+			# Conclusión
+			if validation_report['success']:
+				print(f"\n✅ Validación exitosa - Todos los datos coinciden")
+				log_success(f"Validación exitosa para campaña {campaign_id}")
+				return True
+			else:
+				print(f"\n❌ Validación fallida - Hay discrepancias en los datos")
+				log_error(f"Validación fallida para campaña {campaign_id}")
+				return False
+
+	except Exception as e:
+		log_error(f"Error en validación de campaña {campaign_id}: {e}")
+		print(f"\n❌ Error en validación: {e}")
+		return False
+
 if __name__ == "__main__":
 	main()
