@@ -20,35 +20,50 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: 'pip'
+          cache-dependency-path: 'requirements.txt'
 
-      - name: Cache pip
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~\AppData\Local\ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      - name: Cache PyInstaller build
         uses: actions/cache@v4
         with:
-          path: ~\AppData\Local\pip\Cache
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          path: |
+            build
+            *.spec
+          key: ${{ runner.os }}-pyinstaller-${{ hashFiles('**/*.py', 'requirements.txt') }}
           restore-keys: |
-            ${{ runner.os }}-pip-
+            ${{ runner.os }}-pyinstaller-
 
       - name: Install dependencies
         shell: pwsh
         run: |
           python -m pip install -U pip wheel setuptools
-          if (Test-Path requirements.txt) {
-            python -m pip install -r requirements.txt
-          }
-          # Instalar pyinstaller y dependencias críticas
-          python -m pip install pyinstaller
-          python -m pip install pydantic pydantic-core
-          # Instalar playwright y sus navegadores
-          python -m pip install playwright
-          playwright install chromium
+          # Instalar todas las dependencias desde requirements.txt (incluye playwright)
+          pip install -r requirements.txt
+          # Instalar PyInstaller para el build
+          pip install pyinstaller
 
-      - name: Clean previous builds and spec files
+      # Solo instalar navegadores si no están en cache (ahorra 3-5 minutos)
+      - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
-          if (Test-Path build) { Remove-Item -Recurse -Force build }
+          Write-Host "Cache miss - Instalando navegadores Playwright..."
+          playwright install chromium
+
+      # Limpieza selectiva: solo dist/ (build/ y *.spec se cachean)
+      - name: Clean previous builds
+        shell: pwsh
+        run: |
           if (Test-Path dist) { Remove-Item -Recurse -Force dist }
-          if (Get-ChildItem -Filter *.spec -ErrorAction SilentlyContinue) { Remove-Item -Force *.spec }
 
       - name: Build (onefile)
         shell: pwsh
