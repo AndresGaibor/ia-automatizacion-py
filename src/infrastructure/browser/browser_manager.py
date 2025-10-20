@@ -45,10 +45,10 @@ class BrowserManager:
             config = self.config_manager.get_config()
             timeouts = config.get('timeouts', {})
             return {
-                'navigation': timeouts.get('navigation', 60) * 1000,  # Convert to milliseconds
-                'element': timeouts.get('element', 15) * 1000,
-                'upload': timeouts.get('upload', 120) * 1000,
-                'default': timeouts.get('default', 30) * 1000
+                'navigation': timeouts.get('navigation', 60000),  # Default 60 segundos en ms
+                'element': timeouts.get('element', 15000),         # Default 15 segundos en ms
+                'upload': timeouts.get('upload', 120000),          # Default 120 segundos en ms
+                'default': timeouts.get('default', 30000)          # Default 30 segundos en ms
             }
         except Exception:
             # Default timeouts if config is not available

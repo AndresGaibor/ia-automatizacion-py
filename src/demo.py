@@ -493,6 +493,9 @@ def formatear_fecha_envio(fecha_str: str) -> str:
 def main():
 	import argparse
 
+	# Inicializar logger
+	logger = get_logger()
+
 	# Configurar argumentos de línea de comandos
 	parser = argparse.ArgumentParser(description="Extracción de datos de campañas de Acumbamail")
 	parser.add_argument("--validate", type=int, metavar="CAMPAIGN_ID",
