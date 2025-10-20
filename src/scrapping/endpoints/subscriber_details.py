@@ -73,9 +73,9 @@ class SubscriberDetailsService:
                     logging.debug(f"🌐 Iniciando navegación con timeout: {self.timeouts['navigation']}ms")
                     log_browser_action("navegacion_con_filtro", url, campaign_id=campaign_id, filter_index=filter_index)
 
-                    # Usar navegación con timeout configurado
-                    self.page.goto(url, timeout=self.timeouts['navigation'])
-                    logging.debug("✅ Navegación iniciada correctamente")
+                    # Usar navegación con networkidle para conexiones lentas
+                    self.page.goto(url, wait_until="networkidle", timeout=self.timeouts['navigation'])
+                    logging.debug("✅ Navegación con networkidle completada correctamente")
                 except PWTimeoutError as e:
                     logging.error(f"❌ ERROR PASO 2 - Timeout en navegación: {e}")
                     logging.error(f"⏱️ Timeout configurado: {self.timeouts['navigation']}ms")
@@ -89,9 +89,12 @@ class SubscriberDetailsService:
                 # Paso 3: Esperar carga completa de la página
                 logging.info("📌 Paso 3: Esperando carga completa de la página")
                 try:
-                    logging.debug(f"⏳ Esperando estado 'domcontentloaded' con timeout: {self.timeouts['page_load']}ms")
-                    self.page.wait_for_load_state("domcontentloaded", timeout=self.timeouts['page_load'])
-                    logging.debug("✅ Página cargada completamente (domcontentloaded)")
+                    logging.debug(f"⏳ Esperando estado 'networkidle' con timeout: {self.timeouts['page_load']}ms")
+                    self.page.wait_for_load_state("networkidle", timeout=self.timeouts['page_load'])
+
+                    # Espera adicional para asegurar estabilidad en conexiones lentas
+                    self.page.wait_for_timeout(1500)
+                    logging.debug("✅ Página cargada completamente (networkidle + espera adicional)")
                 except PWTimeoutError as e:
                     logging.error(f"❌ ERROR PASO 3 - Timeout esperando carga de página: {e}")
                     logging.error(f"⏱️ Timeout configurado: {self.timeouts['page_load']}ms")
@@ -162,9 +165,12 @@ class SubscriberDetailsService:
             # Paso 1: Esperar a que la página esté lista
             logging.info("📌 Paso 1: Verificando que la página esté lista para extracción")
             try:
-                logging.debug("⏳ Esperando estado 'domcontentloaded' con timeout: 30000ms")
-                self.page.wait_for_load_state("domcontentloaded", timeout=30000)
-                logging.debug("✅ Página lista para extracción")
+                logging.debug("⏳ Esperando estado 'networkidle' con timeout: 30000ms")
+                self.page.wait_for_load_state("networkidle", timeout=30000)
+
+                # Pequeña espera adicional para estabilidad
+                self.page.wait_for_timeout(1000)
+                logging.debug("✅ Página lista para extracción (networkidle + espera)")
             except PWTimeoutError as e:
                 logging.warning(f"⚠️ TIMEOUT esperando página lista - Continuando: {e}")
                 logging.warning("⏱️ La página podría estar cargando lentamente, intentando extracción de todas formas")

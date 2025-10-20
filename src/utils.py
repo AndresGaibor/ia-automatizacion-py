@@ -229,10 +229,13 @@ def configurar_navegador(p, extraccion_oculta: bool = False):
 
 def navegar_a_reportes(page: Page):
 	"""
-	Navega a la sección de reportes
+	Navega a la sección de reportes con espera adecuada para conexiones lentas
 	"""
 	page.click("a[href*='/reports']")
-	page.wait_for_load_state('networkidle')
+	page.wait_for_load_state('networkidle', timeout=60000)
+	# Espera adicional para asegurar que la página de reportes esté completamente cargada
+	page.wait_for_timeout(2000)
+	logger.debug("✅ Navegación a reportes completada con networkidle + 2s")
 
 def obtener_total_paginas(page: Page) -> int:
 	"""

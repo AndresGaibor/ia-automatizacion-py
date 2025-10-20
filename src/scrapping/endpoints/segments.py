@@ -76,11 +76,12 @@ class SegmentsScrapingService:
                 segments_url = f"https://acumbamail.com/app/list/{list_id}/segments/"
                 logging.debug(f"🌐 Navegando a: {segments_url}")
 
-                page.goto(segments_url, wait_until="domcontentloaded", timeout=60000)
-                logging.debug("✅ Navegación iniciada (domcontentloaded)")
+                page.goto(segments_url, wait_until="networkidle", timeout=60000)
+                logging.debug("✅ Navegación iniciada (networkidle)")
 
                 page.wait_for_load_state("networkidle", timeout=30000)
-                logging.debug("✅ Página cargada completamente (networkidle)")
+                page.wait_for_timeout(1500)  # Espera adicional para conexiones lentas
+                logging.debug("✅ Página cargada completamente (networkidle + 1.5s)")
 
             else:
                 logging.error("❌ ERROR PASO 2 - No hay página disponible")
@@ -303,8 +304,9 @@ class SegmentsScrapingService:
                 segments_url = f"https://acumbamail.com/app/list/{list_id}/segments/"
                 logging.debug(f"🌐 Navegando a: {segments_url}")
 
-                page.goto(segments_url, wait_until="domcontentloaded", timeout=60000)
+                page.goto(segments_url, wait_until="networkidle", timeout=60000)
                 page.wait_for_load_state("networkidle", timeout=30000)
+                page.wait_for_timeout(1500)  # Espera adicional para conexiones lentas
 
                 # TODO: Extraer lógica de creación a un método privado para reutilizar
                 # Por ahora, replicamos la lógica esencial de forma simplificada

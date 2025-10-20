@@ -19,6 +19,7 @@ from .structured_logger import log_success, log_error, log_warning, log_info, lo
 from .hybrid_service import HybridDataService
 from .core.authentication.authentication_service import AuthenticationService
 from .core.config.config_manager import ConfigManager
+from .shared.utils.retry_utils import retry_with_backoff, is_connection_error
 
 class FileSessionStorage:
     def __init__(self, session_path: str):
@@ -195,10 +196,10 @@ def get_campaign_urls_with_fallback(page, campaign_id: int) -> str:
 			logger.debug(f"   Navegado a: {report_page}")
 			logging.debug("✅ Navegación a reportes completada")
 
-			# Esperar a que la página cargue completamente
-			page.wait_for_load_state("domcontentloaded", timeout=30000)
-			page.wait_for_timeout(1000)
-			logging.debug("✅ Página completamente cargada")
+			# Esperar a que la página cargue completamente con networkidle
+			page.wait_for_load_state("networkidle", timeout=30000)
+			page.wait_for_timeout(2000)  # Espera aumentada para conexiones lentas
+			logging.debug("✅ Página completamente cargada (networkidle + 2s)")
 
 		except PWTimeoutError as e:
 			logging.error(f"❌ ERROR PASO 1 - Timeout navegando a reportes: {e}")
@@ -527,6 +528,12 @@ def main():
 			login(page, context=context)
 			log_success("Autenticación completada exitosamente")
 
+			# Espera adicional post-login para asegurar estabilidad de sesión antes de operaciones de API
+			log_info("⏳ Esperando estabilización completa de sesión antes de operaciones...")
+			page.wait_for_load_state("networkidle", timeout=30000)
+			page.wait_for_timeout(3000)  # 3 segundos adicionales para máxima estabilidad
+			log_success("✅ Sesión completamente estabilizada, iniciando operaciones")
+
 			# Inicializar servicio híbrido con la página autenticada
 			hybrid_service = HybridDataService(page)
 			api = hybrid_service.api  # Obtener instancia de API para consultas adicionales
@@ -539,19 +546,38 @@ def main():
 				log_info(f"📊 Procesando campaña {i+1}/{len(campanias_a_buscar)}", 
 						campania_id=id, nombre=nombre_campania, progreso=f"{i+1}/{len(campanias_a_buscar)}")
 
-				# Obtener datos completos usando servicio híbrido
+				# Obtener datos completos usando servicio híbrido con reintentos
 				try:
-					complete_data = hybrid_service.get_complete_campaign_data(id)
-					if not complete_data or not complete_data.get("campaign_basic"):
-						raise Exception(f"No se pudieron obtener datos para la campaña '{nombre_campania}'")
-					
-					log_success("Datos de campaña obtenidos", campania_id=id, 
+					def get_data():
+						data = hybrid_service.get_complete_campaign_data(id)
+						if not data or not data.get("campaign_basic"):
+							raise Exception(f"No se pudieron obtener datos para la campaña '{nombre_campania}'")
+						return data
+
+					# Intentar con reintentos para manejar problemas de conexión
+					log_info(f"Obteniendo datos de campaña {id} (con reintentos si es necesario)")
+					complete_data = retry_with_backoff(
+						func=get_data,
+						max_retries=2,
+						initial_delay=2.0,
+						backoff_factor=1.5,
+						logger=logger
+					)
+
+					log_success("Datos de campaña obtenidos", campania_id=id,
 							   tiene_datos_basicos=bool(complete_data.get("campaign_basic")),
 							   tiene_scraping=bool(complete_data.get("scraping_result")))
-					
+
 				except Exception as e:
 					error_msg = f"La campaña '{nombre_campania}' no está disponible"
-					log_error(f"{error_msg}: {e}", campania_id=id, error_type=type(e).__name__)
+
+					# Verificar si es un error de conexión para dar un mensaje más específico
+					if is_connection_error(e):
+						error_msg = f"La campaña '{nombre_campania}' no pudo ser accedida (problema de conexión o carga lenta)"
+						log_error(f"{error_msg}: {e}", campania_id=id, error_type=type(e).__name__, es_error_conexion=True)
+					else:
+						log_error(f"{error_msg}: {e}", campania_id=id, error_type=type(e).__name__, es_error_conexion=False)
+
 					errores_campanias.append(error_msg)
 					continue  # Continuar con la siguiente campaña
 

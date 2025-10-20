@@ -21,6 +21,7 @@ from .scrapping import (
     ScrapingSession
 )
 from .shared.logging.logger import get_logger
+from .shared.utils.retry_utils import retry_with_backoff, is_connection_error
 
 
 class HybridDataService:
@@ -40,18 +41,56 @@ class HybridDataService:
         try:
             self.logger.start_timer("get_complete_campaign_data")
 
-            # 1. Obtener datos básicos de API (rápido y confiable)
-            campaign_basic = self.api.campaigns.get_basic_info(campaign_id)
+            # 1. Obtener datos básicos de API (rápido y confiable) con reintentos
+            def get_basic_info_with_retry():
+                basic_info = self.api.campaigns.get_basic_info(campaign_id)
+                if not basic_info:
+                    raise Exception(f"No se pudieron obtener datos básicos de la campaña {campaign_id}. Verifique la configuración de API en config.yaml")
+                return basic_info
 
-            # Validar que los datos básicos se obtuvieron correctamente
-            if not campaign_basic:
-                raise Exception(f"No se pudieron obtener datos básicos de la campaña {campaign_id}. Verifique la configuración de API en config.yaml")
+            campaign_basic = retry_with_backoff(
+                func=get_basic_info_with_retry,
+                max_retries=2,
+                initial_delay=1.5,
+                backoff_factor=1.5,
+                logger=self.logger
+            )
 
-            campaign_detailed = self.api.campaigns.get_total_info(campaign_id)
-            campaign_clicks = self.api.campaigns.get_clicks(campaign_id)
-            campaign_openers = self.api.campaigns.get_openers(campaign_id)
-            campaign_soft_bounces = self.api.campaigns.get_soft_bounces(campaign_id)
-            all_lists = self.api.suscriptores.get_lists()
+            # 2. Obtener datos detallados con reintentos individuales (más resiliente)
+            campaign_detailed = retry_with_backoff(
+                lambda: self.api.campaigns.get_total_info(campaign_id),
+                max_retries=2,
+                initial_delay=1.5,
+                logger=self.logger
+            )
+
+            campaign_clicks = retry_with_backoff(
+                lambda: self.api.campaigns.get_clicks(campaign_id),
+                max_retries=2,
+                initial_delay=1.5,
+                logger=self.logger
+            )
+
+            campaign_openers = retry_with_backoff(
+                lambda: self.api.campaigns.get_openers(campaign_id),
+                max_retries=2,
+                initial_delay=1.5,
+                logger=self.logger
+            )
+
+            campaign_soft_bounces = retry_with_backoff(
+                lambda: self.api.campaigns.get_soft_bounces(campaign_id),
+                max_retries=2,
+                initial_delay=1.5,
+                logger=self.logger
+            )
+
+            all_lists = retry_with_backoff(
+                lambda: self.api.suscriptores.get_lists(),
+                max_retries=2,
+                initial_delay=1.5,
+                logger=self.logger
+            )
 
             # 2. Datos de scraping (información no disponible en API)
             scraping_data = None
@@ -98,6 +137,10 @@ class HybridDataService:
                 return None
 
             self.logger.start_timer("extract_scraping_data")
+
+            # Espera adicional antes de scraping para asegurar estabilidad
+            import time
+            time.sleep(1.5)
 
             # Extraer hard bounces (no disponible en API)
             hard_bounces = self.scraping_service.extract_hard_bounces(campaign, campaign_id)

@@ -5,13 +5,25 @@ from .shared.logging.logger import get_logger
 
 logger = get_logger()
 
-def esperar_carga_pagina(page: Page, timeout: int = 45_000):
-    """Espera a que la página cargue completamente optimizada."""
-    logger.info("⏳ Esperando carga de página", timeout=timeout)
+def esperar_carga_pagina(page: Page, timeout: int = 45_000, use_networkidle: bool = False):
+    """
+    Espera a que la página cargue completamente.
+
+    Args:
+        page: Página de Playwright
+        timeout: Timeout en milisegundos
+        use_networkidle: Si True, espera networkidle además de domcontentloaded (más lento pero más seguro)
+    """
+    logger.info("⏳ Esperando carga de página", timeout=timeout, networkidle=use_networkidle)
     try:
         page.wait_for_load_state("domcontentloaded", timeout=timeout)
-        # Optimizado: eliminado networkidle y espera fija de 2s
-        logger.success("✅ Página cargada exitosamente")
+
+        if use_networkidle:
+            # Esperar networkidle para conexiones lentas
+            page.wait_for_load_state("networkidle", timeout=timeout)
+            logger.success("✅ Página cargada exitosamente (con networkidle)")
+        else:
+            logger.success("✅ Página cargada exitosamente")
     except Exception as e:
         logger.warning(f"Página tardó en cargar: {e}. Continuando...", error=str(e))
 
@@ -64,16 +76,17 @@ def login(page: Page, context: BrowserContext):
 		raise ValueError("Contraseña no configurada en config.yaml")
 
 	logger.info(f"🔑 Iniciando proceso de login para usuario: {username}")
-	
+
 	try:
 		logger.info(f"🌐 Navegando a URL: {url}")
-		page.goto(url, timeout=60_000)
+		page.goto(url, wait_until="networkidle", timeout=60_000)
+		logger.info("✅ Navegación con networkidle completada")
 	except Exception as e:
 		logger.error(f"❌ Error conectando a Acumbamail: {e}", url=url, error=str(e))
 		notify("Error de Conexión", f"Error: No se pudo conectar a Acumbamail: {e}", "error")
 		raise
 
-	esperar_carga_pagina(page)
+	esperar_carga_pagina(page, use_networkidle=True)
 
 	if f"{url_base}/" != page.url:
 		logger.success("✅ Ya estás en la página principal, guardando estado de sesión...")
@@ -109,8 +122,15 @@ def login(page: Page, context: BrowserContext):
 				esperar_carga_pagina(page)
 
 			logger.success("✅ Login completado exitosamente")
+
+			# Espera adicional para asegurar que la sesión se establezca completamente
+			logger.info("⏳ Esperando estabilización de sesión post-login...")
+			page.wait_for_load_state("networkidle", timeout=30_000)
+			page.wait_for_timeout(2000)  # 2 segundos adicionales para estabilidad
+			logger.success("✅ Sesión estabilizada")
+
 			notify("Autenticación", "Login completado exitosamente", "info")
-			
+
 		except Exception as e:
 			logger.error(f"❌ Error durante el login: {e}", error=str(e))
 			notify("Error de Login", f"Error durante el login: {e}. Verifique sus credenciales.", "error")
@@ -120,5 +140,6 @@ def login(page: Page, context: BrowserContext):
 	notify("Sesión", "Guardando estado de sesión", "info")
 	context.storage_state(path=storage_state_path())
 
-	# Optimizado: eliminada espera fija de 3s
+	# Espera adicional después de guardar sesión para asegurar persistencia
+	page.wait_for_timeout(2000)
 	logger.success("✅ Estado de sesión guardado correctamente")
