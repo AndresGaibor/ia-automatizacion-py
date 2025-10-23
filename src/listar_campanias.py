@@ -149,10 +149,11 @@ def extraer_campanias_de_pagina(page: Page) -> list[list[str]]:
         page: Página de Playwright
 
     Returns:
-        Lista de campañas con sus datos
+        Lista de campañas con sus datos (sin duplicados por ID)
     """
     logger.info("🔍 Iniciando extracción de campañas de la página actual")
     campanias = []
+    ids_vistos = set()  # Para evitar duplicados
 
     try:
         # Esperar a que la lista se cargue
@@ -172,15 +173,32 @@ def extraer_campanias_de_pagina(page: Page) -> list[list[str]]:
         logger.info(f"✅ Total de elementos con links de campañas: {count}")
 
         # Obtener todos los elementos y filtrar manualmente los que son campañas reales
-        # (excluir elementos anidados verificando que tengan texto con números al final)
+        # Estrategia mejorada: buscar elementos que tengan el patrón completo de una fila de campaña
         campaign_listitems = []
         for i in range(count):
             item = all_items.nth(i)
             text = item.inner_text()
-            # Verificar que el texto contenga un patrón de números al final
-            # (esto indica que es una fila de campaña, no un elemento anidado)
-            if re.search(r'\d+\s+\d+\s+\d+\s*$', text):
+
+            # Criterios para identificar una fila de campaña real:
+            # 1. Debe tener una fecha en formato DD/MM/YY (obligatorio - identifica campañas reales)
+            # 2. Debe tener al menos 1 número al final (pueden ser 0 0 0, o 1234, etc.)
+            # 3. Debe tener longitud suficiente y no ser solo un fragmento
+            tiene_fecha = bool(re.search(r'\d{2}/\d{2}/\d{2}', text))
+            tiene_numeros_final = bool(re.search(r'\d+[\s,]*\d*[\s,]*\d*\s*$', text))
+            longitud_suficiente = len(text.strip()) > 30
+
+            # Verificar que NO sea un elemento anidado (no debe tener saltos de línea múltiples)
+            no_es_anidado = text.count('\n') <= 3
+
+            if tiene_fecha and tiene_numeros_final and longitud_suficiente and no_es_anidado:
                 campaign_listitems.append(item)
+                logger.debug(f"✅ Campaña válida encontrada en índice {i}: {text[:50]}...")
+            else:
+                # Logging detallado para debug - mostrar en consola los descartados
+                if tiene_fecha and longitud_suficiente:  # Candidatos válidos que fueron descartados
+                    print(f"⚠️ DESCARTADO [{i}]: fecha={tiene_fecha}, numeros={tiene_numeros_final}, longitud={len(text.strip())}, saltos={text.count(chr(10))}")
+                    print(f"   Texto: {text[:100]}")
+                logger.debug(f"⚠️ Elemento descartado en índice {i}: tiene_fecha={tiene_fecha}, tiene_numeros={tiene_numeros_final}, longitud={len(text.strip())}, saltos_linea={text.count(chr(10))}")
 
         logger.info(f"✅ Listitems de campañas reales encontrados: {len(campaign_listitems)}")
 
@@ -189,17 +207,25 @@ def extraer_campanias_de_pagina(page: Page) -> list[list[str]]:
                 logger.debug(f"📖 Procesando campaña {i}/{len(campaign_listitems)}")
                 datos = extraer_datos_campania_de_listitem(listitem, page)
 
-                if datos:  # Solo agregar si se extrajeron datos válidos
+                if datos and len(datos) >= 3:  # Validar que tiene datos suficientes
+                    id_campania = datos[2]  # El ID está en la posición 2
+
+                    # Verificar si ya vimos este ID (evitar duplicados)
+                    if id_campania in ids_vistos:
+                        logger.warning(f"⚠️ Campaña duplicada detectada (ID: {id_campania}), omitiendo...")
+                        continue
+
+                    ids_vistos.add(id_campania)
                     campanias.append(datos)
-                    logger.info(f"✅ Campaña {i} extraída: {datos[1]} (ID: {datos[2]})")
+                    logger.info(f"✅ Campaña {len(campanias)} extraída: {datos[1]} (ID: {datos[2]})")
                 else:
-                    logger.warning(f"⚠️ No se pudieron extraer datos de la campaña {i}")
+                    logger.warning(f"⚠️ No se pudieron extraer datos válidos de la campaña {i}")
 
             except Exception as e:
                 logger.warning(f"⚠️ Error procesando listitem {i}: {e}")
                 continue
 
-        logger.success(f"✅ Extracción completada: {len(campanias)} campañas extraídas de la página")
+        logger.success(f"✅ Extracción completada: {len(campanias)} campañas únicas extraídas de la página")
 
     except Exception as e:
         logger.error(f"❌ Error extrayendo campañas de la página: {e}")
@@ -267,16 +293,17 @@ def guardar_datos_en_excel(informe_detalle: list[list[str]], archivo_busqueda: s
 
 def procesar_todas_las_paginas(page: Page) -> list[list[str]]:
     """
-    Procesa todas las páginas de reportes y extrae todas las campañas
+    Procesa todas las páginas de reportes y extrae todas las campañas (sin duplicados globales)
 
     Args:
         page: Página de Playwright
 
     Returns:
-        Lista con todos los datos de campañas
+        Lista con todos los datos de campañas únicas
     """
     logger.info("🔍 Iniciando procesamiento de todas las páginas")
     todas_campanias = []
+    ids_globales = set()  # Para evitar duplicados entre páginas
 
     try:
         # Obtener número total de páginas
@@ -290,12 +317,24 @@ def procesar_todas_las_paginas(page: Page) -> list[list[str]]:
 
             # Extraer campañas de la página actual
             campanias_pagina = extraer_campanias_de_pagina(page)
-            todas_campanias.extend(campanias_pagina)
+
+            # Filtrar duplicados globales (entre páginas)
+            campanias_nuevas = 0
+            for campania in campanias_pagina:
+                if len(campania) >= 3:
+                    id_campania = campania[2]
+                    if id_campania not in ids_globales:
+                        ids_globales.add(id_campania)
+                        todas_campanias.append(campania)
+                        campanias_nuevas += 1
+                    else:
+                        logger.debug(f"⚠️ Campaña duplicada entre páginas (ID: {id_campania}), omitiendo...")
 
             logger.info(
                 f"✅ Página {pagina_actual} completada",
                 extra={
                     "campanias_en_pagina": len(campanias_pagina),
+                    "campanias_nuevas": campanias_nuevas,
                     "total_acumulado": len(todas_campanias)
                 }
             )

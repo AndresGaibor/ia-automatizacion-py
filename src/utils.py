@@ -241,6 +241,8 @@ def obtener_total_paginas(page: Page) -> int:
 	"""
 	Obtiene el número total de páginas de reportes calculando desde elementos totales
 	"""
+	items_por_pagina = 15  # Valor por defecto si no se puede determinar
+
 	try:
 		print("🔍 Optimizando elementos por página...")
 
@@ -277,20 +279,39 @@ def obtener_total_paginas(page: Page) -> int:
 				raise ValueError(f"No se encontraron números en: {total_elementos_texto}")
 			total_elementos = int(numeros[-1].replace('.', '').replace(',', ''))
 
-			# Obtener elementos por página actual
-			items_por_pagina = 200  # Por defecto después de optimización
+			# CRÍTICO: Obtener elementos por página ACTUAL desde el select
+			# No asumir 200, verificar qué opción está realmente seleccionada
 			try:
-				# Algunos navegadores no mantienen el atributo [selected], usar :checked como alternativa
-				select_actual = page.locator('select option[selected], select option:checked')
-				if select_actual.count() > 0:
-					option_value = select_actual.first.get_attribute('value')
-					if option_value and 'items_per_page=' in option_value:
-						items_text = option_value.split('items_per_page=')[1].split('&')[0]
-						items_por_pagina = int(items_text)
-			except Exception:
-				pass
+				# Primero intentar obtener el valor del select directamente
+				select_element = page.locator('select').filter(has=page.locator('option', has_text=re.compile(r'\d+'))).first
+				if select_element.count() > 0:
+					# Obtener el valor seleccionado actual
+					selected_value = select_element.input_value()
+					print(f"🔍 Valor del select: {selected_value}")
 
-			# Calcular total de páginas
+					# Extraer items_per_page del value
+					if 'items_per_page=' in selected_value:
+						items_text = selected_value.split('items_per_page=')[1].split('&')[0]
+						items_por_pagina = int(items_text)
+						print(f"✅ Items por página detectados: {items_por_pagina}")
+					else:
+						# Fallback: contar elementos visibles en la página actual
+						visible_campaigns = page.locator('li').filter(has=page.locator('a[href*="/report/campaign/"]')).count()
+						if visible_campaigns > 0:
+							items_por_pagina = visible_campaigns
+							print(f"✅ Items por página estimados por conteo: {items_por_pagina}")
+			except Exception as e:
+				print(f"⚠️ Error detectando items por página: {e}")
+				# Último recurso: contar elementos visibles
+				try:
+					visible_campaigns = page.locator('li').filter(has=page.locator('a[href*="/report/campaign/"]')).count()
+					if visible_campaigns > 0:
+						items_por_pagina = visible_campaigns
+						print(f"✅ Items por página estimados por conteo (fallback): {items_por_pagina}")
+				except:
+					pass
+
+			# Calcular total de páginas con el valor real
 			total_paginas = (total_elementos + items_por_pagina - 1) // items_por_pagina
 			print(f"📊 {total_elementos} elementos total, {items_por_pagina} por página = {total_paginas} páginas")
 			return max(1, total_paginas)
@@ -305,11 +326,17 @@ def obtener_total_paginas(page: Page) -> int:
 			ultimo_elemento = navegacion.locator('li').last
 			texto = ultimo_elemento.inner_text(timeout=5000)
 			if texto.isdigit():
-				print(f"📄 Páginas encontradas por navegación: {texto}")
-				return int(texto)
+				paginas_navegacion = int(texto)
+				print(f"📄 Páginas encontradas por navegación: {paginas_navegacion}")
+
+				# IMPORTANTE: Si estamos en 200 items/página y hay exactamente 2 páginas,
+				# podría haber entre 201 y 400 elementos. Necesitamos procesar ambas páginas completas.
+				# La página 2 puede tener desde 1 hasta 200 elementos.
+				return paginas_navegacion
 	except Exception:
 		pass
 
+	# Último fallback: asumir al menos 1 página
 	print("⚠️ No se pudo determinar total de páginas, usando 1")
 	return 1
 

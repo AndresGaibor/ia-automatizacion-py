@@ -79,14 +79,16 @@ def login(page: Page, context: BrowserContext):
 
 	try:
 		logger.info(f"🌐 Navegando a URL: {url}")
-		page.goto(url, wait_until="networkidle", timeout=60_000)
-		logger.info("✅ Navegación con networkidle completada")
+		# Use domcontentloaded first for faster initial load
+		page.goto(url, wait_until="domcontentloaded", timeout=60_000)
+		logger.info("✅ Navegación inicial completada (domcontentloaded)")
+
+		# Then wait for page to stabilize with networkidle
+		esperar_carga_pagina(page, timeout=45_000, use_networkidle=True)
 	except Exception as e:
 		logger.error(f"❌ Error conectando a Acumbamail: {e}", url=url, error=str(e))
 		notify("Error de Conexión", f"Error: No se pudo conectar a Acumbamail: {e}", "error")
 		raise
-
-	esperar_carga_pagina(page, use_networkidle=True)
 
 	if f"{url_base}/" != page.url:
 		logger.success("✅ Ya estás en la página principal, guardando estado de sesión...")
