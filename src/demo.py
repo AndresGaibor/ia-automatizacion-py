@@ -20,6 +20,7 @@ from .hybrid_service import HybridDataService
 from .core.authentication.authentication_service import AuthenticationService
 from .core.config.config_manager import ConfigManager
 from .shared.utils.retry_utils import retry_with_backoff, is_connection_error
+from .infrastructure.scraping.endpoints.campanias import CampaignsScraper
 
 class FileSessionStorage:
     def __init__(self, session_path: str):
@@ -61,7 +62,7 @@ def generar_nombre_archivo_informe(nombre_campania: str = "", fecha_envio: str =
 		
 	return nombre_archivo
 
-def crear_archivo_csv(general: list[list[str]], informe_detallado: list[list[list[str]]], nombre_campania: str = "", fecha_envio: str = ""):
+def crear_archivo_csv(general: list[list[str]], informe_detallado: list[list[list[str]]], nombre_campania: str = "", fecha_envio: str = "", campaign_urls: list[list] = None):
     """
     Crea archivos CSV con los informes recopilados (uno por hoja)
     """
@@ -106,8 +107,19 @@ def crear_archivo_csv(general: list[list[str]], informe_detallado: list[list[lis
                 writer.writerows(datos)  # Escribir datos
             log_data_extraction(nombre_archivo, len(datos), "CSV")
 
-        log_success(f"Archivos CSV creados exitosamente en: {directorio_csv}", 
-                   total_archivos=len(archivos_config)+1, directorio=directorio_csv)
+        # Crear archivo CSV para URLs de Clics si están disponibles
+        total_archivos = len(archivos_config) + 1  # +1 por General
+        if campaign_urls:
+            archivo_urls = directorio_csv / f"{nombre_base}_URLs_de_Clics.csv"
+            with open(archivo_urls, 'w', newline='', encoding='utf-8') as csvfile:
+                writer = csv.writer(csvfile)
+                writer.writerow(["URL", "Clics Totales", "Porcentaje de Abridores"])
+                writer.writerows(campaign_urls)
+            log_data_extraction("URLs de Clics", len(campaign_urls), "CSV")
+            total_archivos += 1
+
+        log_success(f"Archivos CSV creados exitosamente en: {directorio_csv}",
+                   total_archivos=total_archivos, directorio=directorio_csv)
         
         return str(directorio_csv)
         
@@ -117,7 +129,7 @@ def crear_archivo_csv(general: list[list[str]], informe_detallado: list[list[lis
         raise
 
 
-def crear_archivo_excel(general: list[list[str]], informe_detallado: list[list[list[str]]], nombre_campania: str = "", fecha_envio: str = ""):
+def crear_archivo_excel(general: list[list[str]], informe_detallado: list[list[list[str]]], nombre_campania: str = "", fecha_envio: str = "", campaign_urls: list[list] = None):
     """
     Crea el archivo Excel con los informes recopilados
     """
@@ -127,9 +139,9 @@ def crear_archivo_excel(general: list[list[str]], informe_detallado: list[list[l
         debug_mode = config.get("debug", False)
         
         if debug_mode:
-            log_info("Modo debug activado, generando archivos CSV en lugar de Excel", 
+            log_info("Modo debug activado, generando archivos CSV en lugar de Excel",
                     campania=nombre_campania, fecha_envio=fecha_envio, debug_mode=debug_mode)
-            return crear_archivo_csv(general, informe_detallado, nombre_campania, fecha_envio)
+            return crear_archivo_csv(general, informe_detallado, nombre_campania, fecha_envio, campaign_urls)
         else:
             log_info("Modo normal, generando archivo Excel", 
                     campania=nombre_campania, fecha_envio=fecha_envio, debug_mode=debug_mode)
@@ -157,15 +169,27 @@ def crear_archivo_excel(general: list[list[str]], informe_detallado: list[list[l
         ]
 
         # Crear hojas detalladas usando la configuración
+        total_hojas = len(hojas_config) + 1  # +1 por General
         for nombre_hoja, datos, columnas in hojas_config:
             crear_hoja_con_datos(wb, nombre_hoja, datos, columnas)
             log_data_extraction(nombre_hoja, len(datos), "base de datos")
 
+        # Crear hoja de URLs de Clics si están disponibles
+        if campaign_urls:
+            crear_hoja_con_datos(
+                wb,
+                "URLs de Clics",
+                campaign_urls,
+                ["URL", "Clics Totales", "Porcentaje de Abridores"]
+            )
+            log_data_extraction("URLs de Clics", len(campaign_urls), "base de datos")
+            total_hojas += 1
+
         nombre_archivo = generar_nombre_archivo_informe(nombre_campania, fecha_envio)
         wb.save(nombre_archivo)
-        
-        log_success(f"Archivo Excel creado exitosamente: {nombre_archivo}", 
-                   total_hojas=len(hojas_config)+1, archivo=nombre_archivo)
+
+        log_success(f"Archivo Excel creado exitosamente: {nombre_archivo}",
+                   total_hojas=total_hojas, archivo=nombre_archivo)
         
         return nombre_archivo
         
@@ -542,6 +566,10 @@ def main():
 			api = hybrid_service.api  # Obtener instancia de API para consultas adicionales
 			log_info("🔧 Servicio híbrido inicializado")
 
+			# Inicializar scraper de campañas para extraer URLs
+			campaigns_scraper = CampaignsScraper(page)
+			log_info("🔗 Scraper de URLs de campañas inicializado")
+
 			errores_campanias = []
 			campanias_exitosas = 0
 
@@ -618,10 +646,30 @@ def main():
 					scraping_result = complete_data["scraping_result"]
 					hard_bounces = convert_hard_bounces_to_rows(scraping_result.hard_bounces)
 					no_abiertos = convert_no_opens_to_rows(scraping_result.no_opens)
-					log_success("Scraping completado", 
+					log_success("Scraping completado",
 							   hard_bounces=len(hard_bounces), no_abiertos=len(no_abiertos))
 				else:
 					log_warning("No se pudieron obtener datos de scraping", campania_id=id)
+
+				# Extraer URLs de campaña con scraping
+				campaign_urls_data = []
+				try:
+					log_info("🔗 Iniciando extracción de URLs de campaña", campania_id=id)
+					campaign_urls = campaigns_scraper.get_campaign_urls(id)
+					if campaign_urls:
+						# Convertir a formato de filas para Excel: [URL, Clics, Porcentaje]
+						campaign_urls_data = [
+							[url.url, url.clicks, url.click_percentage]
+							for url in campaign_urls
+						]
+						log_success("URLs de campaña extraídas",
+								   urls_count=len(campaign_urls), campania_id=id)
+					else:
+						log_info("No se encontraron URLs en la campaña", campania_id=id)
+				except Exception as e:
+					log_warning(f"Error extrayendo URLs de campaña: {e}",
+							   campania_id=id, error_type=type(e).__name__)
+					# Continuar sin URLs, no es crítico
 
 				# Crear archivo Excel con los resultados
 				if general or abiertos2 or no_abiertos or clics or hard_bounces or soft_bounces:
@@ -641,7 +689,8 @@ def main():
 						general,
 						[abiertos2, no_abiertos, clics, hard_bounces, soft_bounces],
 						nombre_campania_param,
-						fecha_envio_param
+						fecha_envio_param,
+						campaign_urls_data  # Agregar URLs de campaña
 					)
 					log_success(f"Archivo {'CSV' if debug_mode else 'Excel'} creado", archivo=archivo_creado, campania_id=id, debug_mode=debug_mode)
 					campanias_exitosas += 1

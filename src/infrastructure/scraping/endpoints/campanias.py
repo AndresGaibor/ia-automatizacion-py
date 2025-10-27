@@ -11,12 +11,13 @@ from datetime import datetime
 
 from ..base import BaseScraper, ScrapingConfig
 from ..models.campanias import (
-    ScrapedNonOpener, 
-    ScrapedHardBounce, 
+    ScrapedNonOpener,
+    ScrapedHardBounce,
     ScrapedCampaignStats,
     ScrapedGeographicStats,
     ScrapedDeviceStats,
-    ScrapedCampaignData
+    ScrapedCampaignData,
+    ScrapedCampaignUrl
 )
 from ..utils.selectors import CampaignSelectors, CommonSelectors
 from ..utils.navigation import NavigationHelper
@@ -253,23 +254,231 @@ class CampaignsScraper(BaseScraper):
         
         return self.wait_and_retry(_scrape_extended_stats)
     
+    # === MÉTODO: URLS DE CAMPAÑA ===
+    def get_campaign_urls(self, campaign_id: int) -> List[ScrapedCampaignUrl]:
+        """
+        🔗 Obtener URLs de la campaña con estadísticas de clics
+
+        Navega a la página de seguimiento de URLs y extrae:
+        - URL completa
+        - Número total de clics
+        - Porcentaje de abridores que hicieron clic
+
+        Args:
+            campaign_id: ID de la campaña
+
+        Returns:
+            Lista de URLs con sus estadísticas de clics
+        """
+        logger.info(f"🔗 Iniciando scraping de URLs para campaña {campaign_id}")
+        start_time = time.time()
+
+        def _scrape_urls():
+            campaign_urls = []
+
+            try:
+                # 1. Navegar a la página de seguimiento de URLs
+                url_page = f"https://acumbamail.com/report/campaign/{campaign_id}/url/"
+                logger.info(f"🌐 Navegando a: {url_page}")
+                self.page.goto(url_page, wait_until="networkidle", timeout=60000)
+
+                # Esperar a que la página cargue completamente
+                self.page.wait_for_load_state("networkidle", timeout=30000)
+                self.page.wait_for_timeout(1000)  # Espera adicional para estabilidad
+
+                # 2. Buscar la lista de URLs
+                # Basándonos en el snapshot de BrowserMCP, las URLs están en una lista (<ul> o <ol>)
+                # Primero intentamos encontrar la lista principal
+                try:
+                    # Esperar a que aparezca al menos un listitem con URL
+                    self.page.wait_for_selector("ul li, ol li", timeout=10000)
+                    logger.info("✅ Lista de URLs encontrada")
+                except Exception as e:
+                    logger.warning(f"⚠️  No se encontraron URLs en la campaña {campaign_id}: {e}")
+                    return []
+
+                # 3. Contar items primero
+                list_items_count = self.page.locator("ul li, ol li").count()
+                logger.info(f"📊 Se encontraron {list_items_count} items en la lista")
+
+                # Filtrar solo los items que contienen URLs (ignorar encabezados)
+                # Procesar item por item, volviendo a la página principal después de cada navegación
+                for item_index in range(list_items_count):
+                    # Re-obtener el item en cada iteración para evitar elementos obsoletos
+                    item = self.page.locator("ul li, ol li").nth(item_index)
+                    try:
+                        # Obtener el texto completo del item
+                        item_text = item.text_content()
+
+                        if not item_text:
+                            continue
+
+                        # Filtrar el encabezado "Url Han hecho clic Acciones"
+                        if "Url Han hecho clic Acciones" in item_text or "Han hecho clic" in item_text:
+                            continue
+
+                        # Buscar enlaces dentro del item - pueden contener la URL completa en href o title
+                        import re
+                        url = None
+
+                        # Método 1: Buscar enlace <a> con href (URLs externas directas)
+                        links_locator = item.locator('a')
+                        links_count = links_locator.count()
+
+                        for link_idx in range(links_count):
+                            link = links_locator.nth(link_idx)
+                            href = link.get_attribute('href')
+                            # Si encuentra URL externa directa (poco común)
+                            if href and href.startswith('http'):
+                                url = href
+                                break
+
+                        # Método 2: Buscar enlace "Detalles" y extraer URL de la página de detalles
+                        if not url:
+                            # Buscar enlace que contiene "Detalles" o "/click/.../details/"
+                            details_link = None
+                            for link_idx in range(links_count):
+                                link = links_locator.nth(link_idx)
+                                href = link.get_attribute('href')
+                                link_text = link.text_content().strip()
+                                if href and ('/click/' in href and '/details/' in href) or link_text == 'Detalles':
+                                    details_link = href
+                                    break
+
+                            if details_link:
+                                # Navegar a la página de detalles para obtener la URL completa
+                                try:
+                                    # Construir URL completa si es relativa
+                                    if details_link.startswith('/'):
+                                        details_url = f"https://acumbamail.com{details_link}"
+                                    else:
+                                        details_url = details_link
+
+                                    logger.debug(f"   🔍 Navegando a detalles: {details_url}")
+
+                                    # Guardar URL actual para volver
+                                    current_url = self.page.url
+
+                                    # Navegar a detalles
+                                    self.page.goto(details_url, wait_until="domcontentloaded", timeout=15000)
+                                    self.page.wait_for_timeout(500)
+
+                                    # Buscar la URL completa en la página de detalles
+                                    # La URL suele estar en un elemento con la clase que indica la URL rastreada
+                                    page_content = self.page.content()
+
+                                    # Buscar URLs completas en el HTML
+                                    url_patterns = [
+                                        r'(https?://[^"\s<>]+)',  # URL entre comillas o espacios
+                                    ]
+
+                                    for pattern in url_patterns:
+                                        urls_found = re.findall(pattern, page_content)
+                                        for found_url in urls_found:
+                                            # Filtrar URLs que NO son relevantes
+                                            skip_domains = [
+                                                'acumbamail.com',
+                                                'clickacm.com',
+                                                'w3.org',
+                                                'schema.org',
+                                                'google.com/recaptcha',
+                                                'gstatic.com'
+                                            ]
+
+                                            # Verificar si la URL debe ser saltada
+                                            should_skip = any(domain in found_url.lower() for domain in skip_domains)
+
+                                            # Además, la URL debe ser similar a la truncada que vimos
+                                            # Extraer el inicio de la URL truncada del item_text
+                                            truncated_match = re.search(r'(https?://[^\s]{20,})', item_text)
+                                            if truncated_match:
+                                                truncated_url_start = truncated_match.group(1)[:50]  # Primeros 50 caracteres
+                                                # La URL encontrada debe empezar similar a la truncada
+                                                if not should_skip and found_url.startswith(truncated_url_start[:30]):
+                                                    url = found_url
+                                                    logger.debug(f"   ✅ URL completa encontrada en detalles: {url[:80]}...")
+                                                    break
+
+                                        if url:
+                                            break
+
+                                    # Volver a la página de lista de URLs
+                                    self.page.goto(current_url, wait_until="networkidle", timeout=15000)
+                                    self.page.wait_for_timeout(1000)  # Esperar más tiempo para estabilidad
+
+                                except Exception as e:
+                                    logger.warning(f"   ⚠️ Error obteniendo URL desde detalles: {e}")
+
+                        # Método 3: Extraer del texto visible (último recurso, puede estar truncada)
+                        if not url:
+                            url_match = re.search(r'(https?://\S+)', item_text)
+                            if url_match:
+                                url = url_match.group(1)
+                                logger.debug(f"   ⚠️ Usando URL del texto (puede estar truncada): {url}")
+                            else:
+                                continue
+
+                        # Patrón para buscar clics: "X (Y% abridores)" o "X (Y,Y% abridores)"
+                        clicks_match = re.search(r'(\d+)\s*\((\d+[,.]?\d*)\s*%\s*abridores\)', item_text)
+
+                        if clicks_match:
+                            clicks = int(clicks_match.group(1))
+                            percentage_str = clicks_match.group(2).replace(',', '.')
+                            percentage = float(percentage_str)
+                        else:
+                            # Si no se encuentra el patrón, intentar buscar solo el número
+                            clicks_simple = re.search(r'(\d+)\s+\(', item_text)
+                            if clicks_simple:
+                                clicks = int(clicks_simple.group(1))
+                                percentage = 0.0
+                            else:
+                                clicks = 0
+                                percentage = 0.0
+
+                        # Crear objeto ScrapedCampaignUrl
+                        campaign_url = ScrapedCampaignUrl(
+                            url=url,
+                            clicks=clicks,
+                            click_percentage=percentage,
+                            campaign_id=campaign_id
+                        )
+
+                        campaign_urls.append(campaign_url)
+                        logger.debug(f"   ✅ URL extraída: {campaign_url.short_url} - {clicks} clics ({percentage}%)")
+
+                    except Exception as e:
+                        logger.warning(f"⚠️  Error procesando item de URL: {e}")
+                        continue
+
+                duration = time.time() - start_time
+                logger.info(f"✅ URLs scraping completado: {len(campaign_urls)} URLs en {duration:.1f}s")
+                return campaign_urls
+
+            except Exception as e:
+                logger.error(f"❌ Error en scraping de URLs: {e}")
+                return []
+
+        return self.wait_and_retry(_scrape_urls)
+
     # === MÉTODO COMBINADO ===
-    def get_complete_campaign_data(self, campaign_id: int, 
+    def get_complete_campaign_data(self, campaign_id: int,
                                  include_non_openers: bool = True,
                                  include_hard_bounces: bool = True,
-                                 include_extended_stats: bool = False) -> ScrapedCampaignData:
+                                 include_extended_stats: bool = False,
+                                 include_campaign_urls: bool = True) -> ScrapedCampaignData:
         """
         🎯 Obtener todos los datos scrapeados de una campaña
-        
+
         Este método combina todos los otros métodos para obtener
         un conjunto completo de datos.
-        
+
         Args:
             campaign_id: ID de la campaña
             include_non_openers: Si incluir no-openers (recomendado: True)
-            include_hard_bounces: Si incluir hard bounces (recomendado: True)  
+            include_hard_bounces: Si incluir hard bounces (recomendado: True)
             include_extended_stats: Si incluir stats extendidas (opcional: False)
-            
+            include_campaign_urls: Si incluir URLs de campaña (recomendado: True)
+
         Returns:
             Objeto con todos los datos scrapeados
         """
@@ -302,6 +511,16 @@ class CampaignsScraper(BaseScraper):
             except Exception as e:
                 logger.error(f"❌ Error obteniendo hard bounces: {e}")
         
+        # Obtener URLs de campaña si se solicita
+        if include_campaign_urls:
+            try:
+                logger.info("🔗 Obteniendo URLs de campaña...")
+                campaign_data.campaign_urls = self.get_campaign_urls(campaign_id)
+                campaign_data.scraping_methods.append("get_campaign_urls")
+                logger.info(f"✅ URLs de campaña obtenidas: {len(campaign_data.campaign_urls)}")
+            except Exception as e:
+                logger.error(f"❌ Error obteniendo URLs de campaña: {e}")
+
         # Obtener estadísticas extendidas si se solicita
         if include_extended_stats:
             try:
@@ -311,11 +530,11 @@ class CampaignsScraper(BaseScraper):
                 logger.info("✅ Estadísticas extendidas obtenidas")
             except Exception as e:
                 logger.error(f"❌ Error obteniendo estadísticas extendidas: {e}")
-        
+
         duration = time.time() - start_time
         logger.info(f"🎉 Scraping completo finalizado en {duration:.1f}s")
         logger.info(f"📊 Resumen: {campaign_data.summary}")
-        
+
         return campaign_data
     
     # === MÉTODOS AUXILIARES (IMPLEMENTAR SEGÚN NECESIDAD) ===

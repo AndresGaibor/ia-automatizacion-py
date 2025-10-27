@@ -217,21 +217,62 @@ class ScrapedCampaignStats(BaseModel):
         }
 
 
+class ScrapedCampaignUrl(BaseModel):
+    """
+    URL de campaña con estadísticas de clics
+
+    Representa una URL presente en la campaña con su información de clics.
+    Este dato se obtiene de la página de seguimiento de URLs.
+    """
+    url: str = Field(..., description="URL completa del enlace")
+    clicks: int = Field(0, description="Número total de clics en esta URL")
+    click_percentage: float = Field(0.0, description="Porcentaje de abridores que hicieron clic")
+    campaign_id: int = Field(..., description="ID de la campaña")
+
+    @property
+    def domain(self) -> str:
+        """Extraer dominio de la URL"""
+        try:
+            from urllib.parse import urlparse
+            parsed = urlparse(self.url)
+            return parsed.netloc
+        except Exception:
+            return ""
+
+    @property
+    def short_url(self) -> str:
+        """Versión acortada de la URL para display (primeros 50 caracteres)"""
+        return self.url[:50] + "..." if len(self.url) > 50 else self.url
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "url": "https://ejemplo.com/producto",
+                "clicks": 15,
+                "click_percentage": 30.5,
+                "campaign_id": 12345
+            }
+        }
+
+
 class ScrapedCampaignData(BaseModel):
     """
     Contenedor para todos los datos scrapeados de una campaña
-    
+
     Agrupa todos los tipos de datos que se pueden obtener por scraping.
     """
     campaign_id: int = Field(..., description="ID de la campaña")
-    
+
     # Listas de suscriptores
     non_openers: List[ScrapedNonOpener] = Field(default_factory=list, description="Suscriptores que no abrieron")
     hard_bounces: List[ScrapedHardBounce] = Field(default_factory=list, description="Hard bounces con detalles")
-    
+
+    # URLs de la campaña
+    campaign_urls: List[ScrapedCampaignUrl] = Field(default_factory=list, description="URLs de la campaña con clics")
+
     # Estadísticas extendidas
     extended_stats: Optional[ScrapedCampaignStats] = Field(None, description="Estadísticas extendidas")
-    
+
     # Metadatos
     scraped_at: str = Field(..., description="Timestamp del scraping")
     scraping_methods: List[str] = Field(default_factory=list, description="Métodos de scraping utilizados")
@@ -251,6 +292,7 @@ class ScrapedCampaignData(BaseModel):
             "campaign_id": self.campaign_id,
             "non_openers_count": len(self.non_openers),
             "hard_bounces_count": len(self.hard_bounces),
+            "campaign_urls_count": len(self.campaign_urls),
             "total_unique_emails": self.total_scraped_emails,
             "has_extended_stats": self.extended_stats is not None,
             "scraped_at": self.scraped_at,

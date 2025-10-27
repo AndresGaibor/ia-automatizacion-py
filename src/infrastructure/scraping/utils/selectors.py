@@ -70,6 +70,12 @@ class CampaignSelectors:
     export_button: str = ".export-button"  # TODO: Verificar selector real
     download_link: str = ".download-link"  # TODO: Verificar selector real
 
+    # === SEGUIMIENTO DE URLs ===
+    # Página: /report/campaign/{id}/url/
+    url_tracking_list: str = "ul, .url-list"  # Lista que contiene las URLs
+    url_tracking_items: str = "li"  # Items individuales de URL
+    url_details_link: str = "a[href*='/click/details/']"  # Enlace de detalles
+
 
 @dataclass
 class CommonSelectors:
