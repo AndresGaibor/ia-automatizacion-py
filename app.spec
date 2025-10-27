@@ -32,6 +32,13 @@ for module in ['httpx', 'httpcore', 'openpyxl', 'email_validator', 'rich', 'stru
     except:
         pass
 
+# Recopilar certifi con sus archivos de certificados (para futuro uso de SSL)
+try:
+    tmp_ret = collect_all('certifi')
+    datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+except:
+    pass
+
 # Módulos adicionales necesarios
 additional_hiddenimports = [
     # Core Python modules

@@ -58,15 +58,26 @@ class PerformanceLogger:
                 '[%(asctime)s] %(levelname)s - %(name)s - %(message)s',
                 datefmt='%Y-%m-%d %H:%M:%S'
             )
-            
+
+            # Configurar encoding UTF-8 para Windows (soportar emojis)
+            import sys
+
             console_handler = logging.StreamHandler()
+            # Forzar UTF-8 en Windows para soportar emojis en consola
+            if sys.platform == 'win32' and hasattr(console_handler.stream, 'reconfigure'):
+                try:
+                    console_handler.stream.reconfigure(encoding='utf-8', errors='replace')
+                except Exception:
+                    pass  # Fallback silencioso si falla la reconfiguración
+
             console_handler.setFormatter(formatter)
             console_handler.setLevel(logging.WARNING)  # Only show warnings and errors in console
             self.logger.addHandler(console_handler)
-            
+
             if log_file:
                 os.makedirs(os.path.dirname(log_file), exist_ok=True)
-                file_handler = logging.FileHandler(log_file)
+                # FileHandler con encoding UTF-8 explícito para Windows
+                file_handler = logging.FileHandler(log_file, encoding='utf-8', errors='replace')
                 file_handler.setFormatter(formatter)
                 self.logger.addHandler(file_handler)
 
