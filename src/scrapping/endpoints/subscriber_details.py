@@ -61,8 +61,10 @@ class SubscriberDetailsService:
                 logging.info("📌 Paso 1: Construyendo URL de navegación")
                 try:
                     url_base = self.config.get("url_base", "")
-                    url = f"{url_base}/report/campaign/{campaign_id}/subscribers/?filter_index={filter_index}"
+                    # CORREGIDO: Usar ?filter= en lugar de ?filter_index=
+                    url = f"{url_base}/report/campaign/{campaign_id}/subscribers/?filter={filter_index}"
                     logging.debug(f"✅ URL construida: {url}")
+                    logging.info(f"🔗 Navegando con filtro {filter_index} para campaña {campaign_id}")
                 except Exception as e:
                     logging.error(f"❌ ERROR PASO 1 - Construyendo URL: {e}")
                     raise Exception(f"Error construyendo URL para campaña {campaign_id}: {e}")
@@ -194,6 +196,7 @@ class SubscriberDetailsService:
 
                 if tabla_count == 0:
                     logging.error("❌ ERROR PASO 2 - No se encontró tabla de suscriptores")
+                    logging.error(f"🌐 URL actual: {self.page.url}")
                     logging.debug("🔍 Intentando selectores alternativos...")
 
                     # Intentar selectores alternativos
@@ -204,7 +207,15 @@ class SubscriberDetailsService:
                             logging.debug("✅ Selector alternativo funcionó")
                         else:
                             logging.error("❌ Selectores alternativos también fallaron")
-                            log_warning("No se encontró tabla de suscriptores con ningún selector")
+                            logging.error("🔍 Verificando si la página tiene contenido...")
+                            # Ayuda a diagnosticar: imprimir título de página y primeros elementos
+                            try:
+                                page_title = self.page.title()
+                                logging.error(f"📄 Título de página: {page_title}")
+                            except:
+                                pass
+                            log_warning("No se encontró tabla de suscriptores con ningún selector",
+                                      url=self.page.url)
                             return []
                     except Exception as alt_e:
                         logging.error(f"❌ Error con selectores alternativos: {alt_e}")

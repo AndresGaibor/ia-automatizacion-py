@@ -174,6 +174,18 @@ def crear_archivo_excel(general: list[list[str]], informe_detallado: list[list[l
             crear_hoja_con_datos(wb, nombre_hoja, datos, columnas)
             log_data_extraction(nombre_hoja, len(datos), "base de datos")
 
+            # Log adicional para "No abiertos" para diagnosticar problemas
+            if nombre_hoja == "No abiertos":
+                if len(datos) == 0:
+                    log_warning("⚠️ Hoja 'No abiertos' creada pero SIN DATOS",
+                              nombre_hoja=nombre_hoja,
+                              campania=nombre_campania)
+                else:
+                    log_info("✅ Hoja 'No abiertos' creada con datos exitosamente",
+                            nombre_hoja=nombre_hoja,
+                            total_registros=len(datos),
+                            muestra_primer_registro=datos[0] if datos else None)
+
         # Crear hoja de URLs de Clics si están disponibles
         if campaign_urls:
             crear_hoja_con_datos(
@@ -201,7 +213,7 @@ def crear_archivo_excel(general: list[list[str]], informe_detallado: list[list[l
 def get_campaign_urls_with_fallback(page, campaign_id: int) -> str:
 	"""
 	Obtiene la URL del correo de una campaña mediante scraping.
-	Extrae la URL del botón "Ver email" que enlaza a clickacm.com
+	Extrae la URL del botón "Ver email" que enlaza a clickacm.com desde la página de suscriptores.
 	"""
 	from .shared.logging.logger import get_logger
 	logger = get_logger()
@@ -210,15 +222,16 @@ def get_campaign_urls_with_fallback(page, campaign_id: int) -> str:
 		logger.start_timer(f"scraping_email_url_campaign_{campaign_id}")
 		logging.info(f"📧 Extrayendo URL del correo de la campaña {campaign_id}")
 
-		# Paso 1: Navegar a la página de reportes
-		logging.debug("📌 Paso 1: Navegando a página de reportes de la campaña")
+		# Paso 1: Navegar a la página de suscriptores (donde está el botón "Ver email")
+		logging.debug("📌 Paso 1: Navegando a página de suscriptores de la campaña")
 		try:
-			report_page = f"https://acumbamail.com/report/campaign/{campaign_id}/"
-			logging.debug(f"🌐 Navegando a: {report_page}")
+			# CORREGIDO: Navegar a página /subscribers/ en lugar de /report/
+			subscribers_page = f"https://acumbamail.com/report/campaign/{campaign_id}/subscribers/"
+			logging.debug(f"🌐 Navegando a: {subscribers_page}")
 
-			page.goto(report_page, wait_until="networkidle", timeout=60000)
-			logger.debug(f"   Navegado a: {report_page}")
-			logging.debug("✅ Navegación a reportes completada")
+			page.goto(subscribers_page, wait_until="networkidle", timeout=60000)
+			logger.debug(f"   Navegado a: {subscribers_page}")
+			logging.debug("✅ Navegación a suscriptores completada")
 
 			# Esperar a que la página cargue completamente con networkidle
 			page.wait_for_load_state("networkidle", timeout=30000)
@@ -226,12 +239,12 @@ def get_campaign_urls_with_fallback(page, campaign_id: int) -> str:
 			logging.debug("✅ Página completamente cargada (networkidle + 2s)")
 
 		except PWTimeoutError as e:
-			logging.error(f"❌ ERROR PASO 1 - Timeout navegando a reportes: {e}")
-			logging.error(f"⏱️ URL intentada: {report_page}")
+			logging.error(f"❌ ERROR PASO 1 - Timeout navegando a suscriptores: {e}")
+			logging.error(f"⏱️ URL intentada: {subscribers_page}")
 			logger.end_timer(f"scraping_email_url_campaign_{campaign_id}", f"Timeout: {e}")
 			return ""
 		except Exception as e:
-			logging.error(f"❌ ERROR PASO 1 - Error navegando a reportes: {e}")
+			logging.error(f"❌ ERROR PASO 1 - Error navegando a suscriptores: {e}")
 			logger.end_timer(f"scraping_email_url_campaign_{campaign_id}", f"Error: {e}")
 			return ""
 
@@ -644,12 +657,38 @@ def main():
 
 				if complete_data.get("scraping_result"):
 					scraping_result = complete_data["scraping_result"]
+
+					# Logging detallado de datos de scraping antes de conversión
+					log_info("🔍 Datos de scraping obtenidos",
+							campania_id=id,
+							hard_bounces_count=len(scraping_result.hard_bounces) if scraping_result.hard_bounces else 0,
+							no_opens_count=len(scraping_result.no_opens) if scraping_result.no_opens else 0)
+
+					# Log de muestra de datos si existen
+					if scraping_result.no_opens:
+						log_info("📋 Muestra de 'No abiertos' extraídos (primeros 3)",
+								campania_id=id,
+								sample=scraping_result.no_opens[:3])
+					else:
+						log_warning("⚠️ Lista de 'No abiertos' está vacía", campania_id=id)
+
 					hard_bounces = convert_hard_bounces_to_rows(scraping_result.hard_bounces)
 					no_abiertos = convert_no_opens_to_rows(scraping_result.no_opens)
+
+					# Logging después de conversión
+					log_info("📊 Datos convertidos para Excel",
+							campania_id=id,
+							hard_bounces_rows=len(hard_bounces),
+							no_abiertos_rows=len(no_abiertos))
+
 					log_success("Scraping completado",
 							   hard_bounces=len(hard_bounces), no_abiertos=len(no_abiertos))
 				else:
 					log_warning("No se pudieron obtener datos de scraping", campania_id=id)
+					log_info("🔍 Detalle de complete_data",
+							campania_id=id,
+							has_scraping_result=bool(complete_data.get("scraping_result")),
+							complete_data_keys=list(complete_data.keys()) if complete_data else [])
 
 				# Extraer URLs de campaña con scraping
 				campaign_urls_data = []
