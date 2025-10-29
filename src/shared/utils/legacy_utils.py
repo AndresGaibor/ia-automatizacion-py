@@ -464,3 +464,65 @@ def click_element(element):
 	except Exception as e:
 		print(f"Error haciendo clic en elemento: {e}")
 		return False
+
+def is_on_login_page(page: Page) -> bool:
+	"""
+	Verifica si la página actual es la página de login.
+
+	Args:
+		page: Página de Playwright a verificar
+
+	Returns:
+		True si está en la página de login, False en caso contrario
+	"""
+	try:
+		current_url = page.url
+		is_login = '/login/' in current_url or '/login' in current_url.lower()
+
+		if is_login:
+			logger.warning("⚠️ Redirección a login detectada", url=current_url)
+
+		return is_login
+	except Exception as e:
+		logger.error("❌ Error verificando página de login", error=str(e))
+		return False
+
+def validate_session(page: Page) -> bool:
+	"""
+	Valida si la sesión actual sigue activa navegando a una página de prueba.
+
+	Args:
+		page: Página de Playwright para validar
+
+	Returns:
+		True si la sesión es válida, False si expiró
+	"""
+	try:
+		logger.info("🔍 Validando sesión activa...")
+
+		# Guardar URL actual para regresar después
+		current_url = page.url
+
+		# Navegar a página de prueba (reportes)
+		test_url = "https://acumbamail.com/report/campaign/"
+		page.goto(test_url, wait_until="networkidle", timeout=30000)
+
+		# Verificar si fue redirigido a login
+		if is_on_login_page(page):
+			logger.warning("⚠️ Sesión expirada - se requiere re-autenticación")
+			return False
+
+		logger.success("✅ Sesión válida")
+
+		# Intentar regresar a la URL original si es diferente
+		if current_url and current_url != test_url:
+			try:
+				page.goto(current_url, wait_until="networkidle", timeout=30000)
+			except Exception:
+				pass  # No es crítico si falla
+
+		return True
+
+	except Exception as e:
+		logger.error("❌ Error validando sesión", error=str(e))
+		return False

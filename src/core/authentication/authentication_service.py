@@ -321,6 +321,33 @@ class AuthenticationService:
         except Exception as e:
             logger.warning(f"Page took time to load: {e}. Continuing... - error: {str(e)}")
 
+    def refresh_session(self, page: Page, context: BrowserContext) -> bool:
+        """
+        Refresh the session by re-authenticating when session expires.
+
+        Args:
+            page: Playwright page object
+            context: Browser context to save updated session
+
+        Returns:
+            True if session was refreshed successfully, False otherwise
+        """
+        try:
+            logger.warning("🔄 Sesión expirada, iniciando re-autenticación...")
+            notify("Session", "Session expired, re-authenticating...", "warning")
+
+            # Call the main authenticate method to re-login
+            self.authenticate(page, context)
+
+            logger.success("✅ Sesión refrescada exitosamente")
+            notify("Session", "Session refreshed successfully", "info")
+            return True
+
+        except Exception as e:
+            logger.error(f"❌ Error refrescando sesión: {e}")
+            notify("Session Error", f"Failed to refresh session: {e}", "error")
+            return False
+
 
 class FileSessionStorage:
     """File-based session storage implementation."""

@@ -107,6 +107,22 @@ class SubscriberDetailsService:
                     logging.error(f"❌ ERROR PASO 3 - Error esperando carga de página: {e}")
                     logging.warning("⚠️ Continuando a pesar del error en espera de carga")
 
+                # Paso 4: Verificar que no fuimos redirigidos a login
+                logging.info("📌 Paso 4: Verificando redirección a login")
+                try:
+                    from ...shared.utils.legacy_utils import is_on_login_page
+
+                    if is_on_login_page(self.page):
+                        logging.error(f"❌ Redirigido a página de login - Sesión expirada")
+                        logging.error(f"🌐 URL actual: {self.page.url}")
+                        log_error("Sesión expirada - redirigido a login",
+                                 campaign_id=campaign_id, filter_index=filter_index, url=self.page.url)
+                        return False
+
+                    logging.debug("✅ No hay redirección a login - navegación exitosa")
+                except ImportError:
+                    logging.warning("⚠️ No se pudo importar is_on_login_page, continuando sin verificación")
+
                 log_success(f"✅ Navegación completada exitosamente - Campaña: {campaign_id}, Filtro: {filter_index}")
                 logging.debug(f"🌐 URL final: {self.page.url}")
                 log_success("Navegación completada con filtro aplicado", campaign_id=campaign_id, filter_index=filter_index, url=self.page.url)
@@ -164,8 +180,20 @@ class SubscriberDetailsService:
             logging.info(f"🔍 Iniciando extracción de datos de tabla - Columnas esperadas: {expected_columns}")
             logging.debug(f"🌐 URL actual: {self.page.url}")
 
-            # Paso 1: Esperar a que la página esté lista
-            logging.info("📌 Paso 1: Verificando que la página esté lista para extracción")
+            # Paso 1: Verificar que no estamos en página de login
+            logging.info("📌 Paso 1: Verificando que no estamos en página de login")
+            try:
+                from ...shared.utils.legacy_utils import is_on_login_page
+                if is_on_login_page(self.page):
+                    logging.error("❌ Error: Estamos en página de login - No se puede extraer")
+                    logging.error(f"🌐 URL actual: {self.page.url}")
+                    log_error("Cannot extract - on login page", url=self.page.url)
+                    return []
+            except ImportError:
+                logging.warning("⚠️ No se pudo importar is_on_login_page")
+
+            # Paso 2: Esperar a que la página esté lista
+            logging.info("📌 Paso 2: Verificando que la página esté lista para extracción")
             try:
                 logging.debug("⏳ Esperando estado 'networkidle' con timeout: 30000ms")
                 self.page.wait_for_load_state("networkidle", timeout=30000)
@@ -179,8 +207,8 @@ class SubscriberDetailsService:
             except Exception as e:
                 logging.warning(f"⚠️ Error esperando página lista - Continuando: {e}")
 
-            # Paso 2: Localizar la tabla de suscriptores
-            logging.info("📌 Paso 2: Localizando tabla de suscriptores")
+            # Paso 3: Localizar la tabla de suscriptores
+            logging.info("📌 Paso 3: Localizando tabla de suscriptores")
             tabla_locator = None
             filas = None
             try:
@@ -195,7 +223,7 @@ class SubscriberDetailsService:
                 logging.debug(f"🔍 Tablas encontradas: {tabla_count}")
 
                 if tabla_count == 0:
-                    logging.error("❌ ERROR PASO 2 - No se encontró tabla de suscriptores")
+                    logging.error("❌ ERROR PASO 3 - No se encontró tabla de suscriptores")
                     logging.error(f"🌐 URL actual: {self.page.url}")
                     logging.debug("🔍 Intentando selectores alternativos...")
 

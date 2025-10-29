@@ -286,6 +286,16 @@ class CampaignsScraper(BaseScraper):
                 self.page.wait_for_load_state("networkidle", timeout=30000)
                 self.page.wait_for_timeout(1000)  # Espera adicional para estabilidad
 
+                # Verificar si fuimos redirigidos a login
+                try:
+                    from ...shared.utils.legacy_utils import is_on_login_page
+                    if is_on_login_page(self.page):
+                        logger.error(f"❌ Redirigido a login al intentar acceder a URLs de campaña {campaign_id}")
+                        logger.warning("⚠️ Sesión expirada - no se pueden extraer URLs")
+                        return []
+                except ImportError:
+                    logger.warning("⚠️ No se pudo importar is_on_login_page")
+
                 # 2. Buscar la lista de URLs
                 # Basándonos en el snapshot de BrowserMCP, las URLs están en una lista (<ul> o <ol>)
                 # Primero intentamos encontrar la lista principal

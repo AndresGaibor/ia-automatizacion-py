@@ -43,23 +43,28 @@ ARCHIVO_BUSQUEDA = data_path("Busqueda.xlsx")
 ARCHIVO_INFORMES_PREFIX = data_path("informes")
 
 def generar_nombre_archivo_informe(nombre_campania: str = "", fecha_envio: str = "") -> str:
+	logger.debug("📝 Generando nombre de archivo de informe", nombre_campania=nombre_campania, fecha_envio=fecha_envio)
+
 	ahora = datetime.now()
 	fecha_extraccion = ahora.strftime("%Y%m%d%H%M")
-	
+
 	if nombre_campania and fecha_envio:
 		# Limpiar nombre de campaña de caracteres problemáticos para nombres de archivo
 		nombre_limpio = re.sub(r'[<>:"/\\|?*]', '_', nombre_campania)
 		nombre_archivo = f"{nombre_limpio}-{fecha_envio}_{fecha_extraccion}.xlsx"
+		logger.debug("✅ Nombre generado con formato personalizado", nombre_limpio=nombre_limpio)
 	else:
 		# Fallback al formato anterior si no se proporcionan los parámetros
 		nombre_archivo = f"{ARCHIVO_INFORMES_PREFIX}_{fecha_extraccion}.xlsx"
-	
+		logger.debug("✅ Nombre generado con formato por defecto")
+
 	# Asegurar que el nombre de archivo esté en el directorio data/suscriptores
 	if nombre_campania and fecha_envio:
 		nombre_archivo = data_path(f"suscriptores/{nombre_archivo}")
 	else:
 		nombre_archivo = data_path(nombre_archivo.replace(f"{ARCHIVO_INFORMES_PREFIX}_", ""))
-		
+
+	logger.info("✅ Nombre de archivo de informe generado", archivo=nombre_archivo)
 	return nombre_archivo
 
 def crear_archivo_csv(general: list[list[str]], informe_detallado: list[list[list[str]]], nombre_campania: str = "", fecha_envio: str = "", campaign_urls: list[list] = None):
@@ -238,6 +243,17 @@ def get_campaign_urls_with_fallback(page, campaign_id: int) -> str:
 			page.wait_for_timeout(2000)  # Espera aumentada para conexiones lentas
 			logging.debug("✅ Página completamente cargada (networkidle + 2s)")
 
+			# Verificar si fuimos redirigidos a login
+			try:
+				from .shared.utils.legacy_utils import is_on_login_page
+				if is_on_login_page(page):
+					logging.error(f"❌ Redirigido a login al intentar acceder a URL de correo de campaña {campaign_id}")
+					logging.warning("⚠️ Sesión expirada - no se puede extraer URL del correo")
+					logger.end_timer(f"scraping_email_url_campaign_{campaign_id}", "Sesión expirada")
+					return ""
+			except ImportError:
+				logging.warning("⚠️ No se pudo importar is_on_login_page")
+
 		except PWTimeoutError as e:
 			logging.error(f"❌ ERROR PASO 1 - Timeout navegando a suscriptores: {e}")
 			logging.error(f"⏱️ URL intentada: {subscribers_page}")
@@ -292,11 +308,16 @@ def get_campaign_urls_with_fallback(page, campaign_id: int) -> str:
 		return ""
 
 def generar_listas(todas_listas, id_listas: list[str]) -> str:
+	logger.debug("📋 Generando string de listas", total_listas=len(todas_listas), id_listas_count=len(id_listas))
+
 	listas_ar = []
 	for lista in todas_listas:
 		if lista.id in id_listas:
 			listas_ar.append(lista.name or "")
+			logger.debug(f"  ✅ Lista encontrada: {lista.name}", lista_id=lista.id)
+
 	listas = ", ".join(listas_ar)
+	logger.info("✅ String de listas generado", listas_encontradas=len(listas_ar), resultado=listas)
 	return listas
 
 def crear_mapa_email_lista(todas_listas, api) -> dict[str, str]:
@@ -345,7 +366,9 @@ def obtener_lista_suscriptor(email: str, mapa_email_lista: dict[str, str]) -> st
 	usando el mapa precalculado
 	"""
 	email_clean = email.lower().strip()
-	return mapa_email_lista.get(email_clean, "Lista no encontrada")
+	lista = mapa_email_lista.get(email_clean, "Lista no encontrada")
+	logger.debug("📧 Consultando lista de suscriptor", email=email_clean, lista_encontrada=lista)
+	return lista
 
 def generar_general(campania: CampaignBasicInfo, campania_complete, campaign_clics, todas_listas, page, campaign_id=None) -> list[str]:
 	from .shared.logging.logger import get_logger
@@ -587,8 +610,32 @@ def main():
 			campanias_exitosas = 0
 
 			for i, (id, nombre_campania) in enumerate(campanias_a_buscar):
-				log_info(f"📊 Procesando campaña {i+1}/{len(campanias_a_buscar)}", 
+				log_info(f"📊 Procesando campaña {i+1}/{len(campanias_a_buscar)}",
 						campania_id=id, nombre=nombre_campania, progreso=f"{i+1}/{len(campanias_a_buscar)}")
+
+				# Validar sesión antes de procesar cada campaña (especialmente después de la primera)
+				if i > 0:  # Validar después de la primera campaña
+					try:
+						from .shared.utils.legacy_utils import validate_session, is_on_login_page
+
+						# Verificar si la sesión sigue válida
+						if is_on_login_page(page):
+							log_warning(f"⚠️ Sesión expirada detectada antes de procesar campaña {id}")
+							log_info("🔄 Re-autenticando...")
+
+							# Re-autenticar
+							login(page, context=context)
+							log_success("✅ Sesión refrescada exitosamente")
+
+							# Re-esperar estabilización
+							page.wait_for_load_state("networkidle", timeout=30000)
+							page.wait_for_timeout(3000)
+							log_success("✅ Sesión estabilizada después de re-autenticación")
+					except ImportError:
+						log_warning("⚠️ No se pudo importar funciones de validación de sesión")
+					except Exception as e:
+						log_error(f"❌ Error validando sesión: {e}")
+						# Continuar de todas formas, el scraping individual detectará el problema
 
 				# Obtener datos completos usando servicio híbrido con reintentos
 				try:
