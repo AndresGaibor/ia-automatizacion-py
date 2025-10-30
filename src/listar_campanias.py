@@ -16,16 +16,92 @@ from .utils import (
     obtener_total_paginas,
     navegar_siguiente_pagina,
 )
-from .autentificacion import login
+from .autentificacion import login, manejar_popup_cookies
 from .infrastructure.api import API
+from .shared.utils.legacy_utils import is_on_login_page
+from .core.authentication.exceptions import SessionExpiredError, AuthenticationFailedError
 
 from playwright.sync_api import sync_playwright, Page
 import re
+import time
+from functools import wraps
 
 # Rutas
 ARCHIVO_BUSQUEDA = data_path("Busqueda.xlsx")
 
 logger = get_logger()
+
+
+def with_session_retry(max_retries: int = 2):
+	"""
+	Decorator para manejo de expiración de sesión con reintentos automáticos.
+
+	Args:
+		max_retries: Número máximo de reintentos después de re-autenticación
+	"""
+	def decorator(func):
+		@wraps(func)
+		def wrapper(page, *args, **kwargs):
+			last_exception = None
+
+			for attempt in range(max_retries + 1):
+				try:
+					# Verificar si estamos en página de login antes de ejecutar
+					if attempt > 0 and is_on_login_page(page):
+						logger.warning(f"🔄 Sesión expirada detectada (intento {attempt + 1}), re-autenticando...")
+
+						# Importar login aquí para evitar import circular
+						from .autentificacion import login
+
+						# Necesitamos el contexto para re-autenticar - usar el contexto de la página
+						context = page.context
+
+						# Re-autenticar agresivamente con manejo de cookies
+						login(page, context)
+
+						logger.success(f"✅ Re-autenticación completada (intento {attempt + 1})")
+
+						# Navegar de vuelta a reportes si es necesario
+						navegar_a_reportes(page)
+						logger.info("📊 Navegación a reportes post re-autenticación completada")
+
+					# Ejecutar la función original
+					result = func(page, *args, **kwargs)
+
+					# Si llegamos aquí, todo fue exitoso
+					if attempt > 0:
+						logger.success(f"✅ Operación recuperada exitosamente después de {attempt} reintentos")
+
+					return result
+
+				except Exception as e:
+					last_exception = e
+					error_msg = str(e).lower()
+
+					# Verificar si es un error de sesión
+					is_session_error = (
+						"session expired" in error_msg or
+						"login" in error_msg or
+						"unauthorized" in error_msg or
+						"timeout" in error_msg or
+						is_on_login_page(page)
+					)
+
+					if is_session_error and attempt < max_retries:
+						logger.warning(f"⚠️ Error de sesión detectado en intento {attempt + 1}: {e}")
+						logger.info(f"🔄 Reintentando operación después de re-autenticación...")
+						time.sleep(2)  # Pequeña espera antes de reintentar
+						continue
+					else:
+						# Si no es error de sesión o ya no hay reintentos, propagar el error
+						logger.error(f"❌ Error en operación (intento {attempt + 1}): {e}")
+						break
+
+			# Si llegamos aquí, todos los intentos fallaron
+			raise last_exception
+
+		return wrapper
+	return decorator
 
 
 def extraer_id_de_url(url: str) -> str:
@@ -141,9 +217,18 @@ def extraer_datos_campania_de_listitem(listitem_locator, page: Page) -> list[str
         return []
 
 
+@with_session_retry(max_retries=2)
+def navegar_siguiente_pagina_con_recuperacion(page: Page, pagina_actual: int) -> bool:
+	"""
+	Wrapper para navegar_siguiente_pagina con recuperación de sesión
+	"""
+	# Usar la función original pero con el decorador para recuperación
+	return navegar_siguiente_pagina(page, pagina_actual)
+
+@with_session_retry(max_retries=2)
 def extraer_campanias_de_pagina(page: Page) -> list[list[str]]:
     """
-    Extrae todas las campañas de la página actual de informes
+    Extrae todas las campañas de la página actual de informes con recuperación de sesión
 
     Args:
         page: Página de Playwright
@@ -341,8 +426,8 @@ def procesar_todas_las_paginas(page: Page) -> list[list[str]]:
 
             # Navegar a la siguiente página si no es la última
             if pagina_actual < total_paginas:
-                logger.debug(f"➡️ Navegando a página {pagina_actual + 1}")
-                exito = navegar_siguiente_pagina(page, pagina_actual)
+                logger.debug(f"➡️ Navegando a página {pagina_actual + 1} con recuperación de sesión")
+                exito = navegar_siguiente_pagina_con_recuperacion(page, pagina_actual)
                 if not exito:
                     logger.warning(f"⚠️ No se pudo navegar a página {pagina_actual + 1}, finalizando procesamiento")
                     break

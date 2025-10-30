@@ -33,16 +33,26 @@ class SubscriberDetailsService:
 
         # Configuración de timeouts muy largos para conexiones lentas
         self.timeouts = {
-            'navigation': 300000,  # 5 minutos para navegación (aumentado de 3min)
-            'element_wait': 120000,  # 2 minutos para elementos (aumentado de 1min)
-            'network_idle': 90000,  # 1.5 minutos para network idle (aumentado de 45s)
-            'table_extraction': 240000,  # 4 minutos para extracción de tabla (aumentado de 2min)
-            'page_load': 180000   # 3 minutos para carga de página (aumentado de 1.5min)
+            'navigation': 600000,  # 10 minutos para navegación (aumentado para conexiones muy lentas)
+            'element_wait': 180000,  # 3 minutos para elementos (aumentado para mayor estabilidad)
+            'network_idle': 120000,  # 2 minutos para network idle (más tiempo para estabilización)
+            'table_extraction': 360000,  # 6 minutos para extracción de tabla (más tiempo para tablas grandes)
+            'page_load': 240000   # 4 minutos para carga de página (más tiempo para páginas complejas)
         }
         
-        log_info("SubscriberDetailsService inicializado", 
-                timeouts=self.timeouts, 
+        log_info("SubscriberDetailsService inicializado",
+                timeouts=self.timeouts,
                 service_version="1.0.0")
+
+    def _try_accept_cookies(self):
+        """Intenta aceptar el diálogo de cookies si aparece"""
+        try:
+            self.page.get_by_role("button", name="Aceptar todas").click(timeout=3000)
+            self.page.wait_for_timeout(500)
+            logging.debug("✅ Cookies aceptadas")
+        except:
+            # Cookies ya aceptadas o no presentes
+            pass
 
     def navigate_to_subscriber_details(self, campaign_id: int, filter_index: int = 0) -> bool:
         """
@@ -107,6 +117,9 @@ class SubscriberDetailsService:
                     logging.error(f"❌ ERROR PASO 3 - Error esperando carga de página: {e}")
                     logging.warning("⚠️ Continuando a pesar del error en espera de carga")
 
+                # Intentar aceptar cookies si aparecen (después de carga)
+                self._try_accept_cookies()
+
                 # Paso 4: Verificar que no fuimos redirigidos a login
                 logging.info("📌 Paso 4: Verificando redirección a login")
                 try:
@@ -143,32 +156,46 @@ class SubscriberDetailsService:
         """
         Extrae el total de elementos del texto 'de X elementos' en la paginación.
         """
+        self.logger.debug("🔍 Extrayendo total de elementos desde paginación")
         try:
             elementos_text = self.page.locator("text=/de \\d+ elementos/i")
             if elementos_text.count() > 0:
                 text_content = elementos_text.first.inner_text(timeout=3000)
+                self.logger.debug(f"📄 Texto de paginación encontrado: {text_content}")
                 match = re.search(r'de\s+(\d+)\s+elementos', text_content, re.IGNORECASE)
                 if match:
-                    return int(match.group(1))
+                    total = int(match.group(1))
+                    self.logger.info(f"✅ Total de elementos extraído: {total}")
+                    return total
+            self.logger.warning("⚠️ No se encontró texto de paginación")
             return None
-        except:
+        except Exception as e:
+            self.logger.warning(f"⚠️ Error extrayendo total desde página: {e}")
             return None
 
     def _get_filter_total_results(self) -> Optional[int]:
         """Intenta obtener el total de resultados del filtro actual"""
+        self.logger.debug("🔍 Intentando obtener total de resultados del filtro")
         try:
             # Buscar elementos que pueden contener el total
             # Adaptar según la estructura real de la página
             total_elements = self.page.locator(".total-results, .pagination-info").all()
+            self.logger.debug(f"📊 Elementos de total encontrados: {len(total_elements)}")
+
             for element in total_elements:
                 text = element.text_content()
                 if text and any(char.isdigit() for char in text):
                     # Extraer número del texto
                     numbers = ''.join(filter(str.isdigit, text))
                     if numbers:
-                        return int(numbers)
+                        total = int(numbers)
+                        self.logger.info(f"✅ Total de filtro extraído: {total}")
+                        return total
+
+            self.logger.warning("⚠️ No se encontró total en elementos de filtro")
             return None
-        except:
+        except Exception as e:
+            self.logger.warning(f"⚠️ Error obteniendo total del filtro: {e}")
             return None
 
     @timer_decorator("extract_subscribers_table")
@@ -378,7 +405,10 @@ class SubscriberDetailsService:
             "regular": SubscriberQuality.REGULAR,
             "pobre": SubscriberQuality.POOR,
         }
-        return quality_map.get(quality_text.lower(), SubscriberQuality.UNKNOWN)
+        quality = quality_map.get(quality_text.lower(), SubscriberQuality.UNKNOWN)
+        if quality == SubscriberQuality.UNKNOWN:
+            self.logger.warning(f"⚠️ Calidad desconocida: {quality_text}")
+        return quality
 
     def _parse_subscriber_status(self, status_text: str) -> SubscriberStatus:
         """Convierte texto de estado a enum"""
@@ -388,7 +418,10 @@ class SubscriberDetailsService:
             "rebotado": SubscriberStatus.BOUNCED,
             "dado de baja": SubscriberStatus.UNSUBSCRIBED,
         }
-        return status_map.get(status_text.lower(), SubscriberStatus.UNKNOWN)
+        status = status_map.get(status_text.lower(), SubscriberStatus.UNKNOWN)
+        if status == SubscriberStatus.UNKNOWN:
+            self.logger.warning(f"⚠️ Estado desconocido: {status_text}")
+        return status
 
     def extract_hard_bounces(self, campaign: CampaignBasicInfo, campaign_id: int) -> List[HardBounceSubscriber]:
         """

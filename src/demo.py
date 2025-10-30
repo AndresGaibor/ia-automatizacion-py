@@ -17,6 +17,9 @@ from .shared.utils.legacy_utils import cargar_campanias_a_buscar, crear_contexto
 from .shared.logging.logger import get_logger
 from .structured_logger import log_success, log_error, log_warning, log_info, log_performance, log_data_extraction
 from .hybrid_service import HybridDataService
+
+# Initialize logger
+logger = get_logger()
 from .core.authentication.authentication_service import AuthenticationService
 from .core.config.config_manager import ConfigManager
 from .shared.utils.retry_utils import retry_with_backoff, is_connection_error
@@ -31,10 +34,13 @@ class FileSessionStorage:
         return self.session_path
 
 def login(page, context):
+    logger.info("🔐 Iniciando función de login")
     config_manager = ConfigManager()
     session_storage = FileSessionStorage(storage_state_path())
     auth_service = AuthenticationService(config_manager, session_storage)
-    return auth_service.authenticate(page, context)
+    result = auth_service.authenticate(page, context)
+    logger.success("✅ Función de login completada")
+    return result
 
 from openpyxl import Workbook
 import re
@@ -325,6 +331,7 @@ def crear_mapa_email_lista(todas_listas, api) -> dict[str, str]:
 	Crea un mapa email -> nombre_lista consultando cada lista una sola vez
 	para evitar el rate limit de la API
 	"""
+	logger.info("📧 Iniciando creación de mapa email-lista", total_listas=len(todas_listas))
 	mapa_email_lista = {}
 
 	try:
@@ -351,13 +358,15 @@ def crear_mapa_email_lista(todas_listas, api) -> dict[str, str]:
 						   lista_id=lista.id, error_type=type(e).__name__)
 				continue
 
-		log_success("Mapa email-lista completado", 
+		log_success("Mapa email-lista completado",
 				   emails_mapeados=len(mapa_email_lista), listas_procesadas=len(todas_listas))
+		logger.success("✅ Mapa email-lista creado exitosamente", emails_mapeados=len(mapa_email_lista))
 		return mapa_email_lista
 
 	except Exception as e:
-		log_error(f"Error creando mapa email-lista: {e}", 
+		log_error(f"Error creando mapa email-lista: {e}",
 				 total_listas=len(todas_listas), error_type=type(e).__name__)
+		logger.error("❌ Error en creación de mapa email-lista", error=str(e))
 		return {}
 
 def obtener_lista_suscriptor(email: str, mapa_email_lista: dict[str, str]) -> str:
@@ -407,9 +416,10 @@ def generar_general(campania: CampaignBasicInfo, campania_complete, campaign_cli
 	return [nombre, tipo, fecha, listas, emails, opens, clicks, url_email]
 
 def generar_abiertos(campania, openers, mapa_email_lista) -> list[list[str]]:
+	logger.info("📧 Generando datos de abiertos", campania=campania.name, total_openers=len(openers))
 	abiertos: list[list[str]] = []
 
-	for opener in openers:
+	for i, opener in enumerate(openers):
 		proyecto = campania.name or ""
 		correo = opener.email or ""
 		fecha_apertura = opener.open_datetime or ""
@@ -423,12 +433,18 @@ def generar_abiertos(campania, openers, mapa_email_lista) -> list[list[str]]:
 		lista2 = lista
 
 		abiertos.append([proyecto, lista, correo, fecha_apertura, pais, aperturas, lista2, estado, calidad])
+
+		if (i + 1) % 50 == 0:
+			logger.debug(f"  Procesados {i + 1}/{len(openers)} abiertos")
+
+	logger.success(f"✅ Datos de abiertos generados: {len(abiertos)} registros")
 	return abiertos
 
 def generar_clics(campania, campaign_clics, mapa_email_lista) -> list[list[str]]:
+	logger.info("🖱️ Generando datos de clics", campania=campania.name, total_clics=len(campaign_clics))
 	clics: list[list[str]] = []
 
-	for click in campaign_clics:
+	for i, click in enumerate(campaign_clics):
 		proyecto = campania.name or ""
 		correo = click.email or ""
 		fecha_clic = click.click_datetime or ""
@@ -441,12 +457,18 @@ def generar_clics(campania, campaign_clics, mapa_email_lista) -> list[list[str]]
 		lista2 = lista
 
 		clics.append([proyecto, lista, correo, fecha_clic, pais, lista2, estado, calidad])
+
+		if (i + 1) % 50 == 0:
+			logger.debug(f"  Procesados {i + 1}/{len(campaign_clics)} clics")
+
+	logger.success(f"✅ Datos de clics generados: {len(clics)} registros")
 	return clics
 
 def generar_soft_bounces(campania, soft_bounce_list, mapa_email_lista) -> list[list[str]]:
+	logger.info("📧 Generando datos de soft bounces", campania=campania.name, total_soft_bounces=len(soft_bounce_list))
 	soft_bounces: list[list[str]] = []
 
-	for bounce in soft_bounce_list:
+	for i, bounce in enumerate(soft_bounce_list):
 		proyecto = campania.name or ""
 		correo = bounce.email or ""
 		estado = "Activo"
@@ -457,6 +479,11 @@ def generar_soft_bounces(campania, soft_bounce_list, mapa_email_lista) -> list[l
 		lista2 = lista
 
 		soft_bounces.append([proyecto, lista, correo, lista2, estado, calidad])
+
+		if (i + 1) % 50 == 0:
+			logger.debug(f"  Procesados {i + 1}/{len(soft_bounce_list)} soft bounces")
+
+	logger.success(f"✅ Datos de soft bounces generados: {len(soft_bounces)} registros")
 	return soft_bounces
 
 # Las funciones de scraping han sido movidas a src/scrapping/endpoints/
@@ -467,6 +494,7 @@ def convert_hard_bounces_to_rows(hard_bounces) -> List[List[str]]:
 	Convierte objetos HardBounceSubscriber a filas para Excel:
 	[Proyecto, Lista, Correo, Lista, Estado, Calidad]
 	"""
+	logger.debug("🔄 Convirtiendo hard bounces a filas", total_items=len(hard_bounces))
 	rows: List[List[str]] = []
 	for bounce in hard_bounces:
 		rows.append([
@@ -477,6 +505,7 @@ def convert_hard_bounces_to_rows(hard_bounces) -> List[List[str]]:
 			bounce.estado.value if hasattr(bounce.estado, 'value') else str(bounce.estado),
 			bounce.calidad.value if hasattr(bounce.calidad, 'value') else str(bounce.calidad)
 		])
+	logger.info(f"✅ Conversión completada: {len(rows)} filas de hard bounces")
 	return rows
 
 def convert_no_opens_to_rows(no_opens) -> List[List[str]]:
@@ -484,6 +513,7 @@ def convert_no_opens_to_rows(no_opens) -> List[List[str]]:
 	Convierte objetos NoOpenSubscriber a filas para Excel:
 	[Proyecto, Lista, Correo, Lista, Estado, Calidad]
 	"""
+	logger.debug("🔄 Convirtiendo no abiertos a filas", total_items=len(no_opens))
 	rows: List[List[str]] = []
 	for no_open in no_opens:
 		rows.append([
@@ -494,6 +524,7 @@ def convert_no_opens_to_rows(no_opens) -> List[List[str]]:
 			no_open.estado.value if hasattr(no_open.estado, 'value') else str(no_open.estado),
 			no_open.calidad.value if hasattr(no_open.calidad, 'value') else str(no_open.calidad)
 		])
+	logger.info(f"✅ Conversión completada: {len(rows)} filas de no abiertos")
 	return rows
 
 def formatear_fecha_envio(fecha_str: str) -> str:
@@ -501,6 +532,7 @@ def formatear_fecha_envio(fecha_str: str) -> str:
 	Convierte una fecha en formato 'DD/MM/YY HH:MM' o 'DD/MM/YYYY HH:MM' a 'YYYYMMDD'
 	Si no se puede parsear, devuelve una cadena vacía.
 	"""
+	logger.debug("📅 Formateando fecha de envío", fecha_input=fecha_str)
 	fecha_envio_param = ""
 
 	try:
@@ -508,7 +540,7 @@ def formatear_fecha_envio(fecha_str: str) -> str:
 		date_formats = [
 			"%d/%m/%y %H:%M",  # Formato DD/MM/YY HH:MM (añadido primero)
 			"%d/%m/%Y %H:%M",  # DD/MM/YYYY HH:MM
-			"%d-%m-%Y %H:%M", 
+			"%d-%m-%Y %H:%M",
 			"%Y-%m-%d %H:%M",
 			"%Y-%m-%d %H:%M:%S",  # YYYY-MM-DD HH:MM:SS
 			"%d/%m/%Y %H:%M:%S",  # DD/MM/YYYY HH:MM:SS
@@ -518,34 +550,42 @@ def formatear_fecha_envio(fecha_str: str) -> str:
 			"%Y-%m-%d",
 			"%d/%m/%y"  # Formato DD/MM/YY
 		]
-		
+
 		fecha_envio_dt = None
+		formato_usado = None
 		for fmt in date_formats:
 			try:
 				fecha_envio_dt = datetime.strptime(fecha_str, fmt)
+				formato_usado = fmt
 				break
 			except ValueError:
 				continue
-		
+
 		if fecha_envio_dt:
 			fecha_envio_param = fecha_envio_dt.strftime("%Y%m%d")
+			logger.info(f"✅ Fecha formateada exitosamente", input=fecha_str, output=fecha_envio_param, formato=formato_usado)
 		else:
+			logger.warning("⚠️ No se pudo parsear con formatos estándar, usando regex", fecha=fecha_str)
 			# Si no se puede parsear, intentar extraer solo la parte de fecha
 			# Buscar patrones como YYYY-MM-DD, DD/MM/YYYY, o DD-MM-YYYY
 			date_match = re.search(r'(\d{4})[-/](\d{2})[-/](\d{2})', fecha_str)  # YYYY-MM-DD o YYYY/MM/DD
 			if date_match:
 				year, month, day = date_match.groups()
 				fecha_envio_param = f"{year}{month}{day}"
+				logger.info(f"✅ Fecha extraída con regex (YYYY-MM-DD)", output=fecha_envio_param)
 			else:
 				# Intentar formato DD/MM/YYYY o DD-MM-YYYY
 				date_match = re.search(r'(\d{2})[-/](\d{2})[-/](\d{4})', fecha_str)
 				if date_match:
 					day, month, year = date_match.groups()
 					fecha_envio_param = f"{year}{month}{day}"
+					logger.info(f"✅ Fecha extraída con regex (DD-MM-YYYY)", output=fecha_envio_param)
 				else:
 					# Último recurso: limpiar caracteres problemáticos
 					fecha_envio_param = re.sub(r'[<>:"/\\|?*\s]', '', fecha_str)
-	except Exception:
+					logger.warning(f"⚠️ Fecha limpiada (último recurso)", output=fecha_envio_param)
+	except Exception as e:
+		logger.error(f"❌ Error formateando fecha", fecha=fecha_str, error=str(e))
 		fecha_envio_param = re.sub(r'[<>:"/\\|?*\s]', '', fecha_str)
 
 	return fecha_envio_param
@@ -613,29 +653,37 @@ def main():
 				log_info(f"📊 Procesando campaña {i+1}/{len(campanias_a_buscar)}",
 						campania_id=id, nombre=nombre_campania, progreso=f"{i+1}/{len(campanias_a_buscar)}")
 
-				# Validar sesión antes de procesar cada campaña (especialmente después de la primera)
-				if i > 0:  # Validar después de la primera campaña
-					try:
-						from .shared.utils.legacy_utils import validate_session, is_on_login_page
+				# Validar sesión antes de procesar CADA campaña (incluyendo la primera)
+				try:
+					from .shared.utils.legacy_utils import validate_session, is_on_login_page
+					from .autentificacion import manejar_popup_cookies
 
-						# Verificar si la sesión sigue válida
-						if is_on_login_page(page):
-							log_warning(f"⚠️ Sesión expirada detectada antes de procesar campaña {id}")
-							log_info("🔄 Re-autenticando...")
+					# Verificar si la sesión sigue válida
+					if is_on_login_page(page):
+						log_warning(f"⚠️ Sesión expirada detectada antes de procesar campaña {id}")
+						log_info("🔄 Re-autenticando con manejo agresivo de cookies...")
 
-							# Re-autenticar
-							login(page, context=context)
-							log_success("✅ Sesión refrescada exitosamente")
+						# Manejar popup de cookies agresivamente antes de re-autenticar
+						try:
+							manejar_popup_cookies(page, agresivo=True)
+							log_info("🍪 Popup de cookies manejado durante re-autenticación")
+						except Exception as cookie_error:
+							log_warning(f"⚠️ No se pudo manejar popup de cookies: {cookie_error}")
+							# Continuar con la autenticación de todas formas
 
-							# Re-esperar estabilización
-							page.wait_for_load_state("networkidle", timeout=30000)
-							page.wait_for_timeout(3000)
-							log_success("✅ Sesión estabilizada después de re-autenticación")
-					except ImportError:
-						log_warning("⚠️ No se pudo importar funciones de validación de sesión")
-					except Exception as e:
-						log_error(f"❌ Error validando sesión: {e}")
-						# Continuar de todas formas, el scraping individual detectará el problema
+						# Re-autenticar usando el servicio mejorado
+						login(page, context=context)
+						log_success("✅ Sesión refrescada exitosamente")
+
+						# Re-esperar estabilización
+						page.wait_for_load_state("networkidle", timeout=30000)
+						page.wait_for_timeout(3000)
+						log_success("✅ Sesión estabilizada después de re-autenticación")
+				except ImportError:
+					log_warning("⚠️ No se pudo importar funciones de validación de sesión")
+				except Exception as e:
+					log_error(f"❌ Error validando sesión: {e}")
+					# Continuar de todas formas, el scraping individual detectará el problema
 
 				# Obtener datos completos usando servicio híbrido con reintentos
 				try:
