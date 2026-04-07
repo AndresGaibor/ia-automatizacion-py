@@ -28,7 +28,7 @@ pyinstaller --onefile --collect-all playwright --collect-all pydantic app.py
 Antes de compilar, asegúrate de que todas las dependencias estén instaladas:
 
 ```bash
-pip install -r requirements.txt
+uv sync
 ```
 
 **Nota:** El archivo `app.spec` incluye configuraciones optimizadas para evitar errores como "No module named 'pydantic'" y otros problemas de dependencias.
@@ -39,8 +39,8 @@ Automatización para obtener reportes de campañas de email marketing.
 
 ## Requisitos previos
 
-- Python 3.8 o superior
-- pip (gestor de paquetes de Python)
+- Python 3.11+ (máximo 3.13)
+- uv (gestor de paquetes de Python)
 
 ## Instalación
 
@@ -50,23 +50,14 @@ git clone <url-repositorio>
 cd automation
 ```
 
-2. Crear un entorno virtual:
+2. Instalar dependencias con uv:
 ```bash
-python -m venv .venv
+uv sync
 ```
 
-3. Activar el entorno virtual:
+3. Instalar navegadores de Playwright:
 ```bash
-# En macOS/Linux:
-source .venv/bin/activate
-
-# En Windows:
-.venv\Scripts\activate
-```
-
-4. Instalar dependencias:
-```bash
-pip install -r requirements.txt
+uv run playwright install
 ```
 
 ## Configuración
@@ -113,17 +104,12 @@ Los timeouts están optimizados para balance entre velocidad y estabilidad:
 
 ## Uso
 
-1. Activar el entorno virtual (si no está activado):
+1. Ejecutar el script:
 ```bash
-source .venv/bin/activate  # macOS/Linux
+uv run python src/demo.py
 ```
 
-2. Ejecutar el script:
-```bash
-python src/demo.py
-```
-
-3. Si aparece un captcha:
+2. Si aparece un captcha:
    - Resolverlo manualmente en la ventana del navegador
    - Presionar Enter en la terminal para continuar
 

@@ -1,276 +1,154 @@
 # AGENTS.md
 
-This file provides guidance to AI agents (including Claude, Qwen, and other AI assistants) when working with code in this repository.
+Guía para agentes AI trabajando con este repositorio (Python automation tool para Acumbamail).
 
-## Project Overview
+## Comandos Esenciales
 
-This is a Python automation tool for email marketing campaign reporting from Acumbamail. The application provides both a GUI (app.py) and CLI interface for automating campaign data extraction and subscriber management.
-
-## Key Commands
-
-### Development Environment
+**CRÍTICO:** Este proyecto usa `uv` para gestión de dependencias:
 ```bash
-# Activate virtual environment
-source .venv/bin/activate  # macOS/Linux (bash/zsh)
-source .venv/bin/activate.fish  # macOS/Linux (fish shell)
-.venv\\Scripts\\activate     # Windows
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Install Playwright browsers (required for automation)
-playwright install
+uv run python app.py
 ```
 
-**IMPORTANT for AI Agents:**
-- This project uses fish shell as the primary shell environment
-- ALWAYS use fish shell commands when running Python/pip commands
-- Example: `fish -c "source .venv/bin/activate.fish; python app.py"`
-- All Python commands should be executed within the virtual environment using fish
-
-### Code Quality
+### Setup
 ```bash
-# Format and lint code (use fish shell with venv)
-fish -c "source .venv/bin/activate.fish; ruff check ."
-fish -c "source .venv/bin/activate.fish; ruff format ."
+# Instalar dependencias y crear venv
+uv sync
+
+# Instalar navegadores de Playwright (obligatorio)
+uv run playwright install
 ```
 
-### Running the Application
+### Ejecutar
 ```bash
-# GUI Application (use fish shell with venv)
-fish -c "source .venv/bin/activate.fish; python app.py"
+# GUI
+uv run python app.py
 
-# CLI - Campaign listing (run from project root)
-fish -c "source .venv/bin/activate.fish; python -m src.listar_campanias"
-
-# CLI - Subscriber extraction (run from project root)
-fish -c "source .venv/bin/activate.fish; python -m src.demo"
+# CLI - Módulos se ejecutan SOLO como módulos (-m), NO como scripts directos
+uv run python -m src.demo              # Extracción suscriptores
+uv run python -m src.listar_campanias  # Listar campañas
 ```
 
-### Build Executable
+**ERROR COMÚN:** NO ejecutar `python src/demo.py` - usa `python -m src.demo`
+
+### Testing
 ```bash
-# Create standalone executable with Playwright (use fish shell with venv)
-fish -c "source .venv/bin/activate.fish; pyinstaller --onefile --collect-all playwright app.py"
+# Tests seguros (sin data destructiva)
+uv run pytest -m 'integration and not destructive'
+
+# Por tipo
+uv run pytest -m api        # Solo API
+uv run pytest -m scraping   # Solo scraping
+
+# Todos (incluye tests destructivos - auto-cleanup)
+uv run pytest tests/integration/
 ```
 
-### Integration Testing
+**Test Safety:** Todos usan prefijos únicos `TEST_YYYYMMDD_HHMMSS_`, auto-cleanup, rate limiting.
+
+### Build
 ```bash
-# Install test dependencies
-fish -c "source .venv/bin/activate.fish; pip install pytest pytest-timeout"
-
-# Run safe tests only (recommended for CI/development)
-fish -c "source .venv/bin/activate.fish; pytest -m 'integration and not destructive' tests/integration/"
-
-# Run API endpoint tests
-fish -c "source .venv/bin/activate.fish; pytest -m api tests/integration/"
-
-# Run scraping tests (mostly mocked)
-fish -c "source .venv/bin/activate.fish; pytest -m scraping tests/integration/"
-
-# Run all tests (includes destructive tests - SAFE with auto-cleanup)
-fish -c "source .venv/bin/activate.fish; pytest tests/integration/"
-
-# Test specific functionality
-fish -c "source .venv/bin/activate.fish; pytest tests/integration/test_api_suscriptores.py -v"
+# Usa app.spec (incluye Playwright, Pydantic, Pandas)
+uv run pyinstaller app.spec
 ```
 
-**IMPORTANT for Integration Tests:**
-- All tests use unique prefixes (TEST_YYYYMMDD_HHMMSS_) for safe data isolation
-- Destructive tests automatically clean up their own data
-- Tests NEVER modify existing production data
-- Rate limiting is automatically applied to respect API limits
-- See `tests/README.md` for complete testing documentation
+### Agregar Dependencias
+```bash
+# Dependencia de producción
+uv add nombre-paquete
 
-## Architecture
+# Dependencia de desarrollo
+uv add --dev nombre-paquete
 
-### Core Modules
-- **app.py**: Main GUI application using tkinter with threaded operations
-- **src/demo.py**: Main automation script for subscriber data extraction
-- **src/listar_campanias.py**: Campaign listing automation
-- **src/crear_lista.py**: Subscriber list creation with Excel sheet selection
-- **src/autentificacion.py**: Login automation for Acumbamail
-- **src/utils.py**: Shared utilities for browser automation, file handling, and configuration
-- **src/tipo_campo.py**: Field type definitions for form automation
-
-### Key Components
-
-**Browser Automation Framework:**
-- Uses Playwright for web automation
-- Session persistence via storage_state_path() in data/datos_sesion.json
-- Browser configuration in src/utils.py with custom user agent
-- Browsers stored in ms-playwright/ directory for portable builds
-
-**Performance Logging System:**
-- Comprehensive timing and performance monitoring via src/logger.py
-- Automatic timing for all major operations (login, navigation, data extraction)
-- Daily log files stored in data/automation_YYYYMMDD.log
-- Real-time performance reports with bottleneck identification
-- Browser action logging, file operations tracking, and error reporting
-
-**Data Flow:**
-1. Configuration loaded from config.yaml (credentials, URLs)
-2. Search terms loaded from data/Busqueda.xlsx
-3. Automated login and navigation through Acumbamail interface
-4. Campaign data extraction and Excel report generation
-5. Results saved to data/informes_*.xlsx files
-
-**Threading Model:**
-- GUI operations run in main thread
-- Browser automation runs in worker threads
-- Progress notifications via root.after() for thread-safe GUI updates
-
-### File Structure
-```
-├── app.py                 # Main GUI application
-├── src/
-│   ├── demo.py           # Main automation script
-│   ├── listar_campanias.py  # Campaign listing
-│   ├── crear_lista.py    # List creation
-│   ├── autentificacion.py   # Login automation
-│   ├── utils.py          # Shared utilities
-│   ├── logger.py         # Performance logging system
-│   └── tipo_campo.py     # Field definitions
-├── data/                 # Excel files, session data, and logs
-├── config.yaml           # Application configuration
-└── ms-playwright/        # Playwright browser binaries
+# Actualizar dependencias
+uv sync
 ```
 
-### Configuration
-- **config.yaml**: Contains URL endpoints, credentials, and browser settings
-- **data/Busqueda.xlsx**: Campaign search terms with columns: Buscar, Nombre, Tipo, Fecha envío, Listas, Emails, Abiertos, Clics
-- **data/Lista_envio.xlsx**: Subscriber email lists for upload
-- Session state automatically persisted for authentication
+## Arquitectura Modular
 
-### Modern Playwright Automation Patterns (2024-2025)
-
-**CRITICAL: Always follow modern Playwright best practices. See DOCS/playwright-python-best-practices.md for complete guidelines.**
-
-**Element Selection Priority (MUST FOLLOW):**
-1. **Role-based locators** (highest priority): `page.get_by_role("button", name="Text")`
-2. **Text-based locators**: `page.get_by_text("Text")`
-3. **Label-based locators**: `page.get_by_label("Label")`
-4. **Test ID locators**: `page.get_by_test_id("test-id")`
-5. **CSS/XPath selectors** (last resort): `page.locator("css=selector")`
-
-**Auto-waiting Interactions:**
-- Use Playwright's built-in auto-waiting instead of manual timeouts
-- Example: `page.get_by_role("button", name="Submit").click()` automatically waits for element to be visible, enabled, and stable
-- Avoid `time.sleep()` - use `page.wait_for_load_state()` or element waiting methods
-
-**Current Implementation Guidelines:**
-- Migrate legacy CSS selectors to role-based locators when making changes
-- Use `crear_contexto_navegador()` for consistent browser setup with anti-detection
-- Leverage session persistence via `storage_state_path()` for authentication
-- Follow timeout configuration via `utils.get_timeouts()` instead of hardcoded values
-- Utilize comprehensive logging via `src/logger.py` for operation timing
-
-**Deprecated Legacy Patterns (to be migrated):**
-- `page.click("css-selector")` → `page.get_by_role("button", name="Text").click()`
-- `page.locator("xpath")` → Use semantic locators when possible
-- Manual wait strategies → Use Playwright's auto-waiting features
-- Direct element attribute access → Use Playwright's assertion methods
-
-### Performance Monitoring & Optimization
-The application includes comprehensive logging and timing to help optimize performance:
-
-**Logging Features:**
-- Automatic timing of all major operations (login, navigation, data extraction, file operations)
-- Real-time performance monitoring with bottleneck identification
-- Browser action logging with context and timing information
-- Progress tracking for long-running operations (pagination, data extraction)
-- Error tracking with context and operation details
-
-**Log Output:**
-- Console output with timestamped, categorized messages using emojis for easy identification
-- Daily log files stored in `data/automation_YYYYMMDD.log`
-- Performance reports showing slowest/fastest operations and total execution time
-
-**Usage Example:**
-```python
-from src.logger import get_logger
-
-logger = get_logger()
-logger.start_timer("my_operation")
-# ... your code ...
-logger.end_timer("my_operation", "Additional context info")
-logger.print_performance_report()  # At end of process
+**Estructura post-refactor:**
+```
+src/
+├── core/              # Lógica central (auth, config, servicios)
+├── shared/            # Utilidades compartidas (logging, utils, retry)
+├── infrastructure/    # Integración externa (API, scraping)
+├── presentation/      # GUI y CLI
+├── legacy/            # Código antiguo en migración
+└── [scripts raíz]     # demo.py, listar_campanias.py (transición)
 ```
 
-**Automatic Integration:**
-All core modules (demo.py, utils.py, autentificacion.py) automatically include performance logging. The system provides detailed timing for:
-- Configuration loading and validation
-- Browser setup and navigation
-- Authentication processes
-- Campaign searching and data extraction
-- Pagination and page processing
-- Excel file generation and saving
+**Migración en progreso:** `src/utils.py` → `src/shared/utils/legacy_utils.py`
 
-**Debugging Tools:**
-For troubleshooting process hang-ups or performance issues:
+## Playwright: Selectores Modernos
 
-1. **Debug Mode Script:**
-   ```bash
-   python debug_script.py
-   ```
-   Runs the main process with extensive logging and heartbeat monitoring
+**PRIORIDAD OBLIGATORIA:**
+1. `page.get_by_role("button", name="Texto")` - Rol (PRIMERO)
+2. `page.get_by_text("Texto")` - Texto
+3. `page.get_by_label("Label")` - Label
+4. `page.locator("css")` - CSS (ÚLTIMO RECURSO)
 
-2. **Real-time Log Monitor:**
-   ```bash
-   python monitor_logs.py
-   ```
-   Monitors log files in real-time to detect where processes get stuck
+**Auto-waiting:** NO usar `time.sleep()`. Playwright espera automáticamente.
 
-3. **Log Analysis:**
-   - Look for `📍 CHECKPOINT` entries to see last successful operation
-   - `💓 HEARTBEAT` entries show the process is still alive
-   - `❌ ERROR` entries highlight failures
-   - Time gaps between log entries indicate bottlenecks
+**Configuración:**
+- Timeouts: Usa `utils.get_timeouts()` desde `config.yaml`, NO hardcodeados
+- Sesión: `storage_state_path()` para persistencia en `data/datos_sesion.json`
+- Browsers: `ms-playwright/` directory para builds portables
 
-**Common Hang-up Points:**
-- Browser element location (selector timeouts)
-- Page navigation waiting for networkidle
-- Data extraction from large paginated results
-- Element interaction (clicking, filling forms)
+**Ver:** `DOCS/playwright-python-best-practices.md` para guía completa.
 
-## Playwright Documentation & Best Practices Reference
+## Logging y Performance
 
-**IMPORTANT: Always consult modern Playwright documentation before implementing browser automation:**
+**Sistema automático:** `src/shared/logging/logger.py` (PerformanceLogger)
+- Timing automático de operaciones (login, navegación, extracción)
+- Logs diarios en `data/automation_YYYYMMDD.log`
+- Identificación de bottlenecks
+- Emojis para categorización visual
 
-1. **Primary Reference**: `DOCS/playwright-python-best-practices.md` - Comprehensive guide with 2024-2025 patterns
-2. **Official Documentation**: https://playwright.dev/python/
-3. **Project Guidelines**: `AGENTS.md` contains Playwright best practices section
+**Debugging hang-ups:** Ver `CLAUDE.md` para herramientas de debug y análisis de logs.
 
-**When working with Playwright automation:**
-- **ALWAYS** start by consulting the documentation in `DOCS/playwright-python-best-practices.md`
-- Use modern locator strategies (role-based, text-based) over legacy CSS selectors
-- Follow the element selection priority hierarchy defined in the documentation
-- Implement auto-waiting patterns instead of manual timing
-- Use browser contexts for session isolation and persistence
-- Apply performance optimization techniques for large-scale automation
+## Configuración
 
-**Code Review Checklist:**
-- [ ] Uses role-based locators (`get_by_role`) where possible
-- [ ] Avoids CSS selectors unless absolutely necessary
-- [ ] Implements auto-waiting instead of `time.sleep()`
-- [ ] Uses browser context for session management
-- [ ] Includes proper error handling with Playwright exceptions
-- [ ] Follows timeout configuration via `utils.get_timeouts()`
-- [ ] Utilizes comprehensive logging via `src/logger.py`
+**config.yaml** - Estructura:
+```yaml
+url: https://acumbamail.com/app/newsletter/
+user: email@example.com
+password: "contraseña"
+headless: false
 
-**Migration Strategy:**
-When updating existing automation code, prioritize migrating:
-1. CSS selectors to role-based locators
-2. Manual waits to auto-waiting patterns
-3. Direct element access to Playwright assertions
-4. Hardcoded timeouts to configurable values
+timeouts:
+  navigation: 60000   # ms
+  element: 15000
+  upload: 120000
+  default: 30000
 
-## Using the MCP Browser for Verification
+api:
+  api_key: "tu-api-key"
+  
+lista:
+  sender_email: email@example.com
+  company: "Empresa"
+  # ...más campos
+```
 
-When working with this project, you may need to verify certain aspects of the Acumbamail platform or web application. For this, use the mcp browser tool to access and interact with web resources. This is especially helpful for:
+**Data files:**
+- `data/Busqueda.xlsx` - Columna "Buscar" con 'x' para marcar
+- `data/Lista_envio.xlsx` - Emails para upload
+- `data/suscriptores/` - Output: `(campaña)-(envío)_(extracción).xlsx`
 
-- Verifying Acumbamail interface changes
-- Understanding the current structure of web elements
-- Testing selector strategies before implementing automation
-- Checking if web elements behave as expected
+## Gotchas
 
-When using the browser tool, always respect the platform's terms of service and rate limiting to avoid being blocked.
+**Threading:** GUI (main) vs automation (worker). Comunicación solo con `root.after()`
+
+**PyInstaller:** Requiere `collect_all` para Playwright, Pydantic, Pandas (ver `app.spec`)
+
+**Timeouts config:** Valores en MILISEGUNDOS en config.yaml (30000 = 30s), pero algunos helpers esperan segundos - verificar función específica
+
+**Test markers:** Ver `tests/pytest.ini` para markers completos (integration, destructive, slow, api, scraping)
+
+**Module imports:** CLI scripts deben ejecutarse como módulos: `python -m src.demo`, NO `python src/demo.py`
+
+## Referencias
+
+**Documentación completa:** Ver `CLAUDE.md` para workflows detallados y guías extensas
+**Playwright:** Ver `DOCS/playwright-python-best-practices.md` para patrones modernos de selectores
+**Testing:** Ver `tests/README.md` para guía completa de tests de integración
+**API:** Ver `DOCS/acumbamail-api-docs.md` para endpoints y ejemplos

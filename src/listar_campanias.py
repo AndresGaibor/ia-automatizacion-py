@@ -33,75 +33,77 @@ logger = get_logger()
 
 
 def with_session_retry(max_retries: int = 2):
-	"""
-	Decorator para manejo de expiración de sesión con reintentos automáticos.
+    """
+    Decorator para manejo de expiración de sesión con reintentos automáticos.
 
-	Args:
-		max_retries: Número máximo de reintentos después de re-autenticación
-	"""
-	def decorator(func):
-		@wraps(func)
-		def wrapper(page, *args, **kwargs):
-			last_exception = None
+    Args:
+            max_retries: Número máximo de reintentos después de re-autenticación
+    """
 
-			for attempt in range(max_retries + 1):
-				try:
-					# Verificar si estamos en página de login antes de ejecutar
-					if attempt > 0 and is_on_login_page(page):
-						logger.warning(f"🔄 Sesión expirada detectada (intento {attempt + 1}), re-autenticando...")
+    def decorator(func):
+        @wraps(func)
+        def wrapper(page, *args, **kwargs):
+            last_exception = None
 
-						# Importar login aquí para evitar import circular
-						from .autentificacion import login
+            for attempt in range(max_retries + 1):
+                try:
+                    # Verificar si estamos en página de login antes de ejecutar
+                    if attempt > 0 and is_on_login_page(page):
+                        logger.warning(f"🔄 Sesión expirada detectada (intento {attempt + 1}), re-autenticando...")
 
-						# Necesitamos el contexto para re-autenticar - usar el contexto de la página
-						context = page.context
+                        # Importar login aquí para evitar import circular
+                        from .autentificacion import login
 
-						# Re-autenticar agresivamente con manejo de cookies
-						login(page, context)
+                        # Necesitamos el contexto para re-autenticar - usar el contexto de la página
+                        context = page.context
 
-						logger.success(f"✅ Re-autenticación completada (intento {attempt + 1})")
+                        # Re-autenticar agresivamente con manejo de cookies
+                        login(page, context)
 
-						# Navegar de vuelta a reportes si es necesario
-						navegar_a_reportes(page)
-						logger.info("📊 Navegación a reportes post re-autenticación completada")
+                        logger.success(f"✅ Re-autenticación completada (intento {attempt + 1})")
 
-					# Ejecutar la función original
-					result = func(page, *args, **kwargs)
+                        # Navegar de vuelta a reportes si es necesario
+                        navegar_a_reportes(page)
+                        logger.info("📊 Navegación a reportes post re-autenticación completada")
 
-					# Si llegamos aquí, todo fue exitoso
-					if attempt > 0:
-						logger.success(f"✅ Operación recuperada exitosamente después de {attempt} reintentos")
+                    # Ejecutar la función original
+                    result = func(page, *args, **kwargs)
 
-					return result
+                    # Si llegamos aquí, todo fue exitoso
+                    if attempt > 0:
+                        logger.success(f"✅ Operación recuperada exitosamente después de {attempt} reintentos")
 
-				except Exception as e:
-					last_exception = e
-					error_msg = str(e).lower()
+                    return result
 
-					# Verificar si es un error de sesión
-					is_session_error = (
-						"session expired" in error_msg or
-						"login" in error_msg or
-						"unauthorized" in error_msg or
-						"timeout" in error_msg or
-						is_on_login_page(page)
-					)
+                except Exception as e:
+                    last_exception = e
+                    error_msg = str(e).lower()
 
-					if is_session_error and attempt < max_retries:
-						logger.warning(f"⚠️ Error de sesión detectado en intento {attempt + 1}: {e}")
-						logger.info(f"🔄 Reintentando operación después de re-autenticación...")
-						time.sleep(2)  # Pequeña espera antes de reintentar
-						continue
-					else:
-						# Si no es error de sesión o ya no hay reintentos, propagar el error
-						logger.error(f"❌ Error en operación (intento {attempt + 1}): {e}")
-						break
+                    # Verificar si es un error de sesión
+                    is_session_error = (
+                        "session expired" in error_msg
+                        or "login" in error_msg
+                        or "unauthorized" in error_msg
+                        or "timeout" in error_msg
+                        or is_on_login_page(page)
+                    )
 
-			# Si llegamos aquí, todos los intentos fallaron
-			raise last_exception
+                    if is_session_error and attempt < max_retries:
+                        logger.warning(f"⚠️ Error de sesión detectado en intento {attempt + 1}: {e}")
+                        logger.info(f"🔄 Reintentando operación después de re-autenticación...")
+                        time.sleep(2)  # Pequeña espera antes de reintentar
+                        continue
+                    else:
+                        # Si no es error de sesión o ya no hay reintentos, propagar el error
+                        logger.error(f"❌ Error en operación (intento {attempt + 1}): {e}")
+                        break
 
-		return wrapper
-	return decorator
+            # Si llegamos aquí, todos los intentos fallaron
+            raise last_exception
+
+        return wrapper
+
+    return decorator
 
 
 def extraer_id_de_url(url: str) -> str:
@@ -110,7 +112,7 @@ def extraer_id_de_url(url: str) -> str:
 
     Ejemplo: /report/campaign/12345/ -> 12345
     """
-    match = re.search(r'/campaign/(\d+)', url)
+    match = re.search(r"/campaign/(\d+)", url)
     if match:
         return match.group(1)
     return ""
@@ -118,87 +120,75 @@ def extraer_id_de_url(url: str) -> str:
 
 def extraer_datos_campania_de_listitem(listitem_locator, page: Page) -> list[str]:
     """
-    Extrae los datos de una campaña desde un listitem de la lista de informes
+    Extrae los datos de una campaña desde un listitem usando selectores modernos de Playwright
 
     Args:
         listitem_locator: Locator del listitem de la página de informes
         page: Página de Playwright
 
     Returns:
-        Lista con los datos: ['', nombre, id, fecha, total_enviado, abierto, clics]
+        Lista con los datos: ['', nombre, id, fecha, total_enviado, abierto, no_abierto]
     """
     try:
-        logger.debug("🔍 Iniciando extracción de datos de listitem")
+        logger.debug("🔍 Iniciando extracción de datos de listitem con selectores modernos")
 
-        # Obtener el primer link que apunta a /report/campaign/ID/
-        # Usando locators modernos
+        # 1. NOMBRE DE CAMPAÑA (primer link con href /report/campaign/)
         campaign_link = listitem_locator.locator('a[href*="/report/campaign/"]').first
-
-        # Verificar si existe
         if campaign_link.count() == 0:
-            logger.warning("⚠️ No se encontró link de campaña en el listitem")
+            logger.warning("⚠️ No se encontró link de campaña")
             return []
 
-        # El primer link es el nombre de la campaña
         nombre = campaign_link.inner_text().strip()
-        href = campaign_link.get_attribute('href') or ""
+        href = campaign_link.get_attribute("href") or ""
         id_campania = extraer_id_de_url(href)
 
-        logger.debug(f"📝 Nombre extraído: {nombre}, ID: {id_campania}")
+        logger.debug(f"📝 Nombre: {nombre}, ID: {id_campania}")
 
-        # Obtener todo el texto del listitem
-        full_text = listitem_locator.inner_text()
-        logger.debug(f"📄 Texto completo del listitem: {full_text[:200]}...")
+        # 2. FECHA (tercer div.am-responsive-table-cell)
+        fecha_cell = listitem_locator.locator("div.am-responsive-table-cell").nth(2)
+        fecha = fecha_cell.locator("span").inner_text().strip()
+        logger.debug(f"📅 Fecha: {fecha}")
 
-        # El texto después del nombre contiene: Tipo Fecha Listas Emails Abiertos Clics
-        # Ejemplo: "20251010_Com_Novedades_SIRAJ2 Clásica 10/10/25 08:32 Equipo_Minsait , ... 8.140 2.426 0"
-
-        # Extraer fecha (formato DD/MM/YY HH:MM o DD/MM/YY)
-        fecha_match = re.search(r'(\d{2}/\d{2}/\d{2})\s*(\d{2}:\d{2})?', full_text)
-        if fecha_match:
-            fecha = fecha_match.group(1)
-            if fecha_match.group(2):
-                fecha = f"{fecha} {fecha_match.group(2)}"
+        # 3. TOTAL ENVIADO (quinto div = índice 4)
+        # Puede ser <a> o texto plano dentro de <span>
+        emails_cell = listitem_locator.locator("div.am-responsive-table-cell").nth(4)
+        emails_link = emails_cell.locator("a")
+        if emails_link.count() > 0:
+            total_enviado = emails_link.inner_text().strip().replace(".", "")
         else:
-            fecha = ""
+            total_enviado = emails_cell.locator("span").inner_text().strip().replace(".", "")
 
-        logger.debug(f"📅 Fecha extraída: {fecha}")
+        logger.debug(f"📧 Total enviado: {total_enviado}")
 
-        # Extraer los números al final (Emails, Abiertos, Clics)
-        # Estrategia: buscar el último bloque de texto que contiene solo números separados por espacios
-        # Ejemplo: "... Lista1 , Lista2 8.140 2.426 0" -> queremos "8.140 2.426 0"
-
-        # Primero, eliminar todos los links para quedarnos solo con el texto
-        links = listitem_locator.locator('a').all()
-        text_only = full_text
-        for link in links:
-            link_text = link.inner_text()
-            text_only = text_only.replace(link_text, '')
-
-        # Ahora buscar los últimos números (después de la fecha)
-        # Patrón: buscar grupos de 3 números al final (pueden tener puntos como separadores)
-        match = re.search(r'(\d{1,3}(?:\.\d{3})*|\d+)\s+(\d{1,3}(?:\.\d{3})*|\d+)\s+(\d{1,3}(?:\.\d{3})*|\d+)\s*$', text_only)
-
-        if match:
-            total_enviado = match.group(1).replace('.', '')
-            abierto = match.group(2).replace('.', '')
-            clics = match.group(3).replace('.', '')
-            logger.debug(f"🔢 Números extraídos: Enviados={total_enviado}, Abiertos={abierto}, Clics={clics}")
+        # 4. ABIERTO (sexto div = índice 5)
+        abiertos_cell = listitem_locator.locator("div.am-responsive-table-cell").nth(5)
+        abiertos_link = abiertos_cell.locator("a")
+        if abiertos_link.count() > 0:
+            abierto = abiertos_link.inner_text().strip().replace(".", "")
         else:
-            logger.warning(f"⚠️ No se encontró el patrón de números al final del texto")
-            logger.debug(f"Texto sin links: {text_only[:200]}...")
-            total_enviado = "0"
-            abierto = "0"
-            clics = "0"
+            abierto = abiertos_cell.locator("span").inner_text().strip().replace(".", "")
 
-        # Calcular "No abierto"
+        logger.debug(f"👁️ Abiertos: {abierto}")
+
+        # 5. CLICS (séptimo div = índice 6) - Extraído pero no usado en output
+        clics_cell = listitem_locator.locator("div.am-responsive-table-cell").nth(6)
+        clics_link = clics_cell.locator("a")
+        if clics_link.count() > 0:
+            clics = clics_link.inner_text().strip().replace(".", "")
+        else:
+            clics = clics_cell.locator("span").inner_text().strip().replace(".", "")
+
+        logger.debug(f"🖱️ Clics: {clics}")
+
+        # 6. CALCULAR "NO ABIERTO"
         try:
             no_abierto = str(int(total_enviado) - int(abierto))
-        except:
+        except ValueError:
+            logger.warning(f"⚠️ Error calculando 'No abierto': enviado={total_enviado}, abierto={abierto}")
             no_abierto = "0"
 
         logger.debug(
-            f"✅ Datos extraídos exitosamente",
+            f"✅ Datos extraídos exitosamente con selectores directos",
             extra={
                 "nombre": nombre,
                 "id": id_campania,
@@ -206,11 +196,10 @@ def extraer_datos_campania_de_listitem(listitem_locator, page: Page) -> list[str
                 "total_enviado": total_enviado,
                 "abierto": abierto,
                 "no_abierto": no_abierto,
-                "clics": clics
-            }
+            },
         )
 
-        return ['', nombre, id_campania, fecha, total_enviado, abierto, no_abierto]
+        return ["", nombre, id_campania, fecha, total_enviado, abierto, no_abierto]
 
     except Exception as e:
         logger.error(f"❌ Error extrayendo datos de campaña: {e}", extra={"error": str(e)})
@@ -219,11 +208,12 @@ def extraer_datos_campania_de_listitem(listitem_locator, page: Page) -> list[str
 
 @with_session_retry(max_retries=2)
 def navegar_siguiente_pagina_con_recuperacion(page: Page, pagina_actual: int) -> bool:
-	"""
-	Wrapper para navegar_siguiente_pagina con recuperación de sesión
-	"""
-	# Usar la función original pero con el decorador para recuperación
-	return navegar_siguiente_pagina(page, pagina_actual)
+    """
+    Wrapper para navegar_siguiente_pagina con recuperación de sesión
+    """
+    # Usar la función original pero con el decorador para recuperación
+    return navegar_siguiente_pagina(page, pagina_actual)
+
 
 @with_session_retry(max_retries=2)
 def extraer_campanias_de_pagina(page: Page) -> list[list[str]]:
@@ -243,7 +233,7 @@ def extraer_campanias_de_pagina(page: Page) -> list[list[str]]:
     try:
         # Esperar a que la lista se cargue
         logger.debug("⏳ Esperando a que se cargue la lista de informes")
-        page.wait_for_selector('ul li', timeout=15000)
+        page.wait_for_selector("ul li", timeout=15000)
         page.wait_for_timeout(1000)  # Espera adicional para asegurar carga completa
 
         logger.debug("✅ Lista de informes cargada")
@@ -251,7 +241,7 @@ def extraer_campanias_de_pagina(page: Page) -> list[list[str]]:
         # Usar selectores modernos de Playwright
         # Estrategia: buscar todos los li que contienen un link a /report/campaign/
         # y excluir el primero que es el encabezado
-        all_items = page.locator('li').filter(has=page.locator('a[href*="/report/campaign/"]'))
+        all_items = page.locator("li").filter(has=page.locator('a[href*="/report/campaign/"]'))
 
         # Obtener el count
         count = all_items.count()
@@ -268,12 +258,12 @@ def extraer_campanias_de_pagina(page: Page) -> list[list[str]]:
             # 1. Debe tener una fecha en formato DD/MM/YY (obligatorio - identifica campañas reales)
             # 2. Debe tener al menos 1 número al final (pueden ser 0 0 0, o 1234, etc.)
             # 3. Debe tener longitud suficiente y no ser solo un fragmento
-            tiene_fecha = bool(re.search(r'\d{2}/\d{2}/\d{2}', text))
-            tiene_numeros_final = bool(re.search(r'\d+[\s,]*\d*[\s,]*\d*\s*$', text))
+            tiene_fecha = bool(re.search(r"\d{2}/\d{2}/\d{2}", text))
+            tiene_numeros_final = bool(re.search(r"\d+[\s,]*\d*[\s,]*\d*\s*$", text))
             longitud_suficiente = len(text.strip()) > 30
 
             # Verificar que NO sea un elemento anidado (no debe tener saltos de línea múltiples)
-            no_es_anidado = text.count('\n') <= 3
+            no_es_anidado = text.count("\n") <= 3
 
             if tiene_fecha and tiene_numeros_final and longitud_suficiente and no_es_anidado:
                 campaign_listitems.append(item)
@@ -281,9 +271,13 @@ def extraer_campanias_de_pagina(page: Page) -> list[list[str]]:
             else:
                 # Logging detallado para debug - mostrar en consola los descartados
                 if tiene_fecha and longitud_suficiente:  # Candidatos válidos que fueron descartados
-                    print(f"⚠️ DESCARTADO [{i}]: fecha={tiene_fecha}, numeros={tiene_numeros_final}, longitud={len(text.strip())}, saltos={text.count(chr(10))}")
+                    print(
+                        f"⚠️ DESCARTADO [{i}]: fecha={tiene_fecha}, numeros={tiene_numeros_final}, longitud={len(text.strip())}, saltos={text.count(chr(10))}"
+                    )
                     print(f"   Texto: {text[:100]}")
-                logger.debug(f"⚠️ Elemento descartado en índice {i}: tiene_fecha={tiene_fecha}, tiene_numeros={tiene_numeros_final}, longitud={len(text.strip())}, saltos_linea={text.count(chr(10))}")
+                logger.debug(
+                    f"⚠️ Elemento descartado en índice {i}: tiene_fecha={tiene_fecha}, tiene_numeros={tiene_numeros_final}, longitud={len(text.strip())}, saltos_linea={text.count(chr(10))}"
+                )
 
         logger.info(f"✅ Listitems de campañas reales encontrados: {len(campaign_listitems)}")
 
@@ -324,7 +318,10 @@ def guardar_datos_en_excel(informe_detalle: list[list[str]], archivo_busqueda: s
     y ajusta automáticamente el ancho de las columnas
     """
     try:
-        logger.info("🚀 Iniciando guardado de datos en Excel", extra={"archivo": archivo_busqueda, "registros": len(informe_detalle)})
+        logger.info(
+            "🚀 Iniciando guardado de datos en Excel",
+            extra={"archivo": archivo_busqueda, "registros": len(informe_detalle)},
+        )
 
         wb = crear_o_cargar_libro_excel(archivo_busqueda)
         encabezados = ["Buscar", "Nombre", "ID Campaña", "Fecha", "Total enviado", "Abierto", "No abierto"]
@@ -420,8 +417,8 @@ def procesar_todas_las_paginas(page: Page) -> list[list[str]]:
                 extra={
                     "campanias_en_pagina": len(campanias_pagina),
                     "campanias_nuevas": campanias_nuevas,
-                    "total_acumulado": len(todas_campanias)
-                }
+                    "total_acumulado": len(todas_campanias),
+                },
             )
 
             # Navegar a la siguiente página si no es la última
@@ -436,7 +433,9 @@ def procesar_todas_las_paginas(page: Page) -> list[list[str]]:
                 page.wait_for_timeout(2000)
                 logger.debug(f"✅ Navegación a página {pagina_actual + 1} completada")
 
-        logger.success(f"🎉 Procesamiento completo: {len(todas_campanias)} campañas extraídas de {pagina_actual} páginas")
+        logger.success(
+            f"🎉 Procesamiento completo: {len(todas_campanias)} campañas extraídas de {pagina_actual} páginas"
+        )
 
     except Exception as e:
         logger.error(f"❌ Error procesando páginas: {e}")
