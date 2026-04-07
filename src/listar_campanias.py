@@ -28,6 +28,7 @@ from functools import wraps
 
 # Rutas
 ARCHIVO_BUSQUEDA = data_path("Busqueda.xlsx")
+BATCH_SIZE = 10  # Cada cuántas campañas guardar progreso (listado y URLs)
 
 logger = get_logger()
 
@@ -366,19 +367,80 @@ def guardar_datos_en_excel(informe_detalle: list[list[str]], archivo_busqueda: s
         logger.error(f"❌ Error guardando archivo Excel: {e}")
 
 
-def procesar_todas_las_paginas(page: Page) -> list[list[str]]:
+def _guardar_progreso_listado(campanias_acumuladas: list[list[str]], encabezados: list[str]):
     """
-    Procesa todas las páginas de reportes y extrae todas las campañas (sin duplicados globales)
+    Guarda el progreso del listado de campañas en el Excel.
+    Sobreescribe el archivo con las campañas acumuladas hasta el momento.
+    """
+    try:
+        wb = crear_o_cargar_libro_excel(None)
+        ws = wb.active
+        if ws is None:
+            ws = wb.create_sheet("Sheet")
+
+        # Limpiar y escribir encabezados
+        ws.delete_rows(1, ws.max_row)
+        ws.append(encabezados)
+
+        # Agregar campañas acumuladas
+        for campania in campanias_acumuladas:
+            ws.append(campania)
+
+        # Ajustar ancho de columnas
+        from openpyxl.utils import get_column_letter
+        for col_idx in range(1, ws.max_column + 1):
+            max_length = 0
+            column_letter = get_column_letter(col_idx)
+            for row_idx in range(1, ws.max_row + 1):
+                cell = ws.cell(row=row_idx, column=col_idx)
+                try:
+                    if cell.value and len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except Exception:
+                    pass
+            adjusted_width = min(max_length + 2, 50)
+            ws.column_dimensions[column_letter].width = adjusted_width
+
+        wb.save(ARCHIVO_BUSQUEDA)
+        wb.close()
+        logger.debug(f"💾 Progreso guardado: {len(campanias_acumuladas)} campañas en Excel")
+
+    except Exception as e:
+        logger.error(f"❌ Error guardando progreso: {e}")
+
+
+def procesar_todas_las_paginas(page: Page, batch_size: int = 10) -> list[list[str]]:
+    """
+    Procesa todas las páginas de reportes y extrae todas las campañas (sin duplicados globales).
+    Guarda el progreso cada 'batch_size' campañas para poder retomar si algo falla.
 
     Args:
         page: Página de Playwright
+        batch_size: Cada cuántas campañas guardar el progreso (default: 10)
 
     Returns:
         Lista con todos los datos de campañas únicas
     """
-    logger.info("🔍 Iniciando procesamiento de todas las páginas")
-    todas_campanias = []
-    ids_globales = set()  # Para evitar duplicados entre páginas
+    import os
+    logger.info(f"🔍 Iniciando procesamiento de todas las páginas (batch_size={batch_size})")
+
+    encabezados = ["Buscar", "Nombre", "ID Campaña", "Fecha", "Total enviado", "Abierto", "No abierto", "URL de Correo"]
+
+    # Intentar cargar campañas ya listadas del Excel existente
+    campanias_existentes = []
+    if os.path.exists(ARCHIVO_BUSQUEDA):
+        try:
+            existentes, _ = leer_urls_faltantes_del_excel()
+            # Filtrar solo las que tienen ID (campañas válidas listadas)
+            campanias_existentes = [c for c in existentes if len(c) >= 3 and c[2]]
+            if campanias_existentes:
+                logger.info(f"📂 Excel encontrado con {len(campanias_existentes)} campañas ya listadas")
+        except Exception:
+            pass
+
+    todas_campanias = list(campanias_existentes)
+    ids_globales = set(c[2] for c in campanias_existentes if len(c) >= 3 and c[2])
+    pendientes_guardar = 0
 
     try:
         # Obtener número total de páginas
@@ -400,8 +462,12 @@ def procesar_todas_las_paginas(page: Page) -> list[list[str]]:
                     id_campania = campania[2]
                     if id_campania not in ids_globales:
                         ids_globales.add(id_campania)
+                        # Asegurar que tenga 8 columnas (agregar URL vacía)
+                        while len(campania) < 8:
+                            campania.append("")
                         todas_campanias.append(campania)
                         campanias_nuevas += 1
+                        pendientes_guardar += 1
                     else:
                         logger.debug(f"⚠️ Campaña duplicada entre páginas (ID: {id_campania}), omitiendo...")
 
@@ -413,6 +479,13 @@ def procesar_todas_las_paginas(page: Page) -> list[list[str]]:
                     "total_acumulado": len(todas_campanias),
                 },
             )
+
+            # Guardar progreso si alcanzó el batch_size
+            if pendientes_guardar >= batch_size:
+                logger.info(f"💾 Guardando progreso del listado: {pendientes_guardar} campañas nuevas...")
+                _guardar_progreso_listado(todas_campanias, encabezados)
+                pendientes_guardar = 0
+                logger.success(f"✅ Progreso guardado: {len(todas_campanias)} campañas totales")
 
             # Navegar a la siguiente página si no es la última
             if pagina_actual < total_paginas:
@@ -426,12 +499,22 @@ def procesar_todas_las_paginas(page: Page) -> list[list[str]]:
                 page.wait_for_timeout(2000)
                 logger.debug(f"✅ Navegación a página {pagina_actual + 1} completada")
 
+        # Guardar resto pendiente
+        if pendientes_guardar > 0:
+            logger.info(f"💾 Guardando último lote de {pendientes_guardar} campañas...")
+            _guardar_progreso_listado(todas_campanias, encabezados)
+            logger.success(f"✅ Progreso final guardado: {len(todas_campanias)} campañas totales")
+
         logger.success(
             f"🎉 Procesamiento completo: {len(todas_campanias)} campañas extraídas de {pagina_actual} páginas"
         )
 
     except Exception as e:
         logger.error(f"❌ Error procesando páginas: {e}")
+        # Guardar lo que se haya procesado antes del error
+        if todas_campanias:
+            logger.info("💾 Guardando campañas procesadas antes del error...")
+            _guardar_progreso_listado(todas_campanias, encabezados)
 
     return todas_campanias
 
@@ -709,14 +792,21 @@ def main():
                     browser.close()
                     return
                 else:
+                    # Tiene campañas pero faltan URLs - verificar si faltan campañas por listar
+                    tienen_id = sum(1 for c in informe if len(c) >= 3 and c[2])
                     logger.info(f"📧 {pendientes}/{len(informe)} campañas sin URL, procesando solo pendientes...")
+                    # Si todas tienen ID, ir directo a URLs. Si no, re-listar para capturar nuevas
+                    if tienen_id == len(informe):
+                        excel_existe = True  # Solo ir a Fase 3
+                    else:
+                        excel_existe = False  # Re-listar todo
             else:
                 logger.info("📂 Excel no encontrado, se creará desde cero")
 
             if not excel_existe:
-                # Fase 1: Listar todas las campañas desde cero
-                logger.info("📥 Fase 1: Extrayendo lista de campañas mediante scraping")
-                informe = procesar_todas_las_paginas(page)
+                # Fase 1: Listar todas las campañas desde cero (guarda progreso cada BATCH_SIZE)
+                logger.info(f"📥 Fase 1: Extrayendo lista de campañas (progreso cada {BATCH_SIZE})")
+                informe = procesar_todas_las_paginas(page, batch_size=BATCH_SIZE)
                 logger.success(f"✅ Fase 1 completada: {len(informe)} campañas encontradas")
 
                 if not informe:
@@ -724,15 +814,10 @@ def main():
                     browser.close()
                     return
 
-                # Fase 2: Guardar Excel con listado de campañas inmediatamente
-                logger.info("💾 Fase 2: Guardando Excel con listado de campañas...")
-                guardar_datos_en_excel(informe, ARCHIVO_BUSQUEDA)
-                logger.success(f"✅ Excel creado: {ARCHIVO_BUSQUEDA}")
-
-            # Fase 3: Extraer URLs de correo SOLO las pendientes en tandas de 10
-            logger.info("📧 Fase 3: Extrayendo URLs de correo pendientes en tandas de 10")
-            informe = extraer_urls_de_campanias(page, informe, batch_size=10)
-            logger.success(f"✅ Fase 3 completada: todas las URLs procesadas")
+            # Fase 2: Extraer URLs de correo SOLO las pendientes en tandas de BATCH_SIZE
+            logger.info(f"📧 Fase 2: Extrayendo URLs de correo pendientes en tandas de {BATCH_SIZE}")
+            informe = extraer_urls_de_campanias(page, informe, batch_size=BATCH_SIZE)
+            logger.success(f"✅ Fase 2 completada: todas las URLs procesadas")
 
             # Guardar resultado final completo
             logger.info("💾 Guardando Excel final con todas las URLs...")
