@@ -20,6 +20,7 @@ from .autentificacion import login, manejar_popup_cookies
 from .infrastructure.api import API
 from .shared.utils.legacy_utils import is_on_login_page
 from .core.authentication.exceptions import SessionExpiredError, AuthenticationFailedError
+from .demo import get_campaign_urls_with_fallback
 
 from playwright.sync_api import sync_playwright, Page
 import re
@@ -324,7 +325,7 @@ def guardar_datos_en_excel(informe_detalle: list[list[str]], archivo_busqueda: s
         )
 
         wb = crear_o_cargar_libro_excel(archivo_busqueda)
-        encabezados = ["Buscar", "Nombre", "ID Campaña", "Fecha", "Total enviado", "Abierto", "No abierto"]
+        encabezados = ["Buscar", "Nombre", "ID Campaña", "Fecha", "Total enviado", "Abierto", "No abierto", "URL de Correo"]
 
         # Obtener o crear la hoja "Sheet"
         ws = obtener_o_crear_hoja(wb, "Sheet")
@@ -443,6 +444,59 @@ def procesar_todas_las_paginas(page: Page) -> list[list[str]]:
     return todas_campanias
 
 
+def extraer_urls_de_campanias(page: Page, campanias: list[list[str]]) -> list[list[str]]:
+    """
+    Recorre cada campaña, navega a su página de suscriptores y extrae la URL del correo.
+
+    Args:
+        page: Página de Playwright
+        campanias: Lista de campañas con sus datos [Buscar, Nombre, ID, Fecha, Enviado, Abierto, No Abierto]
+
+    Returns:
+        Lista de campañas con la URL de correo agregada al final
+    """
+    logger.info(f"📧 Iniciando extracción de URLs de correo para {len(campanias)} campañas")
+
+    for i, campania in enumerate(campanias, 1):
+        id_campania = campania[2]  # ID está en posición 2
+
+        # Validar que tenemos ID
+        if not id_campania:
+            logger.warning(f"⚠️ Campaña {i} sin ID, omitiendo extracción de URL")
+            campania.append("")  # Agregar columna vacía
+            continue
+
+        try:
+            logger.info(f"📧 [{i}/{len(campanias)}] Extrayendo URL de '{campania[1]}' (ID: {id_campania})")
+
+            # Extraer URL usando la función de demo.py
+            url_correo = get_campaign_urls_with_fallback(page, int(id_campania))
+
+            if url_correo:
+                logger.success(f"✅ URL encontrada: {url_correo}")
+            else:
+                logger.warning(f"⚠️ No se encontró URL para campaña '{campania[1]}'")
+
+            # Agregar URL al final de la lista
+            campania.append(url_correo)
+
+            # Espera entre campañas para no sobrecargar
+            page.wait_for_timeout(1000)
+
+            # Verificar si sesión expiró después de navegar
+            if is_on_login_page(page):
+                logger.warning("⚠️ Sesión expirada durante extracción de URLs, re-autenticando...")
+                login(page, page.context)
+                navegar_a_reportes(page)
+
+        except Exception as e:
+            logger.error(f"❌ Error extrayendo URL de campaña '{campania[1]}': {e}")
+            campania.append("")  # Agregar vacía en caso de error
+
+    logger.success(f"✅ Extracción de URLs completada para {len(campanias)} campañas")
+    return campanias
+
+
 def main():
     """
     Función principal del programa de listado de campañas
@@ -476,16 +530,25 @@ def main():
             logger.debug("✅ Página cargada completamente")
 
             # Procesar todas las páginas y extraer campañas con scraping
-            logger.info("📥 Iniciando extracción de campañas mediante scraping")
+            # Fase 1: Listar todas las campañas
+            logger.info("📥 Fase 1: Extrayendo lista de campañas mediante scraping")
             informe = procesar_todas_las_paginas(page)
-            logger.info(f"📊 Total de campañas extraídas mediante scraping: {len(informe)}")
+            logger.success(f"✅ Fase 1 completada: {len(informe)} campañas encontradas")
+
+            # Fase 2: Extraer URLs de correo una por una
+            if informe:
+                logger.info("📧 Fase 2: Extrayendo URLs de correo para cada campaña")
+                informe = extraer_urls_de_campanias(page, informe)
+                logger.success(f"✅ Fase 2 completada: {len(informe)} campañas con URLs")
+            else:
+                logger.warning("⚠️ No se encontraron campañas, saltando extracción de URLs")
 
             # Guardar en Excel
             if informe:
                 logger.info("💾 Guardando datos en archivo Excel")
                 guardar_datos_en_excel(informe, ARCHIVO_BUSQUEDA)
                 logger.success("✅ Programa completado exitosamente")
-                notify("Listado de Campañas", f"Se extrajeron {len(informe)} campañas correctamente", "info")
+                notify("Listado de Campañas", f"Se extrajeron {len(informe)} campañas con URLs", "info")
             else:
                 logger.warning("⚠️ No se encontraron campañas para guardar")
                 notify("Listado de Campañas", "No se encontraron campañas", "warning")
