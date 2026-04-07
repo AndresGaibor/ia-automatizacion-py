@@ -20,7 +20,6 @@ from .autentificacion import login, manejar_popup_cookies
 from .infrastructure.api import API
 from .shared.utils.legacy_utils import is_on_login_page
 from .core.authentication.exceptions import SessionExpiredError, AuthenticationFailedError
-from .demo import get_campaign_urls_with_fallback
 
 from playwright.sync_api import sync_playwright, Page
 import re
@@ -444,9 +443,48 @@ def procesar_todas_las_paginas(page: Page) -> list[list[str]]:
     return todas_campanias
 
 
+def extraer_url_correo_rapido(page: Page, campaign_id: int) -> str:
+    """
+    Extrae la URL del correo de una campaña de forma ultra-rápida.
+    Navega sin esperar networkidle, apenas cargue extrae la URL del regex.
+    """
+    import re
+    from playwright.sync_api import TimeoutError as PWTimeoutError
+
+    try:
+        url = f"https://acumbamail.com/report/campaign/{campaign_id}/subscribers/"
+
+        # Navegar sin esperar a que todo cargue (commit = apenas responde el servidor)
+        page.goto(url, wait_until="commit", timeout=30000)
+
+        # Esperar solo a que el botón "Ver email" aparezca (no esperar toda la página)
+        try:
+            email_link = page.get_by_text("Ver email").get_attribute("href", timeout=3000)
+            if email_link and "clickacm.com" in email_link:
+                return email_link
+        except PWTimeoutError:
+            pass
+
+        # Fallback: buscar URL de clickacm.com directamente en el HTML crudo
+        try:
+            page_content = page.content()
+            pattern = r'(https://clickacm\.com/show/[a-zA-Z0-9-]+/)'
+            matches = re.findall(pattern, page_content)
+            if matches:
+                return matches[0]
+        except Exception:
+            pass
+
+        return ""
+
+    except Exception:
+        return ""
+
+
 def extraer_urls_de_campanias(page: Page, campanias: list[list[str]]) -> list[list[str]]:
     """
     Recorre cada campaña, navega a su página de suscriptores y extrae la URL del correo.
+    Versión optimizada: no espera a que cargue todo, apenas extrae la URL sigue.
 
     Args:
         page: Página de Playwright
@@ -469,8 +507,8 @@ def extraer_urls_de_campanias(page: Page, campanias: list[list[str]]) -> list[li
         try:
             logger.info(f"📧 [{i}/{len(campanias)}] Extrayendo URL de '{campania[1]}' (ID: {id_campania})")
 
-            # Extraer URL usando la función de demo.py
-            url_correo = get_campaign_urls_with_fallback(page, int(id_campania))
+            # Extraer URL de forma ultra-rápida
+            url_correo = extraer_url_correo_rapido(page, int(id_campania))
 
             if url_correo:
                 logger.success(f"✅ URL encontrada: {url_correo}")
@@ -479,9 +517,6 @@ def extraer_urls_de_campanias(page: Page, campanias: list[list[str]]) -> list[li
 
             # Agregar URL al final de la lista
             campania.append(url_correo)
-
-            # Espera entre campañas para no sobrecargar
-            page.wait_for_timeout(1000)
 
             # Verificar si sesión expiró después de navegar
             if is_on_login_page(page):
