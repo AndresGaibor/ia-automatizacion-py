@@ -1,6 +1,6 @@
 import logging
 from playwright.sync_api import BrowserContext, TimeoutError as PWTimeoutError, Page
-from .utils import load_config, storage_state_path, notify
+from .utils import load_config, storage_state_path
 from .shared.logging.logger import get_logger
 from .core.authentication.exceptions import CookiePopupError, AuthenticationFailedError, SessionSaveError
 
@@ -322,12 +322,10 @@ def login(page: Page, context: BrowserContext):
 	# Validar que las credenciales estén configuradas
 	if not username or username == "usuario@correo.com":
 		logger.error("❌ Usuario no configurado en config.yaml", user=username)
-		notify("Error de Configuración", "Error: Usuario no configurado. Edite config.yaml con su email de Acumbamail.", "error")
 		raise ValueError("Usuario no configurado en config.yaml")
-	
+
 	if not password or password == "clave":
 		logger.error("❌ Contraseña no configurada en config.yaml", user=username)
-		notify("Error de Configuración", "Error: Contraseña no configurada. Edite config.yaml con su contraseña de Acumbamail.", "error")
 		raise ValueError("Contraseña no configurada en config.yaml")
 
 	logger.info(f"🔑 Iniciando proceso de login para usuario: {username}")
@@ -342,7 +340,6 @@ def login(page: Page, context: BrowserContext):
 		esperar_carga_pagina(page, timeout=45_000, use_networkidle=True)
 	except Exception as e:
 		logger.error(f"❌ Error conectando a Acumbamail: {e}", url=url, error=str(e))
-		notify("Error de Conexión", f"Error: No se pudo conectar a Acumbamail: {e}", "error")
 		raise
 
 	if f"{url_base}/" != page.url:
@@ -357,7 +354,6 @@ def login(page: Page, context: BrowserContext):
 			try:
 				context.storage_state(path=storage_state_path())
 				logger.success("✅ Estado de sesión existente guardado correctamente")
-				notify("Sesión", "Sesión existente verificada y guardada", "info")
 				return
 			except Exception as e:
 				logger.error("❌ Error guardando estado de sesión existente", error=str(e))
@@ -374,22 +370,19 @@ def login(page: Page, context: BrowserContext):
 	# Verificar estado de autenticación actual
 	if autenticado(page):
 		logger.success("✅ Ya estás autenticado y verificado.")
-		notify("Sesión", "Ya está autenticado en Acumbamail", "info")
 
 		# Guardar sesión solo después de verificación exitosa
 		logger.info("💾 Guardando estado de sesión ya autenticado...")
 		try:
 			context.storage_state(path=storage_state_path())
 			logger.success("✅ Estado de sesión autenticado guardado correctamente")
-			notify("Sesión", "Sesión autenticada guardada", "info")
 			return
 		except Exception as e:
 			logger.error("❌ Error guardando estado de sesión autenticado", error=str(e))
 			raise SessionSaveError(f"No se pudo guardar la sesión autenticada: {e}")
 
 	# Si no está autenticado, proceder con login
-	logger.info("🔐 No estás autenticado. Procediendo a login...")
-	notify("Autenticación", "Credenciales requeridas, iniciando login", "info")
+	logger.info("🔐 No estás autenticado. Procediendo con login...")
 
 	login_realizado = False
 	try:
@@ -419,7 +412,6 @@ def login(page: Page, context: BrowserContext):
 
 	except Exception as e:
 		logger.error(f"❌ Error durante el login: {e}", error=str(e))
-		notify("Error de Login", f"Error durante el login: {e}. Verifique sus credenciales.", "error")
 		raise AuthenticationFailedError(f"Falló el login: {e}")
 
 	# VERIFICACIÓN CRÍTICA: Solo guardar sesión si el login fue exitoso
@@ -438,7 +430,6 @@ def login(page: Page, context: BrowserContext):
 			try:
 				context.storage_state(path=storage_state_path())
 				logger.success("✅ Estado de sesión verificado guardado correctamente")
-				notify("Sesión", "Login verificado y sesión guardada", "info")
 			except Exception as e:
 				logger.error("❌ Error guardando estado de sesión verificado", error=str(e))
 				raise SessionSaveError(f"No se pudo guardar la sesión verificada: {e}")

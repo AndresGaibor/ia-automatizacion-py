@@ -619,32 +619,48 @@ def leer_urls_faltantes_del_excel() -> tuple[list[list[str]], int]:
 
 def actualizar_urls_en_excel(campanias_actualizadas: list[list[str]]):
     """
-    Actualiza las URLs de correo en el Excel sin reescribir todo.
+    Actualiza las URLs de correo en el Excel reescribiendo todo el archivo.
+    Más robusto que la actualización incremental de celdas.
     """
-    import os
-    from openpyxl import load_workbook
-
-    if not os.path.exists(ARCHIVO_BUSQUEDA):
-        return
-
     try:
-        wb = load_workbook(ARCHIVO_BUSQUEDA)
+        encabezados = ["Buscar", "Nombre", "ID Campaña", "Fecha", "Total enviado", "Abierto", "No abierto", "URL de Correo"]
+
+        wb = crear_o_cargar_libro_excel(None)
         ws = wb.active
+        if ws is None:
+            ws = wb.create_sheet("Sheet")
 
-        encabezados = [c.value for c in ws[1]]
-        if "URL de Correo" not in encabezados:
-            wb.close()
-            return
+        # Limpiar todo
+        ws.delete_rows(1, ws.max_row)
 
-        idx_url = encabezados.index("URL de Correo")
+        # Encabezados
+        ws.append(encabezados)
 
-        for i, campania in enumerate(campanias_actualizadas, start=2):  # start=2 (omitir encabezados)
-            if i <= ws.max_row and idx_url < len(campania):
-                celda = ws.cell(row=i, column=idx_url + 1)
-                celda.value = campania[idx_url]
+        # Todas las campañas con sus URLs
+        for campania in campanias_actualizadas:
+            # Asegurar 8 columnas
+            while len(campania) < 8:
+                campania.append("")
+            ws.append(campania)
+
+        # Ajustar ancho de columnas
+        from openpyxl.utils import get_column_letter
+        for col_idx in range(1, ws.max_column + 1):
+            max_length = 0
+            column_letter = get_column_letter(col_idx)
+            for row_idx in range(1, ws.max_row + 1):
+                cell = ws.cell(row=row_idx, column=col_idx)
+                try:
+                    if cell.value and len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except Exception:
+                    pass
+            adjusted_width = min(max_length + 2, 50)
+            ws.column_dimensions[column_letter].width = adjusted_width
 
         wb.save(ARCHIVO_BUSQUEDA)
         wb.close()
+        logger.debug(f"💾 URLs guardadas en Excel: {len(campanias_actualizadas)} campañas")
 
     except Exception as e:
         logger.error(f"❌ Error actualizando Excel: {e}")
