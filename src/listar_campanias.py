@@ -7,7 +7,7 @@ if __package__ in (None, ""):
     __package__ = "src"
 
 from .excel_utils import agregar_datos, crear_o_cargar_libro_excel, obtener_o_crear_hoja, limpiar_hoja_desde_fila
-from .shared.utils.legacy_utils import data_path, notify
+from .shared.utils.legacy_utils import data_path
 from .shared.logging.logger import get_logger
 from .utils import (
     crear_contexto_navegador,
@@ -269,12 +269,6 @@ def extraer_campanias_de_pagina(page: Page) -> list[list[str]]:
                 campaign_listitems.append(item)
                 logger.debug(f"✅ Campaña válida encontrada en índice {i}: {text[:50]}...")
             else:
-                # Logging detallado para debug - mostrar en consola los descartados
-                if tiene_fecha and longitud_suficiente:  # Candidatos válidos que fueron descartados
-                    print(
-                        f"⚠️ DESCARTADO [{i}]: fecha={tiene_fecha}, numeros={tiene_numeros_final}, longitud={len(text.strip())}, saltos={text.count(chr(10))}"
-                    )
-                    print(f"   Texto: {text[:100]}")
                 logger.debug(
                     f"⚠️ Elemento descartado en índice {i}: tiene_fecha={tiene_fecha}, tiene_numeros={tiene_numeros_final}, longitud={len(text.strip())}, saltos_linea={text.count(chr(10))}"
                 )
@@ -370,7 +364,6 @@ def guardar_datos_en_excel(informe_detalle: list[list[str]], archivo_busqueda: s
 
     except Exception as e:
         logger.error(f"❌ Error guardando archivo Excel: {e}")
-        print(f"Error guardando archivo Excel: {e}")
 
 
 def procesar_todas_las_paginas(page: Page) -> list[list[str]]:
@@ -713,7 +706,6 @@ def main():
                     excel_existe = False
                 elif pendientes == 0:
                     logger.success(f"✅ Todas las campañas ({len(informe)}) ya tienen URL, terminado")
-                    notify("Listado de Campañas", f"{len(informe)} campañas con URLs completas", "info")
                     browser.close()
                     return
                 else:
@@ -729,7 +721,6 @@ def main():
 
                 if not informe:
                     logger.warning("⚠️ No se encontraron campañas, terminando")
-                    notify("Listado de Campañas", "No se encontraron campañas", "warning")
                     browser.close()
                     return
 
@@ -747,7 +738,6 @@ def main():
             logger.info("💾 Guardando Excel final con todas las URLs...")
             guardar_datos_en_excel(informe, ARCHIVO_BUSQUEDA)
             logger.success("✅ Programa completado exitosamente")
-            notify("Listado de Campañas", f"{len(informe)} campañas con URLs extraídas", "info")
 
             # Cerrar navegador
             logger.debug("🔚 Cerrando navegador")
@@ -756,8 +746,6 @@ def main():
 
     except Exception as e:
         logger.error(f"❌ Error crítico en el programa: {e}", extra={"error": str(e)})
-        print(f"Error crítico en el programa: {e}")
-        notify("Error", f"Error crítico: {e}", "error")
         raise
 
 
