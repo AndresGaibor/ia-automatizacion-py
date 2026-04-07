@@ -666,10 +666,14 @@ def extraer_urls_de_campanias(page: Page, campanias: list[list[str]], batch_size
 
 def main():
     """
-    Función principal del programa de listado de campañas
-    Usa API para obtener IDs y scraping para completar los datos
+    Función principal del programa de listado de campañas.
+
+    Flujo inteligente:
+    - Si el Excel ya existe: solo procesa URLs pendientes (no re-lista campañas)
+    - Si el Excel no existe: lista todas las campañas + extrae URLs
     """
-    logger.info("🚀 Iniciando programa de listado de campañas (modo híbrido: API + Scraping)")
+    import os
+    logger.info("🚀 Iniciando programa de listado de campañas")
 
     try:
         with sync_playwright() as p:
@@ -693,27 +697,49 @@ def main():
             # Esperar a que la página cargue completamente
             logger.debug("⏳ Esperando carga completa de la página")
             page.wait_for_load_state("networkidle", timeout=60000)
-            page.wait_for_timeout(3000)  # Espera adicional para asegurar carga completa
+            page.wait_for_timeout(3000)
             logger.debug("✅ Página cargada completamente")
 
-            # Fase 1: Listar todas las campañas
-            logger.info("📥 Fase 1: Extrayendo lista de campañas mediante scraping")
-            informe = procesar_todas_las_paginas(page)
-            logger.success(f"✅ Fase 1 completada: {len(informe)} campañas encontradas")
+            # Verificar si ya existe el Excel con campañas
+            excel_existe = os.path.exists(ARCHIVO_BUSQUEDA)
 
-            # Fase 2: Guardar Excel con listado de campañas inmediatamente
-            if informe:
+            if excel_existe:
+                # Leer campañas existentes y verificar cuántas URLs faltan
+                logger.info("📂 Excel encontrado, leyendo campañas existentes...")
+                informe, pendientes = leer_urls_faltantes_del_excel()
+
+                if not informe:
+                    logger.warning("⚠️ Excel vacío o ilegible, procesando desde cero")
+                    excel_existe = False
+                elif pendientes == 0:
+                    logger.success(f"✅ Todas las campañas ({len(informe)}) ya tienen URL, terminado")
+                    notify("Listado de Campañas", f"{len(informe)} campañas con URLs completas", "info")
+                    browser.close()
+                    return
+                else:
+                    logger.info(f"📧 {pendientes}/{len(informe)} campañas sin URL, procesando solo pendientes...")
+            else:
+                logger.info("📂 Excel no encontrado, se creará desde cero")
+
+            if not excel_existe:
+                # Fase 1: Listar todas las campañas desde cero
+                logger.info("📥 Fase 1: Extrayendo lista de campañas mediante scraping")
+                informe = procesar_todas_las_paginas(page)
+                logger.success(f"✅ Fase 1 completada: {len(informe)} campañas encontradas")
+
+                if not informe:
+                    logger.warning("⚠️ No se encontraron campañas, terminando")
+                    notify("Listado de Campañas", "No se encontraron campañas", "warning")
+                    browser.close()
+                    return
+
+                # Fase 2: Guardar Excel con listado de campañas inmediatamente
                 logger.info("💾 Fase 2: Guardando Excel con listado de campañas...")
                 guardar_datos_en_excel(informe, ARCHIVO_BUSQUEDA)
                 logger.success(f"✅ Excel creado: {ARCHIVO_BUSQUEDA}")
-            else:
-                logger.warning("⚠️ No se encontraron campañas, terminando")
-                notify("Listado de Campañas", "No se encontraron campañas", "warning")
-                browser.close()
-                return
 
-            # Fase 3: Extraer URLs de correo en tandas de 10
-            logger.info("📧 Fase 3: Extrayendo URLs de correo en tandas de 10")
+            # Fase 3: Extraer URLs de correo SOLO las pendientes en tandas de 10
+            logger.info("📧 Fase 3: Extrayendo URLs de correo pendientes en tandas de 10")
             informe = extraer_urls_de_campanias(page, informe, batch_size=10)
             logger.success(f"✅ Fase 3 completada: todas las URLs procesadas")
 
