@@ -620,18 +620,14 @@ def leer_urls_faltantes_del_excel() -> tuple[list[list[str]], int]:
 def actualizar_urls_en_excel(campanias_actualizadas: list[list[str]]):
     """
     Actualiza las URLs de correo en el Excel reescribiendo todo el archivo.
-    Más robusto que la actualización incremental de celdas.
     """
     try:
+        from openpyxl import Workbook
         encabezados = ["Buscar", "Nombre", "ID Campaña", "Fecha", "Total enviado", "Abierto", "No abierto", "URL de Correo"]
 
-        wb = crear_o_cargar_libro_excel(None)
+        wb = Workbook()
         ws = wb.active
-        if ws is None:
-            ws = wb.create_sheet("Sheet")
-
-        # Limpiar todo
-        ws.delete_rows(1, ws.max_row)
+        ws.title = "Sheet"
 
         # Encabezados
         ws.append(encabezados)
@@ -639,9 +635,10 @@ def actualizar_urls_en_excel(campanias_actualizadas: list[list[str]]):
         # Todas las campañas con sus URLs
         for campania in campanias_actualizadas:
             # Asegurar 8 columnas
-            while len(campania) < 8:
-                campania.append("")
-            ws.append(campania)
+            fila = list(campania)
+            while len(fila) < 8:
+                fila.append("")
+            ws.append(fila)
 
         # Ajustar ancho de columnas
         from openpyxl.utils import get_column_letter
@@ -660,7 +657,6 @@ def actualizar_urls_en_excel(campanias_actualizadas: list[list[str]]):
 
         wb.save(ARCHIVO_BUSQUEDA)
         wb.close()
-        logger.debug(f"💾 URLs guardadas en Excel: {len(campanias_actualizadas)} campañas")
 
     except Exception as e:
         logger.error(f"❌ Error actualizando Excel: {e}")
