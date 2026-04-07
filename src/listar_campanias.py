@@ -582,7 +582,7 @@ def extraer_urls_de_campanias(page: Page, campanias: list[list[str]], batch_size
         Lista de campañas con URLs actualizadas
     """
     total_campanias = len(campanias)
-    total_pendientes = sum(1 for c in campanias if len(c) <= 7 or not c[7] if len(c) > 7 else True)
+    total_pendientes = sum(1 for c in campanias if (len(c) <= 7) or (len(c) > 7 and not c[7]))
 
     if total_pendientes == 0:
         logger.success("✅ Todas las campañas ya tienen URL, saltando extracción")
