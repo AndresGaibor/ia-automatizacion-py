@@ -91,6 +91,36 @@ additional_hiddenimports = [
     'src.hybrid',
     'src.hybrid.campanias',
 
+    # Refactored modules (Core)
+    'src.core.dto',
+    'src.core.authentication',
+    'src.core.authentication.authentication_service',
+    'src.core.authentication.exceptions',
+
+    # Refactored modules (Infrastructure)
+    'src.infrastructure.scraping.components',
+    'src.infrastructure.scraping.components.campaign_row',
+    'src.infrastructure.scraping.components.login_form',
+    'src.infrastructure.scraping.components.cookie_banner',
+    'src.infrastructure.scraping.components.session_guard',
+    'src.infrastructure.scraping.components.subscriber_row',
+    'src.infrastructure.scraping.components.filter_selector',
+    'src.infrastructure.scraping.pages',
+    'src.infrastructure.scraping.pages.reports_page',
+    'src.infrastructure.scraping.pages.login_page',
+    'src.infrastructure.scraping.pages.base_page',
+    'src.infrastructure.scraping.pages.subscribers_page',
+    'src.infrastructure.scraping.flows',
+    'src.infrastructure.scraping.flows.report_listing_flow',
+    'src.infrastructure.scraping.flows.auth_flow',
+    'src.infrastructure.scraping.flows.subscribers_flow',
+    'src.infrastructure.excel',
+    'src.infrastructure.excel.campaign_report_exporter',
+    'src.infrastructure.excel.excel_manager',
+
+    # Refactored modules (Shared)
+    'src.shared.logging.legacy_logger',
+
     # Logging modules
     'logging',
     'pythonjsonlogger',

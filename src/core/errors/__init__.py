@@ -6,18 +6,20 @@ from .exceptions import (
     AuthenticationError,
     APIError,
     BrowserAutomationError,
+    BrowserError,  # Alias para compatibilidad
     DataProcessingError,
     ValidationError,
-    ErrorSeverity
+    ErrorSeverity,
 )
 
 __all__ = [
-    'AcumbaMailError',
-    'ConfigurationError',
-    'AuthenticationError',
-    'APIError',
-    'BrowserAutomationError',
-    'DataProcessingError',
-    'ValidationError',
-    'ErrorSeverity'
+    "AcumbaMailError",
+    "ConfigurationError",
+    "AuthenticationError",
+    "APIError",
+    "BrowserAutomationError",
+    "BrowserError",  # Alias para compatibilidad
+    "DataProcessingError",
+    "ValidationError",
+    "ErrorSeverity",
 ]

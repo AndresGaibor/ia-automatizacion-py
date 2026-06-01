@@ -6,20 +6,19 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     __package__ = "src"
 
-from .excel_utils import agregar_datos, crear_o_cargar_libro_excel, obtener_o_crear_hoja, limpiar_hoja_desde_fila
-from .shared.utils.legacy_utils import data_path
-from .shared.logging.logger import get_logger
-from .utils import (
+from .shared.utils.legacy_utils import (
+    data_path,
     crear_contexto_navegador,
     configurar_navegador,
-    navegar_a_reportes,
-    obtener_total_paginas,
-    navegar_siguiente_pagina,
+    is_on_login_page,
 )
-from .autentificacion import login, manejar_popup_cookies
+from .shared.logging.logger import get_logger
 from .infrastructure.api import API
-from .shared.utils.legacy_utils import is_on_login_page
 from .core.authentication.exceptions import SessionExpiredError, AuthenticationFailedError
+from .infrastructure.scraping.flows.report_listing_flow import ReportListingFlow
+from .infrastructure.scraping.flows.auth_flow import AuthFlow
+from .infrastructure.scraping.pages.reports_page import ReportsPage
+from .infrastructure.excel.campaign_report_exporter import CampaignReportExporter
 
 from playwright.sync_api import sync_playwright, Page
 import re
@@ -107,6 +106,16 @@ def with_session_retry(max_retries: int = 2):
     return decorator
 
 
+# ============================================================================
+# LEGACY - CÓDIGO PROCEDURAL EN DESUSO
+# Estas funciones fueron reemplazadas por Page Objects en:
+#   - src/infrastructure/scraping/components/campaign_row.py (CampaignRow)
+#   - src/infrastructure/scraping/pages/reports_page.py (ReportsPage)
+#   - src/infrastructure/scraping/flows/report_listing_flow.py (ReportListingFlow)
+# Mantenidas para rollback. NO usar en código nuevo.
+# ============================================================================
+
+
 def extraer_id_de_url(url: str) -> str:
     """
     Extrae el ID de campaña de una URL
@@ -119,17 +128,8 @@ def extraer_id_de_url(url: str) -> str:
     return ""
 
 
+# REEMPLAZADO POR: CampaignRow.extract_data() en infrastructure/scraping/components/
 def extraer_datos_campania_de_listitem(listitem_locator, page: Page) -> list[str]:
-    """
-    Extrae los datos de una campaña desde un listitem usando selectores modernos de Playwright
-
-    Args:
-        listitem_locator: Locator del listitem de la página de informes
-        page: Página de Playwright
-
-    Returns:
-        Lista con los datos: ['', nombre, id, fecha, total_enviado, abierto, no_abierto]
-    """
     try:
         logger.debug("🔍 Iniciando extracción de datos de listitem con selectores modernos")
 
@@ -150,9 +150,8 @@ def extraer_datos_campania_de_listitem(listitem_locator, page: Page) -> list[str
         fecha = fecha_cell.locator("span").inner_text().strip()
         logger.debug(f"📅 Fecha: {fecha}")
 
-        # 3. TOTAL ENVIADO (quinto div = índice 4)
-        # Puede ser <a> o texto plano dentro de <span>
-        emails_cell = listitem_locator.locator("div.am-responsive-table-cell").nth(4)
+        # 3. TOTAL ENVIADO (Emails = índice 5, columna "Listas" está en 4)
+        emails_cell = listitem_locator.locator("div.am-responsive-table-cell").nth(5)
         emails_link = emails_cell.locator("a")
         if emails_link.count() > 0:
             total_enviado = emails_link.inner_text().strip().replace(".", "")
@@ -161,8 +160,8 @@ def extraer_datos_campania_de_listitem(listitem_locator, page: Page) -> list[str
 
         logger.debug(f"📧 Total enviado: {total_enviado}")
 
-        # 4. ABIERTO (sexto div = índice 5)
-        abiertos_cell = listitem_locator.locator("div.am-responsive-table-cell").nth(5)
+        # 4. ABIERTO (índice 6)
+        abiertos_cell = listitem_locator.locator("div.am-responsive-table-cell").nth(6)
         abiertos_link = abiertos_cell.locator("a")
         if abiertos_link.count() > 0:
             abierto = abiertos_link.inner_text().strip().replace(".", "")
@@ -207,26 +206,15 @@ def extraer_datos_campania_de_listitem(listitem_locator, page: Page) -> list[str
         return []
 
 
+# REEMPLAZADO POR: ReportsPage.navigate_to_next_page() en infrastructure/scraping/pages/
 @with_session_retry(max_retries=2)
 def navegar_siguiente_pagina_con_recuperacion(page: Page, pagina_actual: int) -> bool:
-    """
-    Wrapper para navegar_siguiente_pagina con recuperación de sesión
-    """
-    # Usar la función original pero con el decorador para recuperación
     return navegar_siguiente_pagina(page, pagina_actual)
 
 
+# REEMPLAZADO POR: ReportsPage.get_valid_campaign_rows() + CampaignRow.extract_data()
 @with_session_retry(max_retries=2)
 def extraer_campanias_de_pagina(page: Page) -> list[list[str]]:
-    """
-    Extrae todas las campañas de la página actual de informes con recuperación de sesión
-
-    Args:
-        page: Página de Playwright
-
-    Returns:
-        Lista de campañas con sus datos (sin duplicados por ID)
-    """
     logger.info("🔍 Iniciando extracción de campañas de la página actual")
     campanias = []
     ids_vistos = set()  # Para evitar duplicados
@@ -307,66 +295,74 @@ def extraer_campanias_de_pagina(page: Page) -> list[list[str]]:
     return campanias
 
 
-def guardar_datos_en_excel(informe_detalle: list[list[str]], archivo_busqueda: str):
-    """
-    Guarda los datos en el archivo Excel, usando la primera hoja por defecto
-    y ajusta automáticamente el ancho de las columnas
-    """
-    try:
-        logger.info(
-            "🚀 Iniciando guardado de datos en Excel",
-            extra={"archivo": archivo_busqueda, "registros": len(informe_detalle)},
-        )
+# LEGACY - mantener para rollback. Usar CampaignReportExporter.export() en su lugar
+# LEGACY - REEMPLAZADO POR: CampaignReportExporter en infrastructure/excel/campaign_report_exporter.py
+# Mantener comentado para rollback
+# def guardar_datos_en_excel(informe_detalle: list[list[str]], archivo_busqueda: str):
+#         logger.info(
+#             "🚀 Iniciando guardado de datos en Excel",
+#             extra={"archivo": archivo_busqueda, "registros": len(informe_detalle)},
+#         )
+#
+#         wb = crear_o_cargar_libro_excel(archivo_busqueda)
+#         encabezados = [
+#             "Buscar",
+#             "Nombre",
+#             "ID Campaña",
+#             "Fecha",
+#             "Total enviado",
+#             "Abierto",
+#             "No abierto",
+#             "URL de Correo",
+#         ]
+#
+#         # Obtener o crear la hoja "Sheet"
+#         ws = obtener_o_crear_hoja(wb, "Sheet")
+#         logger.info(f"📝 Hoja obtenida/creada: {ws.title}")
+#
+#         # Limpiar hoja desde la primera fila
+#         logger.info("🧹 Limpiando hoja")
+#         limpiar_hoja_desde_fila(ws, fila_inicial=1)
+#
+#         # Agregar encabezados
+#         logger.info("🏷️ Agregando encabezados")
+#         ws.append(encabezados)
+#
+#         # Agregar datos
+#         registros_agregados = agregar_datos(ws, datos=informe_detalle)
+#         logger.info(f"📊 Datos agregados: {registros_agregados} registros")
+#
+#         # Ajustar automáticamente el ancho de las columnas
+#         from openpyxl.utils import get_column_letter
+#
+#         # Iterar por cada columna usando índices
+#         logger.info("📐 Ajustando ancho de columnas")
+#         for col_idx in range(1, ws.max_column + 1):
+#             max_length = 0
+#             column_letter = get_column_letter(col_idx)
+#
+#             # Revisar todas las celdas de esta columna
+#             for row_idx in range(1, ws.max_row + 1):
+#                 cell = ws.cell(row=row_idx, column=col_idx)
+#                 try:
+#                     if cell.value and len(str(cell.value)) > max_length:
+#                         max_length = len(str(cell.value))
+#                 except:
+#                     pass
+#
+#             # Ajustar el ancho (agregar un poco de padding)
+#             adjusted_width = min(max_length + 2, 50)  # Máximo 50 caracteres
+#             ws.column_dimensions[column_letter].width = adjusted_width
+#
+#         wb.save(archivo_busqueda)
+#         logger.success(f"✅ Archivo guardado exitosamente: {archivo_busqueda}")
+#         logger.info(f"📈 Se agregaron {registros_agregados} registros al archivo")
+#
+#     except Exception as e:
+#         logger.error(f"❌ Error guardando archivo Excel: {e}")
 
-        wb = crear_o_cargar_libro_excel(archivo_busqueda)
-        encabezados = ["Buscar", "Nombre", "ID Campaña", "Fecha", "Total enviado", "Abierto", "No abierto", "URL de Correo"]
 
-        # Obtener o crear la hoja "Sheet"
-        ws = obtener_o_crear_hoja(wb, "Sheet")
-        logger.info(f"📝 Hoja obtenida/creada: {ws.title}")
-
-        # Limpiar hoja desde la primera fila
-        logger.info("🧹 Limpiando hoja")
-        limpiar_hoja_desde_fila(ws, fila_inicial=1)
-
-        # Agregar encabezados
-        logger.info("🏷️ Agregando encabezados")
-        ws.append(encabezados)
-
-        # Agregar datos
-        registros_agregados = agregar_datos(ws, datos=informe_detalle)
-        logger.info(f"📊 Datos agregados: {registros_agregados} registros")
-
-        # Ajustar automáticamente el ancho de las columnas
-        from openpyxl.utils import get_column_letter
-
-        # Iterar por cada columna usando índices
-        logger.info("📐 Ajustando ancho de columnas")
-        for col_idx in range(1, ws.max_column + 1):
-            max_length = 0
-            column_letter = get_column_letter(col_idx)
-
-            # Revisar todas las celdas de esta columna
-            for row_idx in range(1, ws.max_row + 1):
-                cell = ws.cell(row=row_idx, column=col_idx)
-                try:
-                    if cell.value and len(str(cell.value)) > max_length:
-                        max_length = len(str(cell.value))
-                except:
-                    pass
-
-            # Ajustar el ancho (agregar un poco de padding)
-            adjusted_width = min(max_length + 2, 50)  # Máximo 50 caracteres
-            ws.column_dimensions[column_letter].width = adjusted_width
-
-        wb.save(archivo_busqueda)
-        logger.success(f"✅ Archivo guardado exitosamente: {archivo_busqueda}")
-        logger.info(f"📈 Se agregaron {registros_agregados} registros al archivo")
-
-    except Exception as e:
-        logger.error(f"❌ Error guardando archivo Excel: {e}")
-
-
+# REEMPLAZADO POR: ReportListingFlow._save_progress()
 def _guardar_progreso_listado(campanias_acumuladas: list[list[str]], encabezados: list[str]):
     """
     Guarda el progreso del listado de campañas en el Excel.
@@ -388,6 +384,7 @@ def _guardar_progreso_listado(campanias_acumuladas: list[list[str]], encabezados
 
         # Ajustar ancho de columnas
         from openpyxl.utils import get_column_letter
+
         for col_idx in range(1, ws.max_column + 1):
             max_length = 0
             column_letter = get_column_letter(col_idx)
@@ -409,6 +406,7 @@ def _guardar_progreso_listado(campanias_acumuladas: list[list[str]], encabezados
         logger.error(f"❌ Error guardando progreso: {e}")
 
 
+# REEMPLAZADO POR: ReportListingFlow.execute()
 def procesar_todas_las_paginas(page: Page, batch_size: int = 10) -> list[list[str]]:
     """
     Procesa todas las páginas de reportes y extrae todas las campañas (sin duplicados globales).
@@ -422,6 +420,7 @@ def procesar_todas_las_paginas(page: Page, batch_size: int = 10) -> list[list[st
         Lista con todos los datos de campañas únicas
     """
     import os
+
     logger.info(f"🔍 Iniciando procesamiento de todas las páginas (batch_size={batch_size})")
 
     encabezados = ["Buscar", "Nombre", "ID Campaña", "Fecha", "Total enviado", "Abierto", "No abierto", "URL de Correo"]
@@ -544,7 +543,7 @@ def extraer_url_correo_rapido(page: Page, campaign_id: int) -> str:
         # Fallback: buscar URL de clickacm.com directamente en el HTML crudo
         try:
             page_content = page.content()
-            pattern = r'(https://clickacm\.com/show/[a-zA-Z0-9-]+/)'
+            pattern = r"(https://clickacm\.com/show/[a-zA-Z0-9-]+/)"
             matches = re.findall(pattern, page_content)
             if matches:
                 return matches[0]
@@ -623,7 +622,17 @@ def actualizar_urls_en_excel(campanias_actualizadas: list[list[str]]):
     """
     try:
         from openpyxl import Workbook
-        encabezados = ["Buscar", "Nombre", "ID Campaña", "Fecha", "Total enviado", "Abierto", "No abierto", "URL de Correo"]
+
+        encabezados = [
+            "Buscar",
+            "Nombre",
+            "ID Campaña",
+            "Fecha",
+            "Total enviado",
+            "Abierto",
+            "No abierto",
+            "URL de Correo",
+        ]
 
         wb = Workbook()
         ws = wb.active
@@ -642,6 +651,7 @@ def actualizar_urls_en_excel(campanias_actualizadas: list[list[str]]):
 
         # Ajustar ancho de columnas
         from openpyxl.utils import get_column_letter
+
         for col_idx in range(1, ws.max_column + 1):
             max_length = 0
             column_letter = get_column_letter(col_idx)
@@ -693,17 +703,17 @@ def extraer_urls_de_campanias(page: Page, campanias: list[list[str]], batch_size
 
         # Si ya tiene URL, saltar
         if len(campania) > 7 and campania[7] and str(campania[7]).strip():
-            logger.debug(f"⏭️ [{i+1}/{total_campanias}] URL ya existente para '{campania[1]}', saltando")
+            logger.debug(f"⏭️ [{i + 1}/{total_campanias}] URL ya existente para '{campania[1]}', saltando")
             continue
 
         if not id_campania:
-            logger.warning(f"⚠️ Campaña {i+1} sin ID, marcando como vacía")
+            logger.warning(f"⚠️ Campaña {i + 1} sin ID, marcando como vacía")
             while len(campania) < 8:
                 campania.append("")
             continue
 
         try:
-            logger.info(f"📧 [{i+1}/{total_campanias}] Extrayendo URL de '{campania[1]}' (ID: {id_campania})")
+            logger.info(f"📧 [{i + 1}/{total_campanias}] Extrayendo URL de '{campania[1]}' (ID: {id_campania})")
 
             url_correo = extraer_url_correo_rapido(page, int(id_campania))
 
@@ -761,6 +771,7 @@ def main():
     - Si el Excel no existe: lista todas las campañas + extrae URLs
     """
     import os
+
     logger.info("🚀 Iniciando programa de listado de campañas")
 
     try:
@@ -772,21 +783,19 @@ def main():
             page = context.new_page()
             logger.success("✅ Navegador configurado correctamente")
 
-            # Login
-            logger.info("🔐 Iniciando proceso de autenticación")
-            login(page, context)
-            logger.success("✅ Sesión iniciada correctamente")
+            logger.info("🔐 Iniciando proceso de autenticación con AuthFlow")
+            auth_flow = AuthFlow(page, context)
+            auth_flow.ensure_authenticated()
+            logger.success("✅ Sesión autenticada correctamente")
 
-            # Navegar a reportes
-            logger.info("📊 Navegando a sección de reportes")
-            navegar_a_reportes(page)
-            logger.success("✅ Navegación a reportes completada")
+            logger.info("📊 Navegando a sección de reportes con ReportsPage")
+            reports_page = ReportsPage(page)
+            reports_page.navigate_to()
 
-            # Esperar a que la página cargue completamente
-            logger.debug("⏳ Esperando carga completa de la página")
+            logger.debug("⏳ Esperando estabilización de la página de reportes")
             page.wait_for_load_state("networkidle", timeout=60000)
-            page.wait_for_timeout(3000)
-            logger.debug("✅ Página cargada completamente")
+            page.wait_for_timeout(1000)
+            logger.debug("✅ Página de reportes lista para extracción")
 
             # Verificar si ya existe el Excel con campañas
             excel_existe = os.path.exists(ARCHIVO_BUSQUEDA)
@@ -818,7 +827,8 @@ def main():
             if not excel_existe:
                 # Fase 1: Listar todas las campañas desde cero (guarda progreso cada BATCH_SIZE)
                 logger.info(f"📥 Fase 1: Extrayendo lista de campañas (progreso cada {BATCH_SIZE})")
-                informe = procesar_todas_las_paginas(page, batch_size=BATCH_SIZE)
+                flow = ReportListingFlow(page, batch_size=BATCH_SIZE)
+                informe = flow.execute()
                 logger.success(f"✅ Fase 1 completada: {len(informe)} campañas encontradas")
 
                 if not informe:
@@ -831,9 +841,10 @@ def main():
             informe = extraer_urls_de_campanias(page, informe, batch_size=BATCH_SIZE)
             logger.success(f"✅ Fase 2 completada: todas las URLs procesadas")
 
-            # Guardar resultado final completo
-            logger.info("💾 Guardando Excel final con todas las URLs...")
-            guardar_datos_en_excel(informe, ARCHIVO_BUSQUEDA)
+            # Exportar resultado final con CampaignReportExporter
+            logger.info("💾 Exportando Excel final con CampaignReportExporter...")
+            exporter = CampaignReportExporter()
+            exporter.export(informe, ARCHIVO_BUSQUEDA)
             logger.success("✅ Programa completado exitosamente")
 
             # Cerrar navegador
