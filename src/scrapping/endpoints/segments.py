@@ -281,9 +281,9 @@ class SegmentsScrapingService:
                     success = False
 
                 if idx < len(to_create) - 1:
-                    logging.debug("⏱️ Pausa de 2 segundos entre segmentos")
+                    logging.debug("Esperando confirmación de creación antes de continuar")
                     if self.page is not None:
-                        self.page.wait_for_timeout(2000)
+                        self.page.wait_for_load_state("networkidle", timeout=15000)
 
             except Exception as e:
                 error_count += 1
