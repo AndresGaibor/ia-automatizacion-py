@@ -8,28 +8,6 @@ from .infrastructure.scraping.pages.login_page import LoginPage
 logger = get_logger()
 
 
-def esperar_carga_pagina(page: Page, timeout: int = 45_000, use_networkidle: bool = False):
-    """
-    Espera a que la página cargue completamente.
-
-    Args:
-        page: Página de Playwright
-        timeout: Timeout en milisegundos
-        use_networkidle: Si True, espera networkidle además de domcontentloaded (más lento pero más seguro)
-    """
-    logger.info("⏳ Esperando carga de página", timeout=timeout, networkidle=use_networkidle)
-    try:
-        page.wait_for_load_state("domcontentloaded", timeout=timeout)
-
-        if use_networkidle:
-            page.wait_for_load_state("networkidle", timeout=timeout)
-            logger.success("✅ Página cargada exitosamente (con networkidle)")
-        else:
-            logger.success("✅ Página cargada exitosamente")
-    except Exception as e:
-        logger.warning(f"Página tardó en cargar: {e}. Continuando...", error=str(e))
-
-
 def aceptar_cookies(page: Page):
     """Acepta el popup de cookies usando la capa POM."""
     try:
@@ -69,16 +47,16 @@ def login(page: Page, context: BrowserContext):
 
     logger.info(f"🔑 Iniciando proceso de login para usuario: {username}")
 
+    login_page = LoginPage(page, url_base)
+
     try:
         logger.info(f"🌐 Navegando a URL: {url}")
-        page.goto(url, wait_until="domcontentloaded", timeout=60_000)
+        login_page.navigate_to(url)
         logger.info("✅ Navegación inicial completada (domcontentloaded)")
-        esperar_carga_pagina(page, timeout=45_000, use_networkidle=True)
+        login_page.wait_for_load(timeout=45_000, use_networkidle=True)
     except Exception as e:
         logger.error(f"❌ Error conectando a Acumbamail: {e}", url=url, error=str(e))
         raise
-
-    login_page = LoginPage(page, url_base)
 
     if f"{url_base}/" != page.url:
         logger.info("🔍 Verificando que la sesión existente sea válida...")
@@ -112,8 +90,7 @@ def login(page: Page, context: BrowserContext):
 
     login_page.do_login(username, password)
 
-    page.wait_for_load_state("networkidle", timeout=30_000)
-    page.wait_for_timeout(2000)
+    login_page.wait_stabilize()
     logger.success("✅ Sesión estabilizada")
 
     if not login_page.is_logged_in():

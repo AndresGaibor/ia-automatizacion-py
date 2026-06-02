@@ -12,6 +12,14 @@ class LoginPage(BasePage):
         self.login_form = LoginFormComponent(page)
         self.session_guard = SessionGuardComponent(page)
 
+    def navigate_to(self, url: str) -> None:
+        if url:
+            self._page.goto(url, wait_until="domcontentloaded", timeout=60_000)
+
+    def wait_stabilize(self) -> None:
+        self._page.wait_for_load_state("networkidle", timeout=30_000)
+        self._page.wait_for_timeout(2000)
+
     def is_logged_in(self) -> bool:
         return self.session_guard.is_authenticated()
 
