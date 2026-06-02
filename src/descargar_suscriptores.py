@@ -9,14 +9,14 @@ import re
 from pathlib import Path
 import sys
 
-# Configurar package para imports consistentes y PyInstaller compatibility
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     __package__ = "src"
 
-from .utils import data_path, load_config, crear_contexto_navegador, configurar_navegador, obtener_total_paginas, navegar_siguiente_pagina
+from .utils import data_path, load_config, crear_contexto_navegador, configurar_navegador
 from .autentificacion import login
 from .logger import get_logger
+from .infrastructure.scraping.pages.subscribers_list_page import SubscribersListPage
 from playwright.sync_api import sync_playwright, Page
 
 logger = get_logger()
@@ -67,267 +67,28 @@ def extraer_ids_marcados() -> List[Tuple[int, str]]:
 
 def scrape_subscriber_list(page: Page, list_id: int, nombre_lista: str) -> List[Dict[str, str]]:
     """
-    Extrae datos de suscriptores de una lista específica usando Playwright con paginación
-    Usa los patrones exactos probados de utils.py
+    Extrae datos de suscriptores de una lista específica usando POM con paginación.
     """
     logger.info(f"Iniciando scraping de lista {list_id}: {nombre_lista}")
-
-    url = f"https://acumbamail.com/app/list/{list_id}/subscriber/list/"
-    suscriptores = []
-
     try:
-        # Navegar a la página de suscriptores
-        logger.info(f"Navegando a: {url}")
-        page.goto(url, wait_until="networkidle", timeout=60000)
-
-        # Esperar a que la página se cargue completamente
-        page.wait_for_load_state("networkidle", timeout=15000)
-        page.wait_for_timeout(2000)
-
-        # Verificar que la tabla está presente
-        table_present = page.locator("ul li").count() > 0
-        if not table_present:
-            logger.error(f"No se encontró tabla de suscriptores para lista {list_id}")
-            return []
-
-        # Usar la función probada de utils.py para obtener total de páginas
-        # Esta función ya incluye la optimización automática de elementos por página
-        total_paginas = obtener_total_paginas(page)
-        logger.info(f"📄 Total de páginas a procesar: {total_paginas}")
-
-        # Procesar cada página usando la navegación probada
-        for numero_pagina in range(1, total_paginas + 1):
-            logger.info(f"📃 Procesando página {numero_pagina}/{total_paginas}")
-
-            try:
-                # Extraer suscriptores de la página actual
-                suscriptores_pagina = extraer_suscriptores_tabla_lista(page, nombre_lista, list_id)
-                logger.info(f"✅ Página {numero_pagina}: {len(suscriptores_pagina)} suscriptores extraídos")
-
-                suscriptores.extend(suscriptores_pagina)
-
-                # Navegar a siguiente página usando la función probada de utils.py
-                if numero_pagina < total_paginas:
-                    if not navegar_siguiente_pagina(page, numero_pagina):
-                        logger.error(f"No se pudo navegar a página {numero_pagina + 1}")
-                        break
-
-            except Exception as e:
-                logger.error(f"Error procesando página {numero_pagina}: {e}")
-                continue
-
+        subscribers_page = SubscribersListPage(page)
+        suscriptores = subscribers_page.scrape_all_pages(list_id, nombre_lista)
         logger.info(f"✅ Scraping completado - Total: {len(suscriptores)} suscriptores de lista {list_id}")
         return suscriptores
-
     except Exception as e:
         logger.error(f"Error en scraping de lista {list_id}: {e}")
         return []
 
+
 def extraer_suscriptores_tabla_lista(page: Page, nombre_lista: str, list_id: int) -> List[Dict[str, str]]:
     """
-    Extrae suscriptores de la tabla de Acumbamail usando selectores CSS estándar.
-    Detecta automáticamente todas las columnas basándose en la estructura HTML real.
+    Extrae suscriptores de la página actual usando SubscribersListPage.
     """
-    logger.start_timer("extraer_suscriptores_tabla_lista")
-    suscriptores = []
-
     try:
-        print(f"🔍 Extrayendo datos completos de lista: {nombre_lista}")
-
-        # Esperar a que la tabla esté visible
-        page.wait_for_load_state("networkidle", timeout=15000)
-        page.wait_for_timeout(2000)
-
-        # Buscar la tabla usando JavaScript con enfoque directo en la estructura HTML
-        resultado = page.evaluate("""
-            () => {
-                // Buscar todas las listas UL
-                const listas = document.querySelectorAll('ul');
-
-                // Buscar la lista que contenga enlaces de suscriptores
-                let listaTabla = null;
-                for (let ul of listas) {
-                    const items = ul.querySelectorAll('li');
-                    if (items.length > 5) {
-                        const enlaces = ul.querySelectorAll('a[href*="subscriber/detail"]');
-                        if (enlaces.length > 0) {
-                            listaTabla = ul;
-                            break;
-                        }
-                    }
-                }
-
-                if (!listaTabla) return { error: "No se encontró la tabla de suscriptores" };
-
-                const filas = listaTabla.querySelectorAll('li');
-
-                // Extraer encabezados de la primera fila usando spans y divs específicos
-                const encabezados = [];
-                if (filas.length > 0) {
-                    const filaHeader = filas[0];
-
-                    // Buscar spans que contengan texto de encabezados (excluyendo botones y controles)
-                    const elementos = filaHeader.querySelectorAll('span, div');
-                    for (let elem of elementos) {
-                        const text = elem.textContent.trim();
-                        // Filtrar solo los textos que parecen encabezados de columna
-                        if (text && text.length > 2 && text.length < 50 &&
-                            !text.includes('checkbox') && !text.includes('button') &&
-                            !text.match(/^\\d+$/) && !encabezados.includes(text)) {
-                            encabezados.push(text);
-                        }
-                    }
-                }
-
-                // Extraer datos de cada fila de manera más directa evitando duplicados
-                const datosFilas = [];
-                const emailsYaProcesados = new Set();
-
-                for (let i = 1; i < filas.length; i++) {
-                    const fila = filas[i];
-
-                    // Buscar email en los enlaces para identificar filas de suscriptores reales
-                    const linkEmail = fila.querySelector('a[href*="subscriber/detail"]');
-                    let emailEncontrado = null;
-                    if (linkEmail) {
-                        emailEncontrado = linkEmail.textContent.trim();
-                    }
-
-                    // Solo procesar si hay email y no lo hemos procesado antes
-                    if (!emailEncontrado || emailsYaProcesados.has(emailEncontrado)) {
-                        continue;
-                    }
-
-                    emailsYaProcesados.add(emailEncontrado);
-
-                    // Extraer datos usando selectores más específicos
-                    const celdas = [];
-
-                    // Método 1: Buscar spans que contengan los datos (excluyendo controles)
-                    const spans = fila.querySelectorAll('span');
-                    for (let span of spans) {
-                        const text = span.textContent.trim();
-                        if (text && text.length > 0 &&
-                            !text.includes('checkbox') && !text.includes('button') &&
-                            !text.includes('Ver') && !text.includes('Editar') &&
-                            !text.includes('Eliminar') && !text.includes('✓') &&
-                            !text.includes('×') && !text.match(/^\\d+$/) && text.length < 100) {
-                            celdas.push(text);
-                        }
-                    }
-
-                    // Si no hay suficientes celdas con spans, intentar con divs
-                    if (celdas.length < 5) {
-                        const divs = fila.querySelectorAll('div');
-                        for (let div of divs) {
-                            const text = div.textContent.trim();
-                            if (text && text.length > 0 &&
-                                !text.includes('checkbox') && !text.includes('button') &&
-                                !text.includes('Ver') && !text.includes('Editar') &&
-                                !text.includes('Eliminar') && !text.includes('✓') &&
-                                !text.includes('×') && !text.match(/^\\d+$/) &&
-                                !celdas.includes(text) && text.length < 100) {
-                                celdas.push(text);
-                            }
-                        }
-                    }
-
-                    datosFilas.push({
-                        email: emailEncontrado,
-                        textos: celdas
-                    });
-                }
-
-                return {
-                    totalFilas: filas.length,
-                    encabezados: encabezados,
-                    datosFilas: datosFilas,
-                    debug: {
-                        primeraFilaDatos: datosFilas.length > 0 ? datosFilas[0] : null
-                    }
-                };
-            }
-        """)
-
-        if resultado.get("error"):
-            print(f"❌ {resultado['error']}")
-            return []
-
-        encabezados = resultado["encabezados"]
-        datos_filas = resultado["datosFilas"]
-        total_filas = resultado["totalFilas"]
-
-        print(f"📊 Total de filas encontradas: {total_filas}")
-        print(f"📋 {len(encabezados)} encabezados detectados:")
-        for i, header in enumerate(encabezados):
-            nombre_normalizado = _normalizar_nombre_columna(header)
-            print(f"   {i}: '{header}' -> '{nombre_normalizado}'")
-
-        # Debug información de la primera fila
-        debug_info = resultado.get("debug", {})
-        primera_fila = debug_info.get("primeraFilaDatos")
-        if primera_fila:
-            print("🔍 DEBUG - Primera fila de datos:")
-            print(f"   Email: {primera_fila.get('email', 'NO ENCONTRADO')}")
-            print(f"   Textos ({len(primera_fila.get('textos', []))}):")
-            for j, texto in enumerate(primera_fila.get('textos', [])):
-                print(f"      {j}: '{texto}'")
-
-        print(f"📊 Procesando {len(datos_filas)} filas de datos...")
-
-        # Procesar cada fila de datos
-        for fila_idx, datos_fila in enumerate(datos_filas):
-            try:
-                suscriptor = {"lista": nombre_lista}
-
-                # Agregar el email si se encontró
-                if datos_fila["email"] and "@" in datos_fila["email"]:
-                    suscriptor["email"] = datos_fila["email"]
-
-                # Mapear textos con encabezados (excluyendo el email que ya está procesado)
-                textos = datos_fila["textos"]
-
-                # Estrategia de mapeo inteligente - saltar el primer header (email) ya que ya lo tenemos
-                texto_idx = 0
-                for i, header in enumerate(encabezados):
-                    nombre_columna = _normalizar_nombre_columna(header)
-
-                    # Saltar el email - ya se agregó arriba
-                    if nombre_columna == "correo_electronico":
-                        continue
-
-                    # Para otros campos, mapear con los textos disponibles
-                    if texto_idx < len(textos):
-                        valor = textos[texto_idx]
-                        if valor and valor != "" and valor != "0" and valor != suscriptor.get("email", ""):
-                            suscriptor[nombre_columna] = valor
-                        texto_idx += 1
-
-                # Solo agregar si tiene email válido
-                if suscriptor.get("email") and "@" in suscriptor["email"]:
-                    suscriptores.append(suscriptor)
-
-                    # Debug: mostrar primeros registros
-                    if len(suscriptores) <= 3:
-                        print(f"✅ Suscriptor {len(suscriptores)}: {suscriptor}")
-
-                # Progreso cada 50 registros
-                if (fila_idx + 1) % 50 == 0:
-                    print(f"   📊 Procesadas {fila_idx + 1}/{len(datos_filas)} filas, {len(suscriptores)} suscriptores extraídos")
-
-            except Exception as e:
-                print(f"❌ Error procesando fila {fila_idx}: {e}")
-                continue
-
-        print(f"📊 Total suscriptores extraídos: {len(suscriptores)} de {len(datos_filas)} filas de datos")
-        logger.end_timer("extraer_suscriptores_tabla_lista", f"Extraídos {len(suscriptores)} suscriptores")
-        return suscriptores
-
+        subscribers_page = SubscribersListPage(page)
+        return subscribers_page.extract_subscribers_js(nombre_lista, list_id)
     except Exception as e:
-        error_msg = f"Error en extracción: {e}"
-        print(f"❌ {error_msg}")
-        logger.error(error_msg)
-        logger.end_timer("extraer_suscriptores_tabla_lista", "Error")
+        logger.error(f"Error en extracción: {e}")
         return []
 
 
@@ -510,55 +271,12 @@ def generar_archivo_excel(suscriptores: List[Dict[str, str]], nombre_archivo: st
 
 def obtener_suscriptores_via_scraping(page: Page, list_id: int, nombre_lista: str) -> List[Dict[str, str]]:
     """
-    Obtiene suscriptores de la lista usando scraping web con Playwright.
-    Usa los patrones probados de utils.py para paginación optimizada.
+    Obtiene suscriptores de la lista usando SubscribersListPage POM.
     """
-    resultado: List[Dict[str, str]] = []
     try:
         logger.info(f"🔍 Iniciando scraping para lista {list_id}: {nombre_lista}")
-        
-        # Navegar a la URL de la lista
-        url = f"https://acumbamail.com/app/list/{list_id}/subscriber/list/"
-        logger.info(f"📍 Navegando a: {url}")
-        
-        page.goto(url, wait_until="networkidle", timeout=60000)
-        page.wait_for_load_state("networkidle", timeout=15000)
-        page.wait_for_timeout(2000)
-
-        # Usar la función probada de utils.py para obtener total de páginas
-        # Esta función ya incluye la optimización de elementos por página
-        total_paginas = obtener_total_paginas(page)
-        logger.info(f"📄 Total de páginas a procesar: {total_paginas}")
-
-        # Procesar cada página usando la navegación probada de utils.py
-        for numero_pagina in range(1, total_paginas + 1):
-            try:
-                logger.info(f"📃 Procesando página {numero_pagina}/{total_paginas}")
-                
-                # Extraer datos de la página actual
-                datos_pagina = extraer_suscriptores_tabla_lista(page, nombre_lista, list_id)
-                
-                if datos_pagina:
-                    resultado.extend(datos_pagina)
-                    logger.info(f"✅ Página {numero_pagina}: {len(datos_pagina)} suscriptores extraídos")
-                else:
-                    logger.warning(f"⚠️ Página {numero_pagina}: No se extrajeron datos")
-
-                # Navegar a la siguiente página usando la función probada de utils.py
-                if numero_pagina < total_paginas:
-                    exito_navegacion = navegar_siguiente_pagina(page, numero_pagina)
-                    if not exito_navegacion:
-                        logger.error(f"❌ No se pudo navegar a página {numero_pagina + 1}")
-                        break
-
-            except Exception as e:
-                logger.error(f"❌ Error procesando página {numero_pagina}: {e}")
-                # Continuar con la siguiente página en caso de error
-                continue
-
-        logger.info(f"✅ Scraping completado - Total: {len(resultado)} suscriptores de lista {list_id}")
-        return resultado
-
+        subscribers_page = SubscribersListPage(page)
+        return subscribers_page.scrape_all_pages(list_id, nombre_lista)
     except Exception as e:
         logger.error(f"❌ Error en scraping de lista {list_id}: {e}")
         return []

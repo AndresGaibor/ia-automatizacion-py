@@ -97,3 +97,39 @@ class SubscribersPage(BasePage):
         from src.shared.utils.legacy_utils import obtener_total_paginas
 
         return obtener_total_paginas(self._page)
+
+    def get_campaign_email_url(self, campaign_id: int) -> str:
+        """
+        Obtiene la URL del correo de una campaña (botón "Ver email").
+        Retorna la URL de clickacm.com o string vacío si no se encuentra.
+        """
+        import re
+        try:
+            url = f"https://acumbamail.com/report/campaign/{campaign_id}/subscribers/"
+            self._page.goto(url, wait_until="networkidle", timeout=60000)
+            self._page.wait_for_load_state("networkidle", timeout=30000)
+            self._page.wait_for_timeout(2000)
+
+            from src.shared.utils.legacy_utils import is_on_login_page
+            if is_on_login_page(self._page):
+                logger.warning(f"Sesión expirada al obtener URL de correo de campaña {campaign_id}")
+                return ""
+
+            try:
+                email_link = self._page.get_by_text("Ver email").get_attribute("href", timeout=5000)
+                if email_link and "clickacm.com" in email_link:
+                    return email_link
+            except Exception:
+                pass
+
+            page_content = self._page.content()
+            pattern = r'(https://clickacm\.com/show/[a-zA-Z0-9-]+/)'
+            matches = re.findall(pattern, page_content)
+            if matches:
+                return matches[0]
+
+            return ""
+
+        except Exception as e:
+            logger.error(f"Error extrayendo URL de email de campaña {campaign_id}: {e}")
+            return ""

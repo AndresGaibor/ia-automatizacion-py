@@ -12,6 +12,7 @@ if __package__ in (None, ""):
     __package__ = "src"
 
 from .infrastructure.api.models.campanias import CampaignBasicInfo
+from .infrastructure.scraping.pages.subscribers_page import SubscribersPage
 from .excel_utils import agregar_datos, crear_hoja_con_datos, obtener_o_crear_hoja
 from .shared.utils.legacy_utils import cargar_campanias_a_buscar, crear_contexto_navegador, configurar_navegador, load_config, data_path, notify, storage_state_path
 from .shared.logging.logger import get_logger
@@ -221,97 +222,8 @@ def crear_archivo_excel(general: list[list[str]], informe_detallado: list[list[l
                  campania=nombre_campania, fecha_envio=fecha_envio)
         raise
 
-def get_campaign_urls_with_fallback(page, campaign_id: int) -> str:
-	"""
-	Obtiene la URL del correo de una campaña mediante scraping.
-	Extrae la URL del botón "Ver email" que enlaza a clickacm.com desde la página de suscriptores.
-	"""
-	from .shared.logging.logger import get_logger
-	logger = get_logger()
-
-	try:
-		logger.start_timer(f"scraping_email_url_campaign_{campaign_id}")
-		logging.info(f"📧 Extrayendo URL del correo de la campaña {campaign_id}")
-
-		# Paso 1: Navegar a la página de suscriptores (donde está el botón "Ver email")
-		logging.debug("📌 Paso 1: Navegando a página de suscriptores de la campaña")
-		try:
-			# CORREGIDO: Navegar a página /subscribers/ en lugar de /report/
-			subscribers_page = f"https://acumbamail.com/report/campaign/{campaign_id}/subscribers/"
-			logging.debug(f"🌐 Navegando a: {subscribers_page}")
-
-			page.goto(subscribers_page, wait_until="networkidle", timeout=60000)
-			logger.debug(f"   Navegado a: {subscribers_page}")
-			logging.debug("✅ Navegación a suscriptores completada")
-
-			# Esperar a que la página cargue completamente con networkidle
-			page.wait_for_load_state("networkidle", timeout=30000)
-			page.wait_for_timeout(2000)  # Espera aumentada para conexiones lentas
-			logging.debug("✅ Página completamente cargada (networkidle + 2s)")
-
-			# Verificar si fuimos redirigidos a login
-			try:
-				from .shared.utils.legacy_utils import is_on_login_page
-				if is_on_login_page(page):
-					logging.error(f"❌ Redirigido a login al intentar acceder a URL de correo de campaña {campaign_id}")
-					logging.warning("⚠️ Sesión expirada - no se puede extraer URL del correo")
-					logger.end_timer(f"scraping_email_url_campaign_{campaign_id}", "Sesión expirada")
-					return ""
-			except ImportError:
-				logging.warning("⚠️ No se pudo importar is_on_login_page")
-
-		except PWTimeoutError as e:
-			logging.error(f"❌ ERROR PASO 1 - Timeout navegando a suscriptores: {e}")
-			logging.error(f"⏱️ URL intentada: {subscribers_page}")
-			logger.end_timer(f"scraping_email_url_campaign_{campaign_id}", f"Timeout: {e}")
-			return ""
-		except Exception as e:
-			logging.error(f"❌ ERROR PASO 1 - Error navegando a suscriptores: {e}")
-			logger.end_timer(f"scraping_email_url_campaign_{campaign_id}", f"Error: {e}")
-			return ""
-
-		# Buscar el enlace "Ver email" que contiene la URL de clickacm.com
-		import re
-
-		# Método 1: Buscar elemento con texto "Ver email"
-		try:
-			email_link = page.get_by_text("Ver email").get_attribute("href", timeout=5000)
-			if email_link and "clickacm.com" in email_link:
-				logger.debug(f"   URL del email encontrada (método 1): {email_link}")
-				logger.end_timer(f"scraping_email_url_campaign_{campaign_id}",
-				                f"URL extraída exitosamente")
-				logger.success(f"✅ URL del email de campaña {campaign_id} extraída: {email_link}")
-				return email_link
-		except Exception as e:
-			logger.debug(f"   Método 1 falló: {e}")
-
-		# Método 2: Buscar en el HTML usando regex
-		page_content = page.content()
-
-		# Buscar URL de clickacm.com en el HTML
-		# Patrón: https://clickacm.com/show/[ID alfanumérico]/
-		pattern = r'(https://clickacm\.com/show/[a-zA-Z0-9-]+/)'
-		matches = re.findall(pattern, page_content)
-
-		if matches:
-			# Tomar la primera coincidencia (debería ser única por campaña)
-			email_url = matches[0]
-			logger.debug(f"   URL del email encontrada (método 2): {email_url}")
-			logger.end_timer(f"scraping_email_url_campaign_{campaign_id}",
-			                f"URL extraída exitosamente")
-			logger.success(f"✅ URL del email de campaña {campaign_id} extraída: {email_url}")
-			return email_url
-
-		# Si no encontramos nada
-		logger.warning(f"⚠️ No se encontró URL del email para campaña {campaign_id}")
-		logger.end_timer(f"scraping_email_url_campaign_{campaign_id}", "No encontrada")
-		return ""
-
-	except Exception as e:
-		logger.error(f"❌ Error extrayendo URL del email de campaña {campaign_id}: {e}")
-		logger.end_timer(f"scraping_email_url_campaign_{campaign_id}", f"Error: {e}")
-		# En caso de error, devolver cadena vacía para no bloquear el proceso
-		return ""
+# Las funciones de scraping han sido movidas a src/scrapping/endpoints/
+# Este archivo ahora usa el HybridDataService para combinar API y scraping
 
 def generar_listas(todas_listas, id_listas: list[str]) -> str:
 	logger.debug("📋 Generando string de listas", total_listas=len(todas_listas), id_listas_count=len(id_listas))
@@ -406,7 +318,8 @@ def generar_general(campania: CampaignBasicInfo, campania_complete, campaign_cli
 	logger.debug(f"   - ID usado para scraping de URLs: {actual_campaign_id}")
 	
 	if actual_campaign_id:
-		url_email = get_campaign_urls_with_fallback(page, actual_campaign_id)
+		subscribers_page = SubscribersPage(page)
+		url_email = subscribers_page.get_campaign_email_url(actual_campaign_id)
 		logger.debug(f"   - URLs obtenidas: '{url_email}'")
 	else:
 		logger.warning("⚠️ No se pudo determinar ID de campaña para scraping de URLs")
