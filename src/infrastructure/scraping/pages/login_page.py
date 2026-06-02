@@ -1,16 +1,16 @@
 from playwright.sync_api import Page
-from src.infrastructure.scraping.pages.base_page import BasePage
-from src.infrastructure.scraping.components.cookie_banner import CookieBannerComponent
-from src.infrastructure.scraping.components.login_form import LoginFormComponent
-from src.infrastructure.scraping.components.session_guard import SessionGuardComponent
+from src.infrastructure.scraping.pages.base_page import PaginaBase
+from src.infrastructure.scraping.components.cookie_banner import ComponenteBannerCookies
+from src.infrastructure.scraping.components.login_form import ComponenteFormularioLogin
+from src.infrastructure.scraping.components.session_guard import ComponenteGuardiaSesion
 
 
-class LoginPage(BasePage):
+class PaginaLogin(PaginaBase):
     def __init__(self, page: Page, base_url: str):
         super().__init__(page, base_url)
-        self.cookie_banner = CookieBannerComponent(page)
-        self.login_form = LoginFormComponent(page)
-        self.session_guard = SessionGuardComponent(page)
+        self.cookie_banner = ComponenteBannerCookies(page)
+        self.login_form = ComponenteFormularioLogin(page)
+        self.session_guard = ComponenteGuardiaSesion(page)
 
     def navigate_to(self, url: str) -> None:
         if url:
@@ -18,7 +18,6 @@ class LoginPage(BasePage):
 
     def wait_stabilize(self) -> None:
         self._page.wait_for_load_state("networkidle", timeout=30_000)
-        self._page.wait_for_timeout(2000)
 
     def is_logged_in(self) -> bool:
         return self.session_guard.is_authenticated()
@@ -30,3 +29,6 @@ class LoginPage(BasePage):
         self.login_form.click_entrar_link()
         self.login_form.fill_credentials(username, password)
         self.login_form.submit()
+
+
+LoginPage = PaginaLogin

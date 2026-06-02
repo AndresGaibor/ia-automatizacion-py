@@ -4,7 +4,7 @@ from src.shared.logging.logger import get_logger
 logger = get_logger()
 
 
-class CookieBannerComponent:
+class ComponenteBannerCookies:
     POPUP_INDICATORS = [
         "div[data-testid='cookie-banner']",
         "div[id*='cookie']",

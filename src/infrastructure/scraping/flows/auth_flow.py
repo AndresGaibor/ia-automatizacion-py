@@ -1,14 +1,14 @@
 from playwright.sync_api import Page, BrowserContext
 from src.utils import load_config, storage_state_path
-from src.infrastructure.scraping.pages.login_page import LoginPage
-from src.infrastructure.scraping.pages.reports_page import ReportsPage
+from src.infrastructure.scraping.pages.login_page import PaginaLogin
+from src.infrastructure.scraping.pages.reports_page import PaginaReportes
 from src.shared.logging.logger import get_logger
-from src.core.authentication.exceptions import AuthenticationFailedError, SessionSaveError
+from src.core.authentication.exceptions import ErrorAutenticacionFallida, ErrorGuardarSesion
 
 logger = get_logger()
 
 
-class AuthFlow:
+class FlujoAutenticacion:
     def __init__(self, page: Page, context: BrowserContext):
         self._page = page
         self._context = context
@@ -32,7 +32,7 @@ class AuthFlow:
             if self._try_restore_existing_session():
                 return
         else:
-            login_page = LoginPage(self._page, url_base)
+            login_page = PaginaLogin(self._page, url_base)
             login_page.handle_cookies(agresivo=True)
             if login_page.is_logged_in():
                 self._save_session()
@@ -47,7 +47,7 @@ class AuthFlow:
 
     def _try_restore_existing_session(self) -> bool:
         logger.info("Verificando sesión existente")
-        login_page = LoginPage(self._page, "")
+        login_page = PaginaLogin(self._page, "")
         resultado = login_page.session_guard.verify_login()
 
         if resultado["success"]:
@@ -58,7 +58,7 @@ class AuthFlow:
         return False
 
     def _perform_login(self, username: str, password: str, url_base: str) -> None:
-        login_page = LoginPage(self._page, url_base)
+        login_page = PaginaLogin(self._page, url_base)
         login_page.handle_cookies(agresivo=True)
 
         if login_page.is_logged_in():
@@ -71,7 +71,7 @@ class AuthFlow:
 
         resultado = login_page.session_guard.verify_login()
         if not resultado["success"]:
-            raise AuthenticationFailedError(f"Login completado pero verificación falló: {resultado['details']}")
+            raise ErrorAutenticacionFallida(f"Login completado pero verificación falló: {resultado['details']}")
 
         self._save_session()
         logger.info("Proceso de autenticación completado")
@@ -81,17 +81,17 @@ class AuthFlow:
             self._context.storage_state(path=storage_state_path())
             logger.info("Estado de sesión guardado")
         except Exception as e:
-            raise SessionSaveError(f"No se pudo guardar la sesión: {e}")
+            raise ErrorGuardarSesion(f"No se pudo guardar la sesión: {e}")
 
 
-class ScrapingSession:
+class SesionScraping:
     def __init__(self, max_retries: int = 2):
         self._max_retries = max_retries
 
     def run_with_recovery(self, page: Page, config, operation_fn):
         from src.shared.utils.legacy_utils import is_on_login_page
         from src.autentificacion import login
-        from src.infrastructure.scraping.pages.reports_page import ReportsPage
+        from src.infrastructure.scraping.pages.reports_page import PaginaReportes
 
         last_exception = None
         for attempt in range(self._max_retries + 1):
@@ -99,7 +99,7 @@ class ScrapingSession:
                 if attempt > 0 and is_on_login_page(page):
                     logger.warning("Sesión expirada, re-autenticando", intento=attempt + 1)
                     login(page, page.context)
-                    ReportsPage(page).navigate_to()
+                    PaginaReportes(page).navigate_to()
 
                 result = operation_fn(page)
                 if attempt > 0:
@@ -121,3 +121,5 @@ class ScrapingSession:
                 break
 
         raise last_exception
+
+AuthFlow = FlujoAutenticacion

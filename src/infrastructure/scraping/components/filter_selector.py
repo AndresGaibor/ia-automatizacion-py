@@ -12,7 +12,7 @@ from src.shared.logging.logger import get_logger
 logger = get_logger()
 
 
-class FilterSelectorComponent:
+class ComponenteSelectorFiltro:
     def __init__(self, page: Page):
         self._page = page
         self._selectors = SubscriberSelectors()

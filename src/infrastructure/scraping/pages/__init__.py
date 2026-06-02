@@ -1,13 +1,13 @@
-from .base_page import BasePage
-from .login_page import LoginPage
-from .reports_page import ReportsPage
-from .subscribers_page import SubscribersPage
-from .lists_page import ListsPage
+from .base_page import PaginaBase
+from .login_page import PaginaLogin
+from .reports_page import PaginaReportes
+from .subscribers_page import PaginaSuscriptores
+from .lists_page import PaginaListas
 
 __all__ = [
-    "BasePage",
-    "LoginPage",
-    "ReportsPage",
-    "SubscribersPage",
-    "ListsPage",
+    "PaginaBase",
+    "PaginaLogin",
+    "PaginaReportes",
+    "PaginaSuscriptores",
+    "PaginaListas",
 ]

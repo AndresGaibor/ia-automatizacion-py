@@ -1,41 +1,6 @@
-## Compilación (Crear Ejecutable)
+# Acumba Automation
 
-### Método Recomendado (Nuevo)
-Usar el script de compilación automático que incluye todas las dependencias:
-
-**Linux/macOS:**
-```bash
-./build.sh
-```
-
-**Windows:**
-```batch
-build.bat
-```
-
-### Método Manual (Avanzado)
-Si necesitas compilación personalizada:
-
-```bash
-# Usando el archivo .spec mejorado
-pyinstaller app.spec
-
-# O comando directo (menos confiable)
-pyinstaller --onefile --collect-all playwright --collect-all pydantic app.py
-```
-
-### Verificación Pre-Compilación
-Antes de compilar, asegúrate de que todas las dependencias estén instaladas:
-
-```bash
-uv sync
-```
-
-**Nota:** El archivo `app.spec` incluye configuraciones optimizadas para evitar errores como "No module named 'pydantic'" y otros problemas de dependencias.
-
-# Automation
-
-Automatización para obtener reportes de campañas de email marketing.
+Automatización para obtener reportes de campañas de email marketing en Acumbamail.
 
 ## Requisitos previos
 
@@ -44,25 +9,18 @@ Automatización para obtener reportes de campañas de email marketing.
 
 ## Instalación
 
-1. Clonar el repositorio:
 ```bash
-git clone <url-repositorio>
-cd automation
-```
-
-2. Instalar dependencias con uv:
-```bash
+# Clonar e instalar dependencias
 uv sync
-```
 
-3. Instalar navegadores de Playwright:
-```bash
+# Instalar navegadores de Playwright (obligatorio)
 uv run playwright install
 ```
 
 ## Configuración
 
-1. El archivo `config.yaml` ya está configurado en la raíz del proyecto:
+Editar `config.yaml` en la raíz del proyecto:
+
 ```yaml
 url: https://acumbamail.com/app/newsletter/
 url_base: https://acumbamail.com
@@ -70,115 +28,167 @@ user: tu-usuario@email.com
 password: tu-contraseña
 headless: false
 
-# Configuración de timeouts específicos (en segundos)
 timeouts:
-  navigation: 60        # Navegación entre páginas
-  page_load: 30         # Carga completa de páginas
-  element_wait: 15      # Espera de elementos en la página
-  elements: 20          # Espera de elementos específicos
-  context: 180          # Operaciones largas como login
-  long_operations: 120  # Operaciones muy largas como importación
-  file_upload: 120      # Subida de archivos
-  tables: 30            # Carga de tablas de datos
-  pagination: 45        # Navegación entre páginas de resultados
+  default: 30000      # ms
+  element: 15000
+  navigation: 60000
+  upload: 120000
+
+api:
+  api_key: tu-api-key
+
+lista:
+  sender_email: email@empresa.com
+  company: Empresa
+  address: Dirección
+  city: Ciudad
+  country: País
+  phone: +34 XXX XXX XXX
 ```
 
-### Configuración de Timeouts
-
-Los timeouts están optimizados para balance entre velocidad y estabilidad:
-
-- **`navigation`**: Tiempo máximo para navegar entre páginas
-- **`page_load`**: Tiempo de espera para carga completa de páginas
-- **`elements`**: Tiempo de espera para localizar elementos específicos
-- **`long_operations`**: Tiempo para operaciones largas como login o importación
-- **`tables`**: Tiempo específico para carga de tablas de datos con muchos registros
-
-**Ajuste según tu conexión:**
-- **Internet rápido**: Mantener valores por defecto
-- **Internet lento**: Aumentar valores en 50-100%
-- **Internet muy lento**: Duplicar valores
-
-2. Preparar archivo Excel de búsqueda:
-- Crear archivo Excel con una columna llamada "Informes"
-- Agregar los nombres de los informes a buscar
+**Timeouts:** Los valores van en milisegundos (30000 = 30s). Aumentar si la conexión es lenta.
 
 ## Uso
 
-1. Ejecutar el script:
+### GUI (recomendado)
+
 ```bash
-uv run python src/demo.py
+uv run python app.py
 ```
 
-2. Si aparece un captcha:
-   - Resolverlo manualmente en la ventana del navegador
-   - Presionar Enter en la terminal para continuar
+### CLI - Módulos (ejecutar como módulos, NO como scripts)
 
-## Resultados
+```bash
+uv run python -m src.demo              # Extracción de suscriptores
+uv run python -m src.listar_campanias  # Listar campañas
+uv run python -m src.obtener_listas    # Obtener listas
+uv run python -m src.descargar_suscriptores  # Descargar suscriptores
+```
 
-### Archivos Generados
+**Error común:** NO ejecutar `python src/demo.py` — usar siempre `-m src.demo`.
 
-Los informes se guardan en la carpeta `data/suscriptores/` con el siguiente formato de nombre:
+### Archivos de datos
 
-**Formato**: `(nombre campaña)-(fecha envío YYYYMMDDHHMM)_(fecha extracción YYYYMMDDHHMM).xlsx`
-
-**Ejemplo**: `Newsletter Marketing-202509120140_202512091530.xlsx`
-
-### Estructura del Archivo Excel
-
-Cada archivo contiene múltiples hojas con información detallada:
-
-- **General**: Resumen general de las campañas procesadas
-- **Abiertos**: Detalle de suscriptores que abrieron el email
-- **No abiertos**: Detalle de suscriptores que NO abrieron el email  
-- **Clics**: Detalle de suscriptores que hicieron clic
-- **Hard bounces**: Emails que rebotaron permanentemente
-- **Soft bounces**: Emails que rebotaron temporalmente
+- `data/Busqueda.xlsx` — Columna "Buscar" con 'x' para marcar campañas a procesar
+- `data/Lista_envio.xlsx` — Emails para upload
+- `data/suscriptores/` — Output de extracción: `(campaña)-(envío)_(extracción).xlsx`
 
 ## Estructura del proyecto
 
 ```
-acumba-automation/
-├── src/
-│   ├── demo.py              # Script principal de extracción
-│   ├── autentificacion.py   # Manejo de login
-│   ├── crear_lista.py       # Creación de listas de suscriptores
-│   ├── listar_campanias.py  # Listado de campañas
-│   ├── utils.py             # Utilidades compartidas
-│   ├── logger.py            # Sistema de logging
-│   └── tipo_campo.py        # Definiciones de tipos de campo
-├── data/
-│   ├── suscriptores/        # Carpeta donde se guardan los informes
-│   ├── Busqueda.xlsx        # Archivo con términos de búsqueda
-│   ├── Lista_envio.xlsx     # Listas de emails para upload
-│   ├── datos_sesion.json    # Sesión persistente del navegador
-│   └── automation_YYYYMMDD.log  # Logs diarios del proceso
-├── config.yaml             # Configuración principal
-├── requirements.txt         # Dependencias de Python
-├── app.py                  # Interfaz gráfica (GUI)
-├── CLAUDE.md               # Instrucciones para Claude Code
-├── MANUAL_USUARIO.md       # Manual detallado para usuarios
-└── README.md               # Este archivo
+src/
+├── app.py                    # GUI principal (tkinter)
+├── demo.py                   # Extracción CLI de suscriptores
+├── autentificacion.py        # Login (legacy)
+├── config_validator.py       # Validador de config
+├── config_window.py          # Ventana de configuración GUI
+├── crear_lista_scraping.py   # Creación de listas (scraping)
+├── descargar_listas.py       # Descargar listas
+├── descargar_suscriptores.py # Descargar suscriptores
+├── excel_helper.py           # Helpers de Excel
+├── field_scraper.py          # Scraper de campos
+├── hybrid_service.py         # Servicio híbrido API+scraping
+├── listar_campanias.py       # Listar campañas
+├── logger.py                 # Sistema de logging legacy
+├── mapeo_segmentos/         # Mapeo de segmentos
+├── obtener_listas.py         # Obtener listas
+├── structured_logger.py      # Logging estructurado
+├── tipo_campo.py             # Definiciones de tipos de campo
+├── utils.py                  # Utilidades compartidas (legacy)
+│
+├── core/                     # Lógica central (POM refactorizado)
+│   ├── authentication/       # Autenticación
+│   ├── config/               # Configuración
+│   ├── dto/                  # Data Transfer Objects
+│   ├── errors/               # Manejo de errores
+│   └── services/            # Servicios de negocio
+│
+├── infrastructure/           # Integración externa
+│   ├── api/                  # Cliente API Acumbamail
+│   ├── browser/              # Playwright y sesión
+│   ├── excel/                # Lectura/escritura Excel
+│   └── scraping/             # Scraping con POM
+│       ├── base.py            # BaseScraper
+│       ├── components/        # Componentes reutilizables
+│       ├── endpoints/         # Endpoints de páginas
+│       ├── flows/             # Flujos de navegación
+│       ├── models/            # Modelos de datos
+│       ├── pages/             # Page Objects (por página)
+│       ├── selectors/         # Selectores centralizados
+│       └── utils/             # Utilidades de scraping
+│
+├── presentation/             # Capa de presentación (GUI)
+│   ├── gui/                  # Componentes GUI
+│   ├── progress_window.py    # Ventana de progreso
+│   └── work_runner.py         # Ejecutor de trabajo
+│
+├── shared/                   # Utilidades compartidas
+│   ├── logging/              # Logging centralizado
+│   └── utils/                # Utilidades (legacy)
+│
+└── scrapping_deprecated/     # Scraper antiguo (no usar)
 ```
+
+## Testing
+
+```bash
+# Tests seguros (sin data destructiva)
+uv run pytest -m 'integration and not destructive'
+
+# Por tipo
+uv run pytest -m api        # Solo API
+uv run pytest -m scraping   # Solo scraping
+
+# Todos (incluye tests destructivos con auto-cleanup)
+uv run pytest tests/integration/
+
+# Unit tests
+uv run pytest tests/unit/
+```
+
+Los tests usan prefijos únicos `TEST_YYYYMMDD_HHMMSS_` y hacen auto-cleanup.
+
+## Build (crear ejecutable)
+
+```bash
+uv run pyinstaller app.spec
+```
+
+**Nota:** `app.spec` incluye Playwright, Pydantic y Pandas. Primero instalar navegadores si no están:
+```bash
+uv run playwright install
+```
+
+## Legacy y migración
+
+**Archivos en migración:**
+- `src/utils.py` → `src/shared/utils/legacy_utils.py`
+- `src/logger.py` → `src/shared/logging/` (POM)
+- `src/autentificacion.py` → `src/core/authentication/` (en progreso)
+
+**Scraper antiguo:** `src/scrapping_deprecated/` — no usar, referencía para migración.
+
+**Selección moderna (POM):**
+- Selectores en `src/infrastructure/scraping/selectors/`
+- Pages en `src/infrastructure/scraping/pages/`
+- Components en `src/infrastructure/scraping/components/`
+
+**Prioridad de selectores:**
+1. `page.get_by_role("button", name="Texto")` — Rol (primero)
+2. `page.get_by_text("Texto")` — Texto
+3. `page.get_by_label("Label")` — Label
+4. `page.locator("css")` — CSS (último recurso)
 
 ## Solución de problemas
 
-Si encuentras errores:
-1. Verifica la conexión a internet
-2. Confirma que las credenciales en `config.yaml` sean correctas
-3. Asegúrate de que el archivo de búsqueda existe y tiene el formato correcto
-4. **Si la aplicación se queda "colgada" o aparecen timeouts:**
-   - Cambia `velocidad_internet` a `"lento"` o `"muy_lento"` en tu `config.yaml`
-   - Si tienes internet rápido pero el sitio es lento, usa `"lento"`
+1. Verificar conexión a internet
+2. Confirmar credenciales en `config.yaml`
+3. Si hay timeouts: aumentar valores en `timeouts` de `config.yaml`
+4. Si aparece captcha: resolver manualmente y presionar Enter
 
-### Errores comunes de timeout:
-- **TimeoutError en navegación**: Cambia a `velocidad_internet: "lento"`
-- **Elementos no encontrados**: Cambia a `velocidad_internet: "muy_lento"`
-- **Operaciones que se cuelgan**: Cambia a `velocidad_internet: "muy_lento"`
+## Referencias
 
-## Contribuir
-
-1. Hacer fork del repositorio
-2. Crear rama para nueva funcionalidad
-3. Implementar cambios
-4. Hacer push a la rama
-5. Crear Pull Request
+- Playwright: `DOCS/playwright-python-best-practices.md`
+- Testing: `tests/README.md`
+- API: `DOCS/acumbamail-api-docs.md`
+- Guía general: `CLAUDE.md`

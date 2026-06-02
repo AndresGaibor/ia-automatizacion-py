@@ -1,15 +1,15 @@
-from .cookie_banner import CookieBannerComponent
-from .login_form import LoginFormComponent
-from .session_guard import SessionGuardComponent
-from .campaign_row import CampaignRow
-from .filter_selector import FilterSelectorComponent
-from .subscriber_row import SubscriberRowComponent
+from .cookie_banner import ComponenteBannerCookies
+from .login_form import ComponenteFormularioLogin
+from .session_guard import ComponenteGuardiaSesion
+from .campaign_row import FilaCampania
+from .filter_selector import ComponenteSelectorFiltro
+from .subscriber_row import ComponenteFilaSuscriptor
 
 __all__ = [
-    "CookieBannerComponent",
-    "LoginFormComponent",
-    "SessionGuardComponent",
-    "CampaignRow",
-    "FilterSelectorComponent",
-    "SubscriberRowComponent",
+    "ComponenteBannerCookies",
+    "ComponenteFormularioLogin",
+    "ComponenteGuardiaSesion",
+    "FilaCampania",
+    "ComponenteSelectorFiltro",
+    "ComponenteFilaSuscriptor",
 ]

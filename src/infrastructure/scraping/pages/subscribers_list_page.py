@@ -8,13 +8,13 @@ Navega a /app/list/{id}/subscriber/list/ y encapsula:
 """
 
 from playwright.sync_api import Page
-from src.infrastructure.scraping.pages.base_page import BasePage
+from src.infrastructure.scraping.pages.base_page import PaginaBase
 from src.shared.logging.logger import get_logger
 
 logger = get_logger()
 
 
-class SubscribersListPage(BasePage):
+class PaginaListaSuscriptores(PaginaBase):
     def __init__(self, page: Page):
         super().__init__(page, url="")
         self._list_url_template = "https://acumbamail.com/app/list/{list_id}/subscriber/list/"
@@ -284,3 +284,4 @@ class SubscribersListPage(BasePage):
 
         logger.info(f"✅ Scraping completado - Total: {len(todos_suscriptores)} suscriptores de lista {list_id}")
         return todos_suscriptores
+SubscribersListPage = PaginaListaSuscriptores

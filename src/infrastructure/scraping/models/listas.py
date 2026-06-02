@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
-class ListScrapingData(BaseModel):
+class DatosScrapingLista(BaseModel):
     """Modelo para datos de lista extraídos por scraping"""
     buscar: str = Field("", description="Término de búsqueda")
     nombre_lista: str = Field("", description="Nombre de la lista")
@@ -19,9 +19,9 @@ class ListScrapingData(BaseModel):
             }
         }
 
-class ListTableExtraction(BaseModel):
+class ExtraccionTablaLista(BaseModel):
     """Resultado de extracción de tabla de listas"""
-    lists_found: List[ListScrapingData] = Field(default_factory=list, description="Listas encontradas")
+    lists_found: List[DatosScrapingLista] = Field(default_factory=list, description="Listas encontradas")
     search_term_found: bool = Field(False, description="Si se encontró el término de búsqueda")
     page_processed: int = Field(1, description="Página procesada")
     extraction_successful: bool = Field(True, description="Extracción exitosa")
@@ -41,7 +41,7 @@ class ListTableExtraction(BaseModel):
             }
         }
 
-class ListSearchTerms(BaseModel):
+class TerminosBusquedaLista(BaseModel):
     """Términos de búsqueda para listas"""
     nombre_lista: str = Field("", description="Nombre de lista a buscar")
     creacion: str = Field("", description="Fecha de creación a buscar")
@@ -64,7 +64,7 @@ class ListSearchTerms(BaseModel):
             }
         }
 
-class ListNavigationInfo(BaseModel):
+class InfoNavegacionLista(BaseModel):
     """Información de navegación para el scraping de listas"""
     current_page: int = Field(1, description="Página actual")
     total_pages: int = Field(1, description="Total de páginas")
@@ -98,7 +98,7 @@ class ListScrapingSession(BaseModel):
     session_id: str = Field(..., description="ID único de la sesión")
     started_at: datetime = Field(default_factory=datetime.now, description="Inicio de la sesión")
     ended_at: Optional[datetime] = Field(None, description="Fin de la sesión")
-    search_terms: ListSearchTerms = Field(..., description="Términos de búsqueda usados")
+    search_terms: TerminosBusquedaLista = Field(..., description="Términos de búsqueda usados")
     total_lists_found: int = Field(0, description="Total de listas encontradas")
     pages_processed: int = Field(0, description="Páginas procesadas")
     errors_encountered: List[str] = Field(default_factory=list, description="Errores encontrados")
@@ -147,7 +147,7 @@ class ListScrapingSession(BaseModel):
 
 class ListScrapingResult(BaseModel):
     """Resultado completo de scraping de listas"""
-    lists_data: List[ListScrapingData] = Field(default_factory=list, description="Datos de listas extraídas")
+    lists_data: List[DatosScrapingLista] = Field(default_factory=list, description="Datos de listas extraídas")
     session_info: ListScrapingSession = Field(..., description="Información de la sesión")
     search_completed: bool = Field(False, description="Búsqueda completada")
     target_found: bool = Field(False, description="Objetivo de búsqueda encontrado")
@@ -226,9 +226,9 @@ class ListElementInfo(BaseModel):
     fecha_creacion_texto: str = Field("", description="Texto de fecha de creación")
     extraction_successful: bool = Field(True, description="Extracción exitosa")
 
-    def to_list_data(self) -> ListScrapingData:
-        """Convertir a ListScrapingData"""
-        return ListScrapingData(
+    def to_list_data(self) -> DatosScrapingLista:
+        """Convertir a DatosScrapingLista"""
+        return DatosScrapingLista(
             buscar="",
             nombre_lista=self.nombre_texto,
             suscriptores=self.suscriptores_texto.replace(' suscriptores', ''),

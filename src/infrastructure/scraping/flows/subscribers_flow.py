@@ -9,12 +9,13 @@ Orquesta extracción completa de un filtro de suscriptores:
 """
 
 from playwright.sync_api import Page
-from src.infrastructure.scraping.pages.subscribers_page import SubscribersPage
-from src.infrastructure.scraping.components.filter_selector import FilterSelectorComponent
+from src.infrastructure.scraping.pages.subscribers_page import PaginaSuscriptores
+from src.infrastructure.scraping.components.filter_selector import ComponenteSelectorFiltro
 from src.infrastructure.scraping.models.suscriptores import (
-    SubscriberScrapingData,
-    SubscriberFilterResult,
-    CampaignSubscriberReport,
+    DatosScrapingSuscriptor,
+    DatosTablaSuscriptor,
+    ResultadoFiltroSuscriptor,
+    InformeSubscriptorCampania,
     ScrapingSession,
     SubscriberExtractionConfig,
 )
@@ -24,19 +25,19 @@ from src.shared.logging.logger import get_logger
 logger = get_logger()
 
 
-class SubscribersFlow:
+class FlujoSuscriptores:
     def __init__(self, page: Page):
         self._page = page
-        self._subscribers_page = SubscribersPage(page)
-        self._filter_selector = FilterSelectorComponent(page)
+        self._subscribers_page = PaginaSuscriptores(page)
+        self._filter_selector = ComponenteSelectorFiltro(page)
 
     def extract_filter(
         self, campaign: CampaignBasicInfo, campaign_id: int, filter_type: str, config: SubscriberExtractionConfig = None
-    ) -> SubscriberFilterResult:
+    ) -> ResultadoFiltroSuscriptor:
         if config is None:
             config = SubscriberExtractionConfig()
         if not config.extract_hard_bounces and not config.extract_no_abiertos:
-            return SubscriberFilterResult(filter_type=filter_type)
+            return ResultadoFiltroSuscriptor(filter_type=filter_type)
 
         filter_label_map = {
             "Hard bounces": self._filter_selector.select_hard_bounces,
@@ -47,7 +48,7 @@ class SubscribersFlow:
         select_fn = filter_label_map.get(filter_type)
         if not select_fn:
             logger.error(f"Unknown filter type: {filter_type}")
-            return SubscriberFilterResult(filter_type=filter_type)
+            return ResultadoFiltroSuscriptor(filter_type=filter_type)
 
         # Apply the selected filter before starting pagination
         logger.info(f"Applying filter: {filter_type}")
@@ -68,7 +69,7 @@ class SubscribersFlow:
                 for row in rows:
                     table_data = row.extract_table_data()
                     all_subscribers.append(
-                        SubscriberScrapingData(
+                        DatosScrapingSuscriptor(
                             proyecto=campaign.name or "",
                             lista=table_data.lista,
                             correo=table_data.correo,
@@ -86,7 +87,7 @@ class SubscribersFlow:
         except Exception as e:
             logger.error(f"Error extracting {filter_type}: {e}")
 
-        return SubscriberFilterResult(
+        return ResultadoFiltroSuscriptor(
             filter_type=filter_type,
             subscribers=all_subscribers,
             total_pages=total_pages,
@@ -95,13 +96,13 @@ class SubscribersFlow:
 
     def extract_hard_bounces_and_no_abiertos(
         self, campaign: CampaignBasicInfo, campaign_id: int, config: SubscriberExtractionConfig = None
-    ) -> CampaignSubscriberReport:
+    ) -> InformeSubscriptorCampania:
         if config is None:
             config = SubscriberExtractionConfig()
 
         session = ScrapingSession(session_id=f"campaign_{campaign_id}", campaign_ids=[campaign_id])
 
-        report = CampaignSubscriberReport(
+        report = InformeSubscriptorCampania(
             campaign_id=campaign_id, campaign_name=campaign.name or "", fecha_envio=campaign.date_sent or ""
         )
 

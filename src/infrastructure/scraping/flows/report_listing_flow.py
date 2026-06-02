@@ -9,7 +9,7 @@ Orquesta extracción de todas las páginas de reportes con:
 
 import os
 from playwright.sync_api import Page
-from src.infrastructure.scraping.pages.reports_page import ReportsPage
+from src.infrastructure.scraping.pages.reports_page import PaginaReportes
 from src.infrastructure.excel.campaign_report_exporter import (
     CAMPAIGN_REPORT_HEADERS,
     load_campaign_listing_progress,
@@ -23,10 +23,10 @@ logger = get_logger()
 ARCHIVO_BUSQUEDA = data_path("Busqueda.xlsx")
 
 
-class ReportListingFlow:
+class FlujoListadoReportes:
     def __init__(self, page: Page, batch_size: int = 10):
         self._page = page
-        self._reports_page = ReportsPage(page)
+        self._reports_page = PaginaReportes(page)
         self._batch_size = batch_size
 
     def execute(self) -> list[list[str]]:
@@ -112,3 +112,5 @@ class ReportListingFlow:
             logger.debug(f"💾 Progreso guardado: {len(campanias)} campañas")
         except Exception as e:
             logger.error(f"❌ Error guardando progreso: {e}")
+
+ReportListingFlow = FlujoListadoReportes

@@ -1,56 +1,56 @@
-"""
-Custom exceptions for authentication and session management.
+"""Excepciones personalizadas para autenticación y gestión de sesiones."""
 
-This module provides specific exception types for different authentication
-failure scenarios to enable better error handling and recovery.
-"""
-
-
-class AuthenticationError(Exception):
-    """Base exception for all authentication-related errors."""
+class ErrorAutenticacion(Exception):
+    """Excepción base para todos los errores de autenticación."""
     pass
 
 
-class CookiePopupError(AuthenticationError):
-    """Cookie popup detected but couldn't be handled properly."""
+class ErrorPopupCookies(ErrorAutenticacion):
+    """Popup de cookies detectado pero no pudo ser manejado."""
 
-    def __init__(self, message="Cookie popup detected but couldn't be dismissed"):
-        super().__init__(message)
-        self.message = message
-
-
-class SessionExpiredError(AuthenticationError):
-    """Session validation failed - user needs to re-authenticate."""
-
-    def __init__(self, message="Session has expired and requires re-authentication"):
-        super().__init__(message)
-        self.message = message
+    def __init__(self, mensaje="Popup de cookies detectado pero no pudo ser cerrado"):
+        super().__init__(mensaje)
+        self.mensaje = mensaje
 
 
-class AuthenticationFailedError(AuthenticationError):
-    """Login failed after maximum retry attempts."""
+class ErrorSesionExpirada(ErrorAutenticacion):
+    """Validación de sesión fallida - usuario necesita re-autenticarse."""
 
-    def __init__(self, message="Authentication failed after maximum retries"):
-        super().__init__(message)
-        self.message = message
-
-
-class SessionSaveError(AuthenticationError):
-    """Failed to save or load session state properly."""
-
-    def __init__(self, message="Failed to save session state"):
-        super().__init__(message)
-        self.message = message
+    def __init__(self, mensaje="Sesión expirada y requiere re-autenticación"):
+        super().__init__(mensaje)
+        self.mensaje = mensaje
 
 
-class URLRedirectError(AuthenticationError):
-    """Unexpected URL redirect detected (likely to login page)."""
+class ErrorAutenticacionFallida(ErrorAutenticacion):
+    """Login fallido después de máximo número de reintentos."""
 
-    def __init__(self, current_url: str, expected_url: str = None):
-        message = f"Unexpected redirect to {current_url}"
-        if expected_url:
-            message += f" (expected {expected_url})"
-        super().__init__(message)
-        self.current_url = current_url
-        self.expected_url = expected_url
-        self.message = message
+    def __init__(self, mensaje="Autenticación fallida después de máximo de reintentos"):
+        super().__init__(mensaje)
+        self.mensaje = mensaje
+
+
+class ErrorGuardarSesion(ErrorAutenticacion):
+    """Error al guardar o cargar estado de sesión."""
+
+    def __init__(self, mensaje="Error al guardar estado de sesión"):
+        super().__init__(mensaje)
+        self.mensaje = mensaje
+
+
+class ErrorRedireccionURL(ErrorAutenticacion):
+    """Redirección inesperada de URL detectada (probablemente a página de login)."""
+
+    def __init__(self, url_actual: str, url_esperada: str | None = None):
+        mensaje = f"Redirección inesperada a {url_actual}"
+        if url_esperada:
+            mensaje += f" (esperada {url_esperada})"
+        super().__init__(mensaje)
+        self.url_actual = url_actual
+        self.url_esperada = url_esperada
+        self.mensaje = mensaje
+
+
+CookiePopupError = ErrorPopupCookies
+AuthenticationFailedError = ErrorAutenticacionFallida
+SessionSaveError = ErrorGuardarSesion
+SessionExpiredError = ErrorSesionExpirada

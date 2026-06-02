@@ -4,10 +4,10 @@ from datetime import datetime
 import pandas as pd
 
 from ..models.listas import (
-    ListScrapingData,
-    ListTableExtraction,
-    ListSearchTerms,
-    ListNavigationInfo,
+    DatosScrapingLista,
+    ExtraccionTablaLista,
+    TerminosBusquedaLista,
+    InfoNavegacionLista,
     ListScrapingSession,
     ListScrapingResult,
     ListExtractionConfig,
@@ -16,25 +16,25 @@ from ..models.listas import (
 from src.shared.utils.legacy_utils import obtener_total_paginas, navegar_siguiente_pagina, data_path
 from src.shared.logging.logger import get_logger
 
-class ListsScraper:
+class ScraperListas:
     """Scraper para extraer datos de listas de suscriptores"""
 
     def __init__(self):
         self.logger = get_logger()
         self.archivo_busqueda = data_path("Busqueda_Listas.xlsx")
 
-    def cargar_ultimo_termino_busqueda(self, archivo_busqueda: str) -> ListSearchTerms:
+    def cargar_ultimo_termino_busqueda(self, archivo_busqueda: str) -> TerminosBusquedaLista:
         """
         Carga el último término de búsqueda desde el archivo Excel
         """
         try:
             df = pd.read_excel(archivo_busqueda, engine="openpyxl")
-            terminos = ListSearchTerms(nombre_lista="", creacion="")
+            terminos = TerminosBusquedaLista(nombre_lista="", creacion="")
 
             # Solo si hay filas y existen las columnas esperadas, extrae la última
             if not df.empty and {'NOMBRE LISTA', 'CREACION'}.issubset(df.columns):
                 ultima_fila = df.iloc[-1]
-                terminos = ListSearchTerms(
+                terminos = TerminosBusquedaLista(
                     nombre_lista=str(ultima_fila.get('NOMBRE LISTA', '')).strip(),
                     creacion=str(ultima_fila.get('CREACION', '')).strip()
                 )
@@ -42,7 +42,7 @@ class ListsScraper:
             return terminos
         except Exception as e:
             self.logger.error(f"Error al cargar términos de búsqueda: {e}")
-            return ListSearchTerms(nombre_lista="", creacion="")
+            return TerminosBusquedaLista(nombre_lista="", creacion="")
 
     def inicializar_navegacion_listas(self, page: Page) -> bool:
         """
@@ -86,7 +86,7 @@ class ListsScraper:
                 extraction_successful=False
             )
 
-    def buscar_listas_en_pagina(self, page: Page, terminos: ListSearchTerms, numero_pagina: int) -> ListTableExtraction:
+    def buscar_listas_en_pagina(self, page: Page, terminos: TerminosBusquedaLista, numero_pagina: int) -> ExtraccionTablaLista:
         """
         Busca listas en la página actual y retorna los datos y si encontró el término buscado
         """
@@ -124,14 +124,14 @@ class ListsScraper:
         except Exception as e:
             self.logger.error(f"Error procesando página {numero_pagina}: {e}")
 
-        return ListTableExtraction(
+        return ExtraccionTablaLista(
             lists_found=informe_detalle,
             search_term_found=encontrado,
             page_processed=numero_pagina,
             extraction_successful=True
         )
 
-    def obtener_listas(self, page: Page, terminos: ListSearchTerms, config: Optional[ListExtractionConfig] = None) -> ListScrapingResult:
+    def obtener_listas(self, page: Page, terminos: TerminosBusquedaLista, config: Optional[ListExtractionConfig] = None) -> ListScrapingResult:
         """
         Función principal que coordina la búsqueda de listas
         """
@@ -147,7 +147,7 @@ class ListsScraper:
         buscar_todo = terminos.search_all
 
         # Inicializar navegación a listas
-        navigation_info = ListNavigationInfo()
+        navigation_info = InfoNavegacionLista()
         if not self.inicializar_navegacion_listas(page):
             session.add_error("No se pudo navegar a la sección de listas")
             session.complete_session()
@@ -219,7 +219,7 @@ class ListsScraper:
             self.logger.error(f"Error en obtener_listas: {e}")
             raise
 
-    def guardar_datos_en_excel(self, informe_detalle: List[ListScrapingData], archivo_busqueda: str) -> bool:
+    def guardar_datos_en_excel(self, informe_detalle: List[DatosScrapingLista], archivo_busqueda: str) -> bool:
         """
         Guarda los datos en el archivo Excel
         """
@@ -265,7 +265,7 @@ class ListsScraper:
     def ejecutar_scraping_completo(
         self,
         page: Page,
-        terminos: Optional[ListSearchTerms] = None,
+        terminos: Optional[TerminosBusquedaLista] = None,
         config: Optional[ListExtractionConfig] = None
     ) -> ListScrapingResult:
         """
@@ -277,7 +277,7 @@ class ListsScraper:
 
         # Si no hay términos válidos, buscar todas las listas
         if not terminos.has_search_terms:
-            terminos = ListSearchTerms(nombre_lista="", creacion="")
+            terminos = TerminosBusquedaLista(nombre_lista="", creacion="")
 
         # Ejecutar el scraping
         resultado = self.obtener_listas(page, terminos, config)

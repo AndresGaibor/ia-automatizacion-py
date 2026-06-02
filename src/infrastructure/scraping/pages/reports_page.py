@@ -7,15 +7,15 @@ y acceso a filas de campañas válidas.
 
 import re
 from playwright.sync_api import Page, Locator, TimeoutError as PWTimeoutError
-from src.infrastructure.scraping.pages.base_page import BasePage
-from src.infrastructure.scraping.components.campaign_row import CampaignRow
+from src.infrastructure.scraping.pages.base_page import PaginaBase
+from src.infrastructure.scraping.components.campaign_row import FilaCampania
 from src.infrastructure.scraping.utils.selectors import ReportPageSelectors
 from src.shared.logging.logger import get_logger
 
 logger = get_logger()
 
 
-class ReportsPage(BasePage):
+class PaginaReportes(PaginaBase):
     def __init__(self, page: Page):
         super().__init__(page, url="")
         self._selectors = ReportPageSelectors()
@@ -73,8 +73,8 @@ class ReportsPage(BasePage):
         logger.debug("⚠️ No se pudo determinar total de páginas, asumiendo 1")
         return 1
 
-    def get_valid_campaign_rows(self) -> list[CampaignRow]:
-        """Retorna lista de CampaignRow válidos en la página actual.
+    def get_valid_campaign_rows(self) -> list[FilaCampania]:
+        """Retorna lista de FilaCampania válidos en la página actual.
 
         Filtra elementos por criterios de campaña real (fecha, números, longitud, saltos).
         """
@@ -88,7 +88,7 @@ class ReportsPage(BasePage):
         valid_rows = []
         for i in range(count):
             element = all_items.nth(i)
-            row = CampaignRow(element, self._page)
+            row = FilaCampania(element, self._page)
             if row.is_valid_row():
                 valid_rows.append(row)
                 logger.debug(f"✅ Campaña válida en índice {i}")
@@ -179,3 +179,5 @@ class ReportsPage(BasePage):
 
         except Exception:
             return ""
+
+ReportsPage = PaginaReportes

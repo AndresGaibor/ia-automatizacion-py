@@ -181,6 +181,15 @@ class LegacyMainWindow:
         )
         btn_config.pack(pady=8, fill="x", padx=15)
 
+        btn_selectores = tk.Button(
+            frame_sesion,
+            text="Selectores",
+            font=("Arial", 14),
+            height=2,
+            command=self._open_selector_editor
+        )
+        btn_selectores.pack(pady=8, fill="x", padx=15)
+
     # Operation methods using legacy operations service
     def run_listar_campanias(self, btn):
         """Run campaign listing - uses legacy operations service."""
@@ -379,6 +388,17 @@ class LegacyMainWindow:
         except Exception as e:
             logger.error(f"❌ Error al mostrar ventana de configuración: {e}")
             notify("Error", f"Error al abrir configuración: {e}", "error")
+
+    def _open_selector_editor(self):
+        """Open selector editor window."""
+        logger.info("🎯 Abriendo editor de selectores")
+        try:
+            from .selector_editor_window import show_selector_editor
+            show_selector_editor(self.root)
+            logger.success("✅ Editor de selectores abierto")
+        except Exception as e:
+            logger.error(f"❌ Error al abrir editor de selectores: {e}")
+            notify("Error", f"Error al abrir editor de selectores: {e}", "error")
 
     def run(self):
         """Start the application main loop."""

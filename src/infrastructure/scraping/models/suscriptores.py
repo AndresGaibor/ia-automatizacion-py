@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, List, Dict
 from datetime import datetime
 
-class SubscriberScrapingData(BaseModel):
+class DatosScrapingSuscriptor(BaseModel):
     """Modelo para datos de suscriptor extraídos por scraping"""
     proyecto: str = Field("", description="Nombre del proyecto/campaña")
     lista: str = Field("", description="Nombre de la lista")
@@ -31,7 +31,7 @@ class SubscriberScrapingData(BaseModel):
             }
         }
 
-class SubscriberTableData(BaseModel):
+class DatosTablaSuscriptor(BaseModel):
     """Modelo para datos extraídos de tabla de suscriptores en la interfaz web"""
     correo: str = Field("", description="Email del suscriptor")
     lista: str = Field("", description="Nombre de la lista")
@@ -48,10 +48,10 @@ class SubscriberTableData(BaseModel):
             }
         }
 
-class SubscriberFilterResult(BaseModel):
+class ResultadoFiltroSuscriptor(BaseModel):
     """Resultado de aplicar un filtro específico de suscriptores"""
     filter_type: str = Field(..., description="Tipo de filtro aplicado")
-    subscribers: List[SubscriberScrapingData] = Field(default_factory=list, description="Suscriptores extraídos")
+    subscribers: List[DatosScrapingSuscriptor] = Field(default_factory=list, description="Suscriptores extraídos")
     total_pages: int = Field(0, description="Total de páginas procesadas")
     total_subscribers: int = Field(0, description="Total de suscriptores extraídos")
 
@@ -72,18 +72,18 @@ class SubscriberFilterResult(BaseModel):
             }
         }
 
-class CampaignSubscriberReport(BaseModel):
+class InformeSubscriptorCampania(BaseModel):
     """Informe completo de suscriptores de una campaña"""
     campaign_id: int = Field(..., description="ID de la campaña")
     campaign_name: str = Field("", description="Nombre de la campaña")
     fecha_envio: str = Field("", description="Fecha de envío de la campaña")
 
     # Datos por tipo
-    abiertos: List[SubscriberScrapingData] = Field(default_factory=list, description="Suscriptores que abrieron")
-    no_abiertos: List[SubscriberScrapingData] = Field(default_factory=list, description="Suscriptores que no abrieron")
-    clics: List[SubscriberScrapingData] = Field(default_factory=list, description="Suscriptores que hicieron clic")
-    hard_bounces: List[SubscriberScrapingData] = Field(default_factory=list, description="Hard bounces")
-    soft_bounces: List[SubscriberScrapingData] = Field(default_factory=list, description="Soft bounces")
+    abiertos: List[DatosScrapingSuscriptor] = Field(default_factory=list, description="Suscriptores que abrieron")
+    no_abiertos: List[DatosScrapingSuscriptor] = Field(default_factory=list, description="Suscriptores que no abrieron")
+    clics: List[DatosScrapingSuscriptor] = Field(default_factory=list, description="Suscriptores que hicieron clic")
+    hard_bounces: List[DatosScrapingSuscriptor] = Field(default_factory=list, description="Hard bounces")
+    soft_bounces: List[DatosScrapingSuscriptor] = Field(default_factory=list, description="Soft bounces")
 
     # Metadatos de procesamiento
     extracted_at: datetime = Field(default_factory=datetime.now, description="Fecha de extracción")

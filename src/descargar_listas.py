@@ -30,7 +30,7 @@ from .logger import get_logger
 from .utils import load_config, data_path, notify
 from .infrastructure.api.client import APIClient
 from .infrastructure.api.endpoints.suscriptores import SuscriptoresAPI
-from .excel_utils import crear_o_cargar_libro_excel, obtener_o_crear_hoja, agregar_datos
+from .infrastructure.excel import crear_o_cargar_libro_excel, obtener_o_crear_hoja, agregar_datos
 
 logger = get_logger()
 

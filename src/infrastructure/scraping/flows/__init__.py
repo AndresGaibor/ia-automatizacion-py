@@ -1,10 +1,10 @@
-from .auth_flow import AuthFlow, ScrapingSession
-from .report_listing_flow import ReportListingFlow
-from .subscribers_flow import SubscribersFlow
+from .auth_flow import FlujoAutenticacion, SesionScraping
+from .report_listing_flow import FlujoListadoReportes
+from .subscribers_flow import FlujoSuscriptores
 
 __all__ = [
-    "AuthFlow",
-    "ScrapingSession",
-    "ReportListingFlow",
-    "SubscribersFlow",
+    "FlujoAutenticacion",
+    "SesionScraping",
+    "FlujoListadoReportes",
+    "FlujoSuscriptores",
 ]

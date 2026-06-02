@@ -4,7 +4,7 @@ from src.shared.logging.logger import get_logger
 logger = get_logger()
 
 
-class SessionGuardComponent:
+class ComponenteGuardiaSesion:
     AUTHENTICATED_ELEMENT_SELECTORS = [
         {"selector": "navigation", "description": "Navegación principal"},
         {"selector": "nav", "description": "Barra de navegación"},

@@ -2,12 +2,12 @@
 Endpoints de scraping para campañas, suscriptores y listas
 """
 
-from .campanias import CampaignsScraper
-from .suscriptores import SubscribersScraper
-from .listas import ListsScraper
+from .campanias import ScraperCampanias
+from .suscriptores import ScraperSuscriptores
+from .listas import ScraperListas
 
 __all__ = [
-    'CampaignsScraper',
-    'SubscribersScraper',
-    'ListsScraper'
+    'ScraperCampanias',
+    'ScraperSuscriptores',
+    'ScraperListas'
 ]

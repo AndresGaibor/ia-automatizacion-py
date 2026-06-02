@@ -12,7 +12,7 @@ from src.shared.logging.logger import get_logger
 logger = get_logger()
 
 
-class CampaignRow:
+class FilaCampania:
     """Representa una fila individual de campaña en la página de reportes.
 
     Extrae nombre, ID, fecha, total enviado, abiertos y calcula "no abierto".

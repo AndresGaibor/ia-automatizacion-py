@@ -33,25 +33,25 @@ if __package__ in (None, ""):
     __package__ = "src"
 
 from ....shared.logging.logger import get_logger
-from ....tipo_campo import field_type_label
+from src.infrastructure.scraping.utils.field_types import field_type_label
 from ....utils import get_timeouts
-from ..pages.lists_page import ListsPage
+from ..pages.lists_page import PaginaListas
 
 
-class ListUploader:
+class SubidorListas:
     """Scraper para subir/crear listas de suscriptores usando web scraping con POM"""
 
     def __init__(self):
         self.logger = get_logger()
 
     def safe_interaction(
-        self, lists_page: ListsPage, action_description: str, action_callable: Callable[[], Any]
+        self, lists_page: PaginaListas, action_description: str, action_callable: Callable[[], Any]
     ) -> Tuple[Optional[Any], bool]:
         """
         Wrapper para interacciones seguras con manejo robusto de errores.
 
         Args:
-            lists_page: Instancia de ListsPage (POM)
+            lists_page: Instancia de PaginaListas (POM)
             action_description: Descripción de la acción para logging
             action_callable: Función callable que ejecuta la acción
 
@@ -73,13 +73,13 @@ class ListUploader:
             return None, False
 
     def wait_and_click(
-        self, lists_page: ListsPage, selector_description: str, locator, timeout: int = 10000
+        self, lists_page: PaginaListas, selector_description: str, locator, timeout: int = 10000
     ) -> bool:
         """
         Espera a que un elemento esté visible y hace clic.
 
         Args:
-            lists_page: Instancia de ListsPage (POM)
+            lists_page: Instancia de PaginaListas (POM)
             selector_description: Descripción del selector para logging
             locator: Locator de Playwright
             timeout: Timeout en milisegundos
@@ -99,12 +99,12 @@ class ListUploader:
             self.logger.error(f"❌ Error haciendo click en {selector_description}: {e}")
             return False
 
-    def inicializar_navegacion_lista(self, lists_page: ListsPage) -> bool:
+    def inicializar_navegacion_lista(self, lists_page: PaginaListas) -> bool:
         """
         Navega a la sección de listas con espera optimizada usando POM.
 
         Args:
-            lists_page: Instancia de ListsPage (POM)
+            lists_page: Instancia de PaginaListas (POM)
 
         Returns:
             True si la navegación fue exitosa
@@ -184,12 +184,12 @@ class ListUploader:
             self.logger.error(f"Error generando CSV temporal: {e}")
             raise
 
-    def crear_lista(self, lists_page: ListsPage, nombre_lista: str) -> bool:
+    def crear_lista(self, lists_page: PaginaListas, nombre_lista: str) -> bool:
         """
         Crea una nueva lista en Acumbamail usando POM.
 
         Args:
-            lists_page: Instancia de ListsPage (POM)
+            lists_page: Instancia de PaginaListas (POM)
             nombre_lista: Nombre de la lista a crear
 
         Returns:
@@ -202,12 +202,12 @@ class ListUploader:
             self.logger.error(f"❌ Error creando lista: {e}")
             return False
 
-    def subir_archivo(self, lists_page: ListsPage, archivo_csv: str) -> bool:
+    def subir_archivo(self, lists_page: PaginaListas, archivo_csv: str) -> bool:
         """
         Sube el archivo CSV a la lista usando POM.
 
         Args:
-            lists_page: Instancia de ListsPage (POM)
+            lists_page: Instancia de PaginaListas (POM)
             archivo_csv: Ruta al archivo CSV
 
         Returns:
@@ -222,7 +222,7 @@ class ListUploader:
 
     def mapear_columnas(
         self,
-        lists_page: ListsPage,
+        lists_page: PaginaListas,
         columnas: list[ListUploadColumn],
         progress_callback: Optional[Callable[[ListUploadProgress], None]] = None,
     ) -> int:
@@ -230,7 +230,7 @@ class ListUploader:
         Mapea las columnas del archivo subido a campos personalizados usando POM.
 
         Args:
-            lists_page: Instancia de ListsPage (POM)
+            lists_page: Instancia de PaginaListas (POM)
             columnas: Lista de columnas a mapear
             progress_callback: Callback opcional para reportar progreso
 
@@ -309,12 +309,12 @@ class ListUploader:
             self.logger.error(f"❌ Error en mapeo de columnas: {e}")
             return campos_mapeados
 
-    def finalizar_subida(self, lists_page: ListsPage) -> bool:
+    def finalizar_subida(self, lists_page: PaginaListas) -> bool:
         """
         Finaliza el proceso de subida usando POM.
 
         Args:
-            lists_page: Instancia de ListsPage (POM)
+            lists_page: Instancia de PaginaListas (POM)
 
         Returns:
             True si se finalizó exitosamente
@@ -373,7 +373,7 @@ class ListUploader:
             url_base = url_base or cfg.get("url_base", "")
             url = url or cfg.get("url", "")
 
-        lists_page = ListsPage(page, url_base, url)
+        lists_page = PaginaListas(page, url_base, url)
 
         session = ListUploadSession(
             session_id=f"list_upload_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
@@ -500,3 +500,5 @@ class ListUploader:
                     self.logger.warning(f"No se pudo eliminar archivo temporal: {e}")
 
         return resultado
+
+ListUploader = SubidorListas

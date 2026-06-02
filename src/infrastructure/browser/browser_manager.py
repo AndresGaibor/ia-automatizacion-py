@@ -6,7 +6,6 @@ import sys
 from pathlib import Path
 from typing import Optional, Dict
 from playwright.sync_api import Browser, BrowserContext, Page, Playwright, sync_playwright
-from playwright.sync_api import TimeoutError as PWTimeoutError
 
 from ...core.errors import BrowserAutomationError
 from ...core.config.config_manager import ConfigManager
@@ -162,70 +161,3 @@ class BrowserManager:
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Context manager exit."""
         self.close()
-
-
-class PageWrapper:
-    """Wrapper for Page with enhanced error handling and logging."""
-
-    def __init__(self, page: Page, browser_manager: BrowserManager):
-        self.page = page
-        self.browser_manager = browser_manager
-
-    def navigate(self, url: str, **kwargs) -> None:
-        """Navigate to URL with enhanced error handling."""
-        try:
-            timeouts = self.browser_manager.get_timeouts()
-            timeout = kwargs.pop("timeout", timeouts["navigation"])
-            self.page.goto(url, timeout=timeout, **kwargs)
-        except PWTimeoutError as e:
-            raise BrowserAutomationError(
-                f"Navigation timeout to {url}", page_url=url, context={"timeout": timeout}
-            ) from e
-        except Exception as e:
-            raise BrowserAutomationError(f"Navigation failed to {url}", page_url=url, context={"error": str(e)}) from e
-
-    def wait_for_selector(self, selector: str, **kwargs) -> None:
-        """Wait for selector with enhanced error handling."""
-        try:
-            timeouts = self.browser_manager.get_timeouts()
-            timeout = kwargs.pop("timeout", timeouts["element"])
-            self.page.wait_for_selector(selector, timeout=timeout, **kwargs)
-        except PWTimeoutError as e:
-            raise BrowserAutomationError(
-                f"Element not found: {selector}",
-                page_url=self.page.url,
-                selector=selector,
-                context={"timeout": timeout},
-            ) from e
-
-    def click_element(self, selector: str, **kwargs) -> None:
-        """Click element with enhanced error handling."""
-        try:
-            timeouts = self.browser_manager.get_timeouts()
-            timeout = kwargs.pop("timeout", timeouts["element"])
-            self.page.click(selector, timeout=timeout, **kwargs)
-        except PWTimeoutError as e:
-            raise BrowserAutomationError(
-                f"Click timeout on element: {selector}", page_url=self.page.url, selector=selector
-            ) from e
-        except Exception as e:
-            raise BrowserAutomationError(
-                f"Click failed on element: {selector}",
-                page_url=self.page.url,
-                selector=selector,
-                context={"error": str(e)},
-            ) from e
-
-    def fill_element(self, selector: str, value: str, **kwargs) -> None:
-        """Fill element with enhanced error handling."""
-        try:
-            timeouts = self.browser_manager.get_timeouts()
-            timeout = kwargs.pop("timeout", timeouts["element"])
-            self.page.fill(selector, value, timeout=timeout, **kwargs)
-        except Exception as e:
-            raise BrowserAutomationError(
-                f"Fill failed on element: {selector}",
-                page_url=self.page.url,
-                selector=selector,
-                context={"value": value, "error": str(e)},
-            ) from e

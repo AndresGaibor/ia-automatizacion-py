@@ -1,7 +1,7 @@
 from playwright.sync_api import Page
 
 
-class BasePage:
+class PaginaBase:
     def __init__(self, page: Page, url: str = ""):
         self._page = page
         self._url = url

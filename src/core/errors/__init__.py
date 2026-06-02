@@ -1,25 +1,28 @@
-"""Custom exceptions for the Acumbamail automation system."""
+"""Excepciones personalizadas para el sistema de automatización Acumbamail."""
 
 from .exceptions import (
-    AcumbaMailError,
-    ConfigurationError,
-    AuthenticationError,
-    APIError,
-    BrowserAutomationError,
-    BrowserError,  # Alias para compatibilidad
-    DataProcessingError,
-    ValidationError,
-    ErrorSeverity,
+    ErrorAcumbaMail,
+    ErrorConfiguracion,
+    ErrorAutenticacion,
+    ErrorAPI,
+    ErrorAutomatizacionNavegador,
+    ErrorNavegador,
+    ErrorProcesamientoDatos,
+    ErrorValidacion,
+    NivelSeveridad,
 )
 
+DataProcessingError = ErrorProcesamientoDatos
+
 __all__ = [
-    "AcumbaMailError",
-    "ConfigurationError",
-    "AuthenticationError",
-    "APIError",
-    "BrowserAutomationError",
-    "BrowserError",  # Alias para compatibilidad
+    "ErrorAcumbaMail",
+    "ErrorConfiguracion",
+    "ErrorAutenticacion",
+    "ErrorAPI",
+    "ErrorAutomatizacionNavegador",
+    "ErrorNavegador",
+    "ErrorProcesamientoDatos",
+    "ErrorValidacion",
+    "NivelSeveridad",
     "DataProcessingError",
-    "ValidationError",
-    "ErrorSeverity",
 ]

@@ -1,0 +1,130 @@
+# Catálogo de selectores - Listas
+---
+pantalla: listas
+selectores:
+  - clave: link_listas
+    descripcion: Link para navegar a sección de listas
+    selector_principal: 'a:has-text("Listas")'
+    fallbacks:
+      - 'li:has-text("Listas") a'
+      - '[href*="/list"]'
+    fragilidad: 3
+    estado: ok
+    nota: "Depende de texto visible 'Listas'. Si cambian idioma, rompe."
+    origen: verificado
+    ultima_validacion: "2026-06-01"
+    ejemplo_dom: "<li><a href=\"/app/list/\">Listas</a></li>"
+
+  - clave: tabla_listas
+    descripcion: Contenedor de la tabla de listas
+    selector_principal: '#newsletter-lists'
+    fallbacks:
+      - '.lists-table'
+      - '[data-lists-container]'
+    fragilidad: 3
+    estado: ok
+    nota: "ID bueno. Funciona si el contenedor tiene ID fijo."
+    origen: verificado
+    ultima_validacion: "2026-06-01"
+    ejemplo_dom: "<ul id=\"newsletter-lists\"><li>...</li></ul>"
+
+  - clave: fila_lista
+    descripcion: Fila individual de lista (LI)
+    selector_principal: '#newsletter-lists > li'
+    fallbacks:
+      - '.list-item'
+      - 'li[data-list]'
+    fragilidad: 4
+    estado: ok
+    nota: "Depende de ID fijo y estructura UL/LI."
+    origen: verificado
+    ultima_validacion: "2026-06-01"
+    ejemplo_dom: "<ul id=\"newsletter-lists\"><li><div>Nombre Lista</div></li></ul>"
+
+  - clave: campo_nombre_lista
+    descripcion: Campo de nombre de lista (índice 0)
+    selector_principal: '#newsletter-lists > li > div:nth-child(1)'
+    fallbacks:
+      - '.list-name'
+    fragilidad: 5
+    estado: falla
+    nota: "USA NTH() - frágil. Depende de posición en div."
+    origen: manual
+    ultima_validacion: null
+    ejemplo_dom: "<div>Mi Lista de Suscriptores</div>"
+
+  - clave: campo_suscriptores_lista
+    descripcion: Campo de número de suscriptores (índice 1)
+    selector_principal: '#newsletter-lists > li > div:nth-child(2)'
+    fallbacks:
+      - '.list-subscribers'
+    fragilidad: 5
+    estado: falla
+    nota: "USA NTH() - frágil."
+    origen: manual
+    ultima_validacion: null
+    ejemplo_dom: "<div>1,234 suscriptores</div>"
+
+  - clave: campo_fecha_creacion
+    descripcion: Campo de fecha de creación (índice 2)
+    selector_principal: '#newsletter-lists > li > div:nth-child(3)'
+    fallbacks:
+      - '.list-date'
+    fragilidad: 5
+    estado: falla
+    nota: "USA NTH() - frágil."
+    origen: manual
+    ultima_validacion: null
+    ejemplo_dom: "<div>Creada el 15/01/2024</div>"
+
+  - clave: boton_crear_lista
+    descripcion: Botón para crear nueva lista
+    selector_principal: 'button:has-text("Crear")'
+    fallbacks:
+      - '#new-list-button'
+      - 'button[data-action="create"]'
+    fragilidad: 3
+    estado: ok
+    nota: "Depende de texto visible. Funcional pero frágil."
+    origen: verificado
+    ultima_validacion: "2026-06-01"
+    ejemplo_dom: "<button>Crear</button>"
+
+  - clave: boton_siguiente
+    descripcion: Botón o link para siguiente paso
+    selector_principal: 'a:has-text("Siguiente")'
+    fallbacks:
+      - 'button:has-text("Siguiente")'
+      - '#next-step'
+    fragilidad: 3
+    estado: ok
+    nota: "Depende de texto visible."
+    origen: verificado
+    ultima_validacion: "2026-06-01"
+    ejemplo_dom: "<a href=\"#\">Siguiente</a>"
+
+  - clave: boton_guardar
+    descripcion: Botón para guardar cambios
+    selector_principal: 'button:has-text("Guardar")'
+    fallbacks:
+      - '#save-button'
+      - 'button[type="submit"]'
+    fragilidad: 3
+    estado: ok
+    nota: "Depende de texto visible."
+    origen: verificado
+    ultima_validacion: "2026-06-01"
+    ejemplo_dom: "<button type=\"submit\">Guardar</button>"
+
+  - clave: popup_aniadir_columna
+    descripcion: Popup para añadir campo/columna
+    selector_principal: '[id*="add-field-popup"]'
+    fallbacks:
+      - '.popup-add-field'
+      - '.modal:has-text("Añadir")'
+    fragilidad: 4
+    estado: ok
+    nota: "Selector con ID parcial. Funciona con comodín."
+    origen: verificado
+    ultima_validacion: "2026-06-01"
+    ejemplo_dom: "<div id=\"add-field-popup-0\">...</div>"

@@ -17,6 +17,11 @@ def aceptar_cookies(page: Page):
         logger.info(f"No se encontró el botón de cookies: {e}. Continuando...", error=str(e))
 
 
+def manejar_popup_cookies(page: Page, *, agresivo: bool = True):
+    """Alias de aceptar_cookies para compatibilidad."""
+    aceptar_cookies(page)
+
+
 def autenticado(page: Page) -> bool:
     """Verifica si el usuario ya está autenticado usando la capa POM."""
     logger.info("🔐 Verificando estado de autenticación")

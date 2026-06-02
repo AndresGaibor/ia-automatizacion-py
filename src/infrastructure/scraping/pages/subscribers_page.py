@@ -8,8 +8,8 @@ Navega a /report/campaign/{id}/subscribers/ y encapsula:
 """
 
 from playwright.sync_api import Page
-from src.infrastructure.scraping.pages.base_page import BasePage
-from src.infrastructure.scraping.components.subscriber_row import SubscriberRowComponent
+from src.infrastructure.scraping.pages.base_page import PaginaBase as BasePage
+from src.infrastructure.scraping.components.subscriber_row import ComponenteFilaSuscriptor as SubscriberRowComponent
 from src.infrastructure.scraping.utils.selectors import SubscriberSelectors
 from src.shared.logging.logger import get_logger
 
@@ -163,3 +163,6 @@ class SubscribersPage(BasePage):
         except Exception as e:
             logger.error(f"Error extrayendo URL de email de campaña {campaign_id}: {e}")
             return ""
+
+
+PaginaSuscriptores = SubscribersPage

@@ -4,7 +4,7 @@ from src.shared.logging.logger import get_logger
 logger = get_logger()
 
 
-class LoginFormComponent:
+class ComponenteFormularioLogin:
     def __init__(self, page: Page):
         self._page = page
 

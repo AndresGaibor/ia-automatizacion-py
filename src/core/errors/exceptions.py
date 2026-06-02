@@ -1,132 +1,130 @@
-"""Enhanced error handling with custom exception hierarchies."""
+"""Manejo mejorado de errores con jerarquías de excepciones personalizadas."""
 
 from enum import Enum, auto
 from typing import Optional, Dict, Any
 
 
-class ErrorSeverity(Enum):
-    """Standardized error severity levels."""
+class NivelSeveridad(Enum):
+    """Niveles de severidad de errores estandarizados."""
 
-    LOW = auto()
-    MEDIUM = auto()
-    HIGH = auto()
-    CRITICAL = auto()
+    BAJO = auto()
+    MEDIO = auto()
+    ALTO = auto()
+    CRITICO = auto()
 
 
-class AcumbaMailError(Exception):
-    """Base exception for Acumbamail automation."""
+class ErrorAcumbaMail(Exception):
+    """Excepción base para automatización de Acumbamail."""
 
     def __init__(
         self,
-        message: str,
-        severity: ErrorSeverity = ErrorSeverity.MEDIUM,
-        context: Optional[Dict[str, Any]] = None,
-        cause: Optional[Exception] = None,
+        mensaje: str,
+        severidad: NivelSeveridad = NivelSeveridad.MEDIO,
+        contexto: Optional[Dict[str, Any]] = None,
+        causa: Optional[Exception] = None,
     ):
-        super().__init__(message)
-        self.severity = severity
-        self.context = context or {}
-        self.cause = cause
+        super().__init__(mensaje)
+        self.severidad = severidad
+        self.contexto = contexto or {}
+        self.causa = causa
 
     def __str__(self):
-        base_msg = super().__str__()
-        if self.context:
-            context_str = ", ".join(f"{k}={v}" for k, v in self.context.items())
-            return f"{base_msg} (Context: {context_str})"
-        return base_msg
+        msg_base = super().__str__()
+        if self.contexto:
+            contexto_str = ", ".join(f"{k}={v}" for k, v in self.contexto.items())
+            return f"{msg_base} (Contexto: {contexto_str})"
+        return msg_base
 
 
-class ConfigurationError(AcumbaMailError):
-    """Raised when configuration is invalid or missing."""
+class ErrorConfiguracion(ErrorAcumbaMail):
+    """Lanzada cuando la configuración es inválida o falta."""
 
-    def __init__(self, message: str, context: Optional[Dict[str, Any]] = None):
-        super().__init__(message, severity=ErrorSeverity.CRITICAL, context=context)
-
-
-class AuthenticationError(AcumbaMailError):
-    """Raised when authentication fails."""
-
-    def __init__(self, message: str, context: Optional[Dict[str, Any]] = None):
-        super().__init__(message, severity=ErrorSeverity.HIGH, context=context)
+    def __init__(self, mensaje: str, contexto: Optional[Dict[str, Any]] = None):
+        super().__init__(mensaje, severidad=NivelSeveridad.CRITICO, contexto=contexto)
 
 
-class APIError(AcumbaMailError):
-    """Raised for API-related errors."""
+class ErrorAutenticacion(ErrorAcumbaMail):
+    """Lanzada cuando la autenticación falla."""
+
+    def __init__(self, mensaje: str, contexto: Optional[Dict[str, Any]] = None):
+        super().__init__(mensaje, severidad=NivelSeveridad.ALTO, contexto=contexto)
+
+
+class ErrorAPI(ErrorAcumbaMail):
+    """Lanzada para errores relacionados con la API."""
 
     def __init__(
         self,
-        message: str,
-        status_code: Optional[int] = None,
+        mensaje: str,
+        codigo_estado: Optional[int] = None,
         endpoint: Optional[str] = None,
-        context: Optional[Dict[str, Any]] = None,
+        contexto: Optional[Dict[str, Any]] = None,
     ):
-        full_context = context or {}
-        if status_code is not None:
-            full_context["status_code"] = status_code
+        contexto_completo = contexto or {}
+        if codigo_estado is not None:
+            contexto_completo["status_code"] = codigo_estado
         if endpoint is not None:
-            full_context["endpoint"] = endpoint
+            contexto_completo["endpoint"] = endpoint
 
-        severity = ErrorSeverity.HIGH if status_code and status_code >= 500 else ErrorSeverity.MEDIUM
-        super().__init__(message, severity=severity, context=full_context)
+        severidad = NivelSeveridad.ALTO if codigo_estado and codigo_estado >= 500 else NivelSeveridad.MEDIO
+        super().__init__(mensaje, severidad=severidad, contexto=contexto_completo)
 
 
-class BrowserAutomationError(AcumbaMailError):
-    """Raised for browser automation related errors."""
+class ErrorAutomatizacionNavegador(ErrorAcumbaMail):
+    """Lanzada para errores relacionados con automatización del navegador."""
 
     def __init__(
         self,
-        message: str,
-        page_url: Optional[str] = None,
+        mensaje: str,
+        url_pagina: Optional[str] = None,
         selector: Optional[str] = None,
-        context: Optional[Dict[str, Any]] = None,
+        contexto: Optional[Dict[str, Any]] = None,
     ):
-        full_context = context or {}
-        if page_url:
-            full_context["page_url"] = page_url
+        contexto_completo = contexto or {}
+        if url_pagina:
+            contexto_completo["page_url"] = url_pagina
         if selector:
-            full_context["selector"] = selector
+            contexto_completo["selector"] = selector
 
-        super().__init__(message, severity=ErrorSeverity.MEDIUM, context=full_context)
-
-
-class DataProcessingError(AcumbaMailError):
-    """Raised for data processing and validation errors."""
-
-    def __init__(
-        self,
-        message: str,
-        file_path: Optional[str] = None,
-        row_number: Optional[int] = None,
-        context: Optional[Dict[str, Any]] = None,
-    ):
-        full_context = context or {}
-        if file_path:
-            full_context["file_path"] = file_path
-        if row_number is not None:
-            full_context["row_number"] = row_number
-
-        super().__init__(message, severity=ErrorSeverity.MEDIUM, context=full_context)
+        super().__init__(mensaje, severidad=NivelSeveridad.MEDIO, contexto=contexto_completo)
 
 
-class ValidationError(AcumbaMailError):
-    """Raised when data validation fails."""
+class ErrorProcesamientoDatos(ErrorAcumbaMail):
+    """Lanzada para errores de procesamiento y validación de datos."""
 
     def __init__(
         self,
-        message: str,
-        field_name: Optional[str] = None,
-        field_value: Optional[Any] = None,
-        context: Optional[Dict[str, Any]] = None,
+        mensaje: str,
+        ruta_archivo: Optional[str] = None,
+        numero_fila: Optional[int] = None,
+        contexto: Optional[Dict[str, Any]] = None,
     ):
-        full_context = context or {}
-        if field_name:
-            full_context["field_name"] = field_name
-        if field_value is not None:
-            full_context["field_value"] = field_value
+        contexto_completo = contexto or {}
+        if ruta_archivo:
+            contexto_completo["file_path"] = ruta_archivo
+        if numero_fila is not None:
+            contexto_completo["row_number"] = numero_fila
 
-        super().__init__(message, severity=ErrorSeverity.LOW, context=full_context)
+        super().__init__(mensaje, severidad=NivelSeveridad.MEDIO, contexto=contexto_completo)
 
 
-# Alias para compatibilidad con código existente
-# Mantener nombre legacy mientras se migra a nomenclatura nueva
-BrowserError = BrowserAutomationError
+class ErrorValidacion(ErrorAcumbaMail):
+    """Lanzada cuando la validación de datos falla."""
+
+    def __init__(
+        self,
+        mensaje: str,
+        nombre_campo: Optional[str] = None,
+        valor_campo: Optional[Any] = None,
+        contexto: Optional[Dict[str, Any]] = None,
+    ):
+        contexto_completo = contexto or {}
+        if nombre_campo:
+            contexto_completo["field_name"] = nombre_campo
+        if valor_campo is not None:
+            contexto_completo["field_value"] = valor_campo
+
+        super().__init__(mensaje, severidad=NivelSeveridad.BAJO, contexto=contexto_completo)
+
+
+ErrorNavegador = ErrorAutomatizacionNavegador

@@ -8,14 +8,14 @@ Navega a /app/list/{list_id}/edit/fields/ y encapsula:
 """
 
 from playwright.sync_api import Page
-from src.infrastructure.scraping.pages.base_page import BasePage
+from src.infrastructure.scraping.pages.base_page import PaginaBase
 from src.infrastructure.scraping.utils.selectors import FieldSelectors
 from src.shared.logging.logger import get_logger
 
 logger = get_logger()
 
 
-class FieldsPage(BasePage):
+class PaginaCampos(PaginaBase):
     def __init__(self, page: Page):
         super().__init__(page, url="")
         self._selectors = FieldSelectors()

@@ -13,7 +13,7 @@ if __package__ in (None, ""):
 
 from .infrastructure.api.models.campanias import CampaignBasicInfo
 from .infrastructure.scraping.pages.subscribers_page import SubscribersPage
-from .excel_utils import agregar_datos, crear_hoja_con_datos, obtener_o_crear_hoja
+from .infrastructure.excel import agregar_datos, crear_hoja_con_datos, obtener_o_crear_hoja
 from .shared.utils.legacy_utils import cargar_campanias_a_buscar, crear_contexto_navegador, configurar_navegador, load_config, data_path, notify, storage_state_path
 from .shared.logging.logger import get_logger
 from .structured_logger import log_success, log_error, log_warning, log_info, log_performance, log_data_extraction
@@ -544,7 +544,7 @@ def main():
 			login(page, context=context)
 			log_success("Autenticación completada exitosamente")
 
-			from .infrastructure.scraping.pages.base_page import BasePage
+			from .infrastructure.scraping.pages.base_page import PaginaBase as BasePage
 			base_page = BasePage(page, url="")
 
 			# Espera adicional post-login para asegurar estabilidad de sesión antes de operaciones de API

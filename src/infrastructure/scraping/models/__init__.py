@@ -3,28 +3,28 @@ Modelos específicos para datos obtenidos por scraping
 """
 
 from .campanias import (
-    ScrapedNonOpener,
-    ScrapedHardBounce,
-    ScrapedCampaignStats,
-    ScrapedGeographicStats,
-    ScrapedDeviceStats
+    ScrapedNoAbridor,
+    ScrapedReboteDuro,
+    ScrapedEstadisticasCampania,
+    ScrapedEstadisticasGeograficas,
+    ScrapedEstadisticasDispositivo
 )
 
 from .suscriptores import (
-    SubscriberScrapingData,
-    SubscriberTableData,
-    SubscriberFilterResult,
-    CampaignSubscriberReport,
+    DatosScrapingSuscriptor,
+    DatosTablaSuscriptor,
+    ResultadoFiltroSuscriptor,
+    InformeSubscriptorCampania,
     PageNavigationInfo,
     ScrapingSession,
     SubscriberExtractionConfig
 )
 
 from .listas import (
-    ListScrapingData,
-    ListTableExtraction,
-    ListSearchTerms,
-    ListNavigationInfo,
+    DatosScrapingLista,
+    ExtraccionTablaLista,
+    TerminosBusquedaLista,
+    InfoNavegacionLista,
     ListScrapingSession,
     ListScrapingResult,
     ListExtractionConfig,
@@ -33,26 +33,26 @@ from .listas import (
 
 __all__ = [
     # Campañas
-    'ScrapedNonOpener',
-    'ScrapedHardBounce',
-    'ScrapedCampaignStats',
-    'ScrapedGeographicStats',
-    'ScrapedDeviceStats',
+    'ScrapedNoAbridor',
+    'ScrapedReboteDuro',
+    'ScrapedEstadisticasCampania',
+    'ScrapedEstadisticasGeograficas',
+    'ScrapedEstadisticasDispositivo',
 
     # Suscriptores
-    'SubscriberScrapingData',
-    'SubscriberTableData',
-    'SubscriberFilterResult',
-    'CampaignSubscriberReport',
+    'DatosScrapingSuscriptor',
+    'DatosTablaSuscriptor',
+    'ResultadoFiltroSuscriptor',
+    'InformeSubscriptorCampania',
     'PageNavigationInfo',
     'ScrapingSession',
     'SubscriberExtractionConfig',
 
     # Listas
-    'ListScrapingData',
-    'ListTableExtraction',
-    'ListSearchTerms',
-    'ListNavigationInfo',
+    'DatosScrapingLista',
+    'ExtraccionTablaLista',
+    'TerminosBusquedaLista',
+    'InfoNavegacionLista',
     'ListScrapingSession',
     'ListScrapingResult',
     'ListExtractionConfig',

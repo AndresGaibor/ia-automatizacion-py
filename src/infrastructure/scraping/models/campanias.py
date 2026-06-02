@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 
 
-class ScrapedNonOpener(BaseModel):
+class ScrapedNoAbridor(BaseModel):
     """
     Suscriptor que NO abrió la campaña
     
@@ -45,7 +45,7 @@ class ScrapedNonOpener(BaseModel):
         }
 
 
-class ScrapedHardBounce(BaseModel):
+class ScrapedReboteDuro(BaseModel):
     """
     Hard bounce con información detallada
     
@@ -95,7 +95,7 @@ class ScrapedHardBounce(BaseModel):
         }
 
 
-class ScrapedGeographicStats(BaseModel):
+class ScrapedEstadisticasGeograficas(BaseModel):
     """Estadísticas geográficas de una campaña"""
     country: str = Field(..., description="País")
     opens: int = Field(0, description="Aperturas desde este país")
@@ -113,7 +113,7 @@ class ScrapedGeographicStats(BaseModel):
         }
 
 
-class ScrapedDeviceStats(BaseModel):
+class ScrapedEstadisticasDispositivo(BaseModel):
     """Estadísticas por dispositivo de una campaña"""
     device_type: str = Field(..., description="Tipo de dispositivo (móvil, escritorio, tablet)")
     device_name: Optional[str] = Field(None, description="Nombre específico del dispositivo")
@@ -135,7 +135,7 @@ class ScrapedDeviceStats(BaseModel):
         }
 
 
-class ScrapedCampaignStats(BaseModel):
+class ScrapedEstadisticasCampania(BaseModel):
     """
     Estadísticas extendidas de campaña solo disponibles por scraping
     
@@ -152,8 +152,8 @@ class ScrapedCampaignStats(BaseModel):
     total_soft_bounces: int = Field(0, description="Total de soft bounces")
     
     # Datos solo disponibles por scraping
-    geographic_stats: List[ScrapedGeographicStats] = Field(default_factory=list, description="Estadísticas por país")
-    device_stats: List[ScrapedDeviceStats] = Field(default_factory=list, description="Estadísticas por dispositivo")
+    geographic_stats: List[ScrapedEstadisticasGeograficas] = Field(default_factory=list, description="Estadísticas por país")
+    device_stats: List[ScrapedEstadisticasDispositivo] = Field(default_factory=list, description="Estadísticas por dispositivo")
     hourly_stats: Optional[Dict[str, int]] = Field(None, description="Estadísticas por hora del día")
     daily_stats: Optional[Dict[str, int]] = Field(None, description="Estadísticas por día de la semana")
     
@@ -176,12 +176,12 @@ class ScrapedCampaignStats(BaseModel):
         return (self.total_hard_bounces / self.total_sent) * 100
     
     @property
-    def top_countries(self) -> List[ScrapedGeographicStats]:
+    def top_countries(self) -> List[ScrapedEstadisticasGeograficas]:
         """Top 5 países por aperturas"""
         return sorted(self.geographic_stats, key=lambda x: x.opens, reverse=True)[:5]
     
     @property
-    def top_devices(self) -> List[ScrapedDeviceStats]:
+    def top_devices(self) -> List[ScrapedEstadisticasDispositivo]:
         """Top 5 dispositivos por aperturas"""
         return sorted(self.device_stats, key=lambda x: x.opens, reverse=True)[:5]
     
@@ -264,14 +264,14 @@ class ScrapedCampaignData(BaseModel):
     campaign_id: int = Field(..., description="ID de la campaña")
 
     # Listas de suscriptores
-    non_openers: List[ScrapedNonOpener] = Field(default_factory=list, description="Suscriptores que no abrieron")
-    hard_bounces: List[ScrapedHardBounce] = Field(default_factory=list, description="Hard bounces con detalles")
+    non_openers: List[ScrapedNoAbridor] = Field(default_factory=list, description="Suscriptores que no abrieron")
+    hard_bounces: List[ScrapedReboteDuro] = Field(default_factory=list, description="Hard bounces con detalles")
 
     # URLs de la campaña
     campaign_urls: List[ScrapedCampaignUrl] = Field(default_factory=list, description="URLs de la campaña con clics")
 
     # Estadísticas extendidas
-    extended_stats: Optional[ScrapedCampaignStats] = Field(None, description="Estadísticas extendidas")
+    extended_stats: Optional[ScrapedEstadisticasCampania] = Field(None, description="Estadísticas extendidas")
 
     # Metadatos
     scraped_at: str = Field(..., description="Timestamp del scraping")
