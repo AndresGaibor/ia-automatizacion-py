@@ -27,8 +27,8 @@ from .utils import (
     crear_contexto_navegador,
     get_timeouts,
 )
-from .autentificacion import login
 from .infrastructure.scraping.endpoints.lista_upload import ListUploader
+from .infrastructure.scraping.pages.lists_page import ListsPage
 from .infrastructure.scraping.models.listas import (
     ListUploadConfig,
     ListUploadColumn,
@@ -448,17 +448,19 @@ def main(nombre_hoja: Optional[str] = None, archivo_excel: Optional[str] = None,
                 logger.info("✅ Navegador configurado")
 
                 try:
-                    # Navegar y autenticar
+                    # Navegar y autenticar usando POM
                     logger.info("")
                     logger.info("🔐 AUTENTICACIÓN")
                     logger.info("-" * 70)
-                    logger.info(f"🌐 Navegando a: {url_base}")
-                    page.goto(url_base, timeout=60000)
-                    logger.info(f"🌐 Navegando a: {url}")
-                    page.goto(url, timeout=60000)
 
-                    logger.info("🔑 Iniciando sesión...")
-                    login(page, context)
+                    lists_page = ListsPage(page, url_base, url)
+                    if not lists_page.navigate_to_lists():
+                        logger.error("❌ Error navegando a la sección de listas")
+                        return
+
+                    if not lists_page.authenticate():
+                        logger.error("❌ Error en autenticación")
+                        return
                     logger.info("✅ Autenticación exitosa")
 
                     # Procesar la primera hoja
