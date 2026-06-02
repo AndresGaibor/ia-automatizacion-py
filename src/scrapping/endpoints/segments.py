@@ -4,8 +4,6 @@ Extraído desde mapeo_segmentos.py y adaptado al patrón de endpoints en src/scr
 """
 import logging
 from typing import List, Optional
-import time
-
 from playwright.sync_api import Page, TimeoutError as PlaywrightTimeoutError, sync_playwright
 
 from src.infrastructure.scraping.pages.segments_page import SegmentPage
@@ -130,10 +128,12 @@ class SegmentsScrapingService:
     def _fallback_configure_conditions(self, segment_page: SegmentPage, segment_name: str) -> bool:
         try:
             logging.debug("🔄 Intentando estrategia genérica fallback")
-            page = segment_page.page
-            page.get_by_text("Segmentos").click(timeout=5000)
-            page.get_by_text("contiene").click(timeout=5000)
-            page.locator("input[type='text']").last.fill(segment_name)
+            if not segment_page.click_segmentos_field():
+                return False
+            if not segment_page.click_contiene_condition():
+                return False
+            if not segment_page.fill_segment_value_input(segment_name):
+                return False
             logging.debug("✅ Estrategia fallback completada")
             return True
         except Exception as e2:
@@ -282,7 +282,8 @@ class SegmentsScrapingService:
 
                 if idx < len(to_create) - 1:
                     logging.debug("⏱️ Pausa de 2 segundos entre segmentos")
-                    time.sleep(2)
+                    if self.page is not None:
+                        self.page.wait_for_timeout(2000)
 
             except Exception as e:
                 error_count += 1

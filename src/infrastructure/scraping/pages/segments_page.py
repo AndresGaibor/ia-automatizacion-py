@@ -182,3 +182,33 @@ class SegmentPage(BasePage):
         except Exception as e:
             logger.error(f"Error esperando confirmación: {e}")
             return False
+
+    def click_segmentos_field(self) -> bool:
+        try:
+            self._page.get_by_text("Segmentos").click(timeout=5000)
+            logger.debug("✅ Click en 'Segmentos' realizado")
+            return True
+        except Exception as e:
+            logger.error(f"Error clicking campo Segmentos: {e}")
+            return False
+
+    def click_contiene_condition(self) -> bool:
+        try:
+            self._page.get_by_text("contiene").click(timeout=5000)
+            logger.debug("✅ Click en 'contiene' realizado")
+            return True
+        except Exception as e:
+            logger.error(f"Error clicking condición contiene: {e}")
+            return False
+
+    def fill_segment_value_input(self, segment_name: str) -> bool:
+        try:
+            self._page.locator("input[type='text']").last.fill(segment_name)
+            logger.debug(f"✅ Valor '{segment_name}' llenado en input text")
+            return True
+        except Exception as e:
+            logger.error(f"Error llenando valor en input text: {e}")
+            return False
+
+    def esperar_entre_segmentos(self, segundos: int = 2) -> None:
+        self._page.wait_for_timeout(segundos * 1000)
