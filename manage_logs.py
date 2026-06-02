@@ -114,7 +114,7 @@ class LoggingCLI:
         priority_files = [
             'src/autentificacion.py',
             'src/descargar_suscriptores.py',
-            'src/mapeo_segmentos.py',
+            'src/mapeo_segmentos/',
             'src/demo.py',
             'src/listar_campanias.py',
             'app.py'

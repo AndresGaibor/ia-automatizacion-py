@@ -2,18 +2,19 @@
 Integration tests for Scraping Campanias endpoints
 Tests the skeleton implementation and framework for campaign scraping
 """
+
 import pytest
 from unittest.mock import Mock, patch
 from playwright.sync_api import Page
 from datetime import datetime
 
-from src.scraping.endpoints.campanias import CampaignsScraper
-from src.scraping.base import ScrapingConfig
-from src.scraping.models.campanias import (
+from src.infrastructure.scraping.endpoints.campanias import CampaignsScraper
+from src.infrastructure.scraping.base import ScrapingConfig
+from src.infrastructure.scraping.models.campanias import (
     ScrapedNonOpener,
     ScrapedHardBounce,
     ScrapedCampaignStats,
-    ScrapedCampaignData
+    ScrapedCampaignData,
 )
 
 
@@ -36,11 +37,7 @@ class TestCampaignsScraperIntegration:
     @pytest.fixture
     def scraping_config(self):
         """Create scraping configuration for tests"""
-        return ScrapingConfig(
-            timeout=30000,
-            retry_attempts=3,
-            take_screenshots=True
-        )
+        return ScrapingConfig(timeout=30000, max_retries=3, screenshots_on_error=True)
 
     @pytest.fixture
     def campaigns_scraper(self, mock_page, scraping_config):
@@ -50,14 +47,14 @@ class TestCampaignsScraperIntegration:
     def test_campaigns_scraper_initialization(self, campaigns_scraper):
         """Test scraper initialization"""
         assert campaigns_scraper is not None
-        assert hasattr(campaigns_scraper, 'selectors')
-        assert hasattr(campaigns_scraper, 'common')
-        assert hasattr(campaigns_scraper, 'navigation')
+        assert hasattr(campaigns_scraper, "selectors")
+        assert hasattr(campaigns_scraper, "common")
+        assert hasattr(campaigns_scraper, "navigation")
 
     def test_get_non_openers_skeleton(self, campaigns_scraper, mock_page):
         """Test get_non_openers skeleton implementation"""
         # Mock the base navigation method
-        with patch.object(campaigns_scraper, 'navigate_to_campaign') as mock_nav:
+        with patch.object(campaigns_scraper, "navigate_to_campaign") as mock_nav:
             mock_nav.return_value = True
 
             # Should return empty list since it's not implemented
@@ -69,7 +66,7 @@ class TestCampaignsScraperIntegration:
 
     def test_get_hard_bounces_skeleton(self, campaigns_scraper, mock_page):
         """Test get_hard_bounces skeleton implementation"""
-        with patch.object(campaigns_scraper, 'navigate_to_campaign') as mock_nav:
+        with patch.object(campaigns_scraper, "navigate_to_campaign") as mock_nav:
             mock_nav.return_value = True
 
             result = campaigns_scraper.get_hard_bounces(12345)
@@ -80,7 +77,7 @@ class TestCampaignsScraperIntegration:
 
     def test_get_extended_stats_skeleton(self, campaigns_scraper, mock_page):
         """Test get_extended_stats skeleton implementation"""
-        with patch.object(campaigns_scraper, 'navigate_to_campaign') as mock_nav:
+        with patch.object(campaigns_scraper, "navigate_to_campaign") as mock_nav:
             mock_nav.return_value = True
 
             result = campaigns_scraper.get_extended_stats(12345)
@@ -94,10 +91,9 @@ class TestCampaignsScraperIntegration:
         """Test complete campaign data extraction with all options"""
         campaign_id = 12345
 
-        with patch.object(campaigns_scraper, 'get_non_openers') as mock_non_openers:
-            with patch.object(campaigns_scraper, 'get_hard_bounces') as mock_hard_bounces:
-                with patch.object(campaigns_scraper, 'get_extended_stats') as mock_extended_stats:
-
+        with patch.object(campaigns_scraper, "get_non_openers") as mock_non_openers:
+            with patch.object(campaigns_scraper, "get_hard_bounces") as mock_hard_bounces:
+                with patch.object(campaigns_scraper, "get_extended_stats") as mock_extended_stats:
                     # Mock return values
                     mock_non_openers.return_value = []
                     mock_hard_bounces.return_value = []
@@ -107,7 +103,7 @@ class TestCampaignsScraperIntegration:
                         campaign_id=campaign_id,
                         include_non_openers=True,
                         include_hard_bounces=True,
-                        include_extended_stats=True
+                        include_extended_stats=True,
                     )
 
                     assert isinstance(result, ScrapedCampaignData)
@@ -126,17 +122,16 @@ class TestCampaignsScraperIntegration:
         """Test complete campaign data with selective options"""
         campaign_id = 12345
 
-        with patch.object(campaigns_scraper, 'get_non_openers') as mock_non_openers:
-            with patch.object(campaigns_scraper, 'get_hard_bounces') as mock_hard_bounces:
-                with patch.object(campaigns_scraper, 'get_extended_stats') as mock_extended_stats:
-
+        with patch.object(campaigns_scraper, "get_non_openers") as mock_non_openers:
+            with patch.object(campaigns_scraper, "get_hard_bounces") as mock_hard_bounces:
+                with patch.object(campaigns_scraper, "get_extended_stats") as mock_extended_stats:
                     mock_non_openers.return_value = []
 
                     result = campaigns_scraper.get_complete_campaign_data(
                         campaign_id=campaign_id,
                         include_non_openers=True,  # Only this enabled
                         include_hard_bounces=False,
-                        include_extended_stats=False
+                        include_extended_stats=False,
                     )
 
                     assert isinstance(result, ScrapedCampaignData)
@@ -152,8 +147,7 @@ class TestCampaignsScraperIntegration:
     def test_extract_stat_number_helper(self, campaigns_scraper):
         """Test the _extract_stat_number helper method"""
         # Mock get_text_content for different scenarios
-        with patch.object(campaigns_scraper, 'get_text_content') as mock_get_text:
-
+        with patch.object(campaigns_scraper, "get_text_content") as mock_get_text:
             # Test normal number
             mock_get_text.return_value = "1,234 emails"
             result = campaigns_scraper._extract_stat_number(".stat-element")
@@ -194,11 +188,11 @@ class TestCampaignsScraperIntegration:
         campaign_id = 12345
 
         # Mock navigate_to_campaign to raise an error
-        with patch.object(campaigns_scraper, 'navigate_to_campaign') as mock_nav:
+        with patch.object(campaigns_scraper, "navigate_to_campaign") as mock_nav:
             mock_nav.side_effect = Exception("Navigation failed")
 
             # Methods should handle errors gracefully
-            with patch.object(campaigns_scraper, 'wait_and_retry') as mock_retry:
+            with patch.object(campaigns_scraper, "wait_and_retry") as mock_retry:
                 mock_retry.side_effect = Exception("Retry failed")
 
                 with pytest.raises(Exception):
@@ -206,17 +200,12 @@ class TestCampaignsScraperIntegration:
 
     def test_scraping_config_integration(self, mock_page):
         """Test scraper with different configurations"""
-        # Test with custom config
-        custom_config = ScrapingConfig(
-            timeout=60000,
-            retry_attempts=5,
-            take_screenshots=False
-        )
+        custom_config = ScrapingConfig(timeout=60000, max_retries=5, screenshots_on_error=False)
 
         scraper = CampaignsScraper(mock_page, custom_config)
         assert scraper.config.timeout == 60000
-        assert scraper.config.retry_attempts == 5
-        assert scraper.config.take_screenshots is False
+        assert scraper.config.max_retries == 5
+        assert scraper.config.screenshots_on_error is False
 
         # Test with default config
         scraper_default = CampaignsScraper(mock_page)
@@ -235,7 +224,7 @@ class TestCampaignScrapingModels:
             campaign_id=12345,
             date_sent="2024-01-15",
             subscriber_name="John Doe",
-            list_name="Test List"
+            list_name="Test List",
         )
 
         assert non_opener.email == "nonopener@example.com"
@@ -251,7 +240,7 @@ class TestCampaignScrapingModels:
             campaign_id=12345,
             bounce_date="2024-01-15",
             bounce_reason="Mailbox not found",
-            bounce_code="550"
+            bounce_code="550",
         )
 
         assert hard_bounce.email == "bounce@example.com"
@@ -263,11 +252,7 @@ class TestCampaignScrapingModels:
     def test_scraped_campaign_stats_creation(self):
         """Test ScrapedCampaignStats model creation"""
         stats = ScrapedCampaignStats(
-            campaign_id=12345,
-            total_sent=1000,
-            total_opened=450,
-            total_not_opened=550,
-            total_clicks=125
+            campaign_id=12345, total_sent=1000, total_opened=450, total_not_opened=550, total_clicks=125
         )
 
         assert stats.campaign_id == 12345
@@ -278,10 +263,7 @@ class TestCampaignScrapingModels:
 
     def test_scraped_campaign_data_creation(self):
         """Test ScrapedCampaignData model creation"""
-        campaign_data = ScrapedCampaignData(
-            campaign_id=12345,
-            scraped_at=datetime.now().isoformat()
-        )
+        campaign_data = ScrapedCampaignData(campaign_id=12345, scraped_at=datetime.now().isoformat())
 
         assert campaign_data.campaign_id == 12345
         assert campaign_data.scraped_at is not None
@@ -291,15 +273,9 @@ class TestCampaignScrapingModels:
 
     def test_scraped_campaign_data_with_data(self):
         """Test ScrapedCampaignData with actual data"""
-        non_opener = ScrapedNonOpener(
-            email="nonopener@example.com",
-            campaign_id=12345
-        )
+        non_opener = ScrapedNonOpener(email="nonopener@example.com", campaign_id=12345)
 
-        hard_bounce = ScrapedHardBounce(
-            email="bounce@example.com",
-            campaign_id=12345
-        )
+        hard_bounce = ScrapedHardBounce(email="bounce@example.com", campaign_id=12345)
 
         stats = ScrapedCampaignStats(campaign_id=12345)
 
@@ -309,7 +285,7 @@ class TestCampaignScrapingModels:
             non_openers=[non_opener],
             hard_bounces=[hard_bounce],
             extended_stats=stats,
-            scraping_methods=["get_non_openers", "get_hard_bounces"]
+            scraping_methods=["get_non_openers", "get_hard_bounces"],
         )
 
         assert len(campaign_data.non_openers) == 1
@@ -319,20 +295,17 @@ class TestCampaignScrapingModels:
 
     def test_scraped_campaign_data_summary_property(self):
         """Test summary property of ScrapedCampaignData"""
-        # Create data with some content
         non_openers = [ScrapedNonOpener(email=f"user{i}@example.com", campaign_id=12345) for i in range(10)]
         hard_bounces = [ScrapedHardBounce(email=f"bounce{i}@example.com", campaign_id=12345) for i in range(5)]
 
         campaign_data = ScrapedCampaignData(
-            campaign_id=12345,
-            scraped_at=datetime.now().isoformat(),
-            non_openers=non_openers,
-            hard_bounces=hard_bounces
+            campaign_id=12345, scraped_at=datetime.now().isoformat(), non_openers=non_openers, hard_bounces=hard_bounces
         )
 
         summary = campaign_data.summary
-        assert "10 non-openers" in summary
-        assert "5 hard bounces" in summary
+        assert isinstance(summary, dict)
+        assert summary["non_openers_count"] == 10
+        assert summary["hard_bounces_count"] == 5
 
 
 @pytest.mark.integration
@@ -348,10 +321,7 @@ class TestCampaignScrapingPerformance:
         # Simulate large dataset
         large_non_opener_list = []
         for i in range(10000):
-            non_opener = ScrapedNonOpener(
-                email=f"user{i}@example.com",
-                campaign_id=12345
-            )
+            non_opener = ScrapedNonOpener(email=f"user{i}@example.com", campaign_id=12345)
             large_non_opener_list.append(non_opener)
 
         # Test that we can handle large lists
@@ -359,13 +329,11 @@ class TestCampaignScrapingPerformance:
 
         # Test memory efficiency
         campaign_data = ScrapedCampaignData(
-            campaign_id=12345,
-            scraped_at=datetime.now().isoformat(),
-            non_openers=large_non_opener_list
+            campaign_id=12345, scraped_at=datetime.now().isoformat(), non_openers=large_non_opener_list
         )
 
         assert len(campaign_data.non_openers) == 10000
-        assert "10000 non-openers" in campaign_data.summary
+        assert campaign_data.summary["non_openers_count"] == 10000
 
     def test_concurrent_scraping_simulation(self, mock_page):
         """Simulate concurrent scraping operations"""
@@ -411,10 +379,10 @@ class TestCampaignScrapingEdgeCases:
         scraper = CampaignsScraper(mock_page)
 
         # Test with negative campaign ID
-        with patch.object(scraper, 'navigate_to_campaign') as mock_nav:
+        with patch.object(scraper, "navigate_to_campaign") as mock_nav:
             mock_nav.side_effect = Exception("Invalid campaign ID")
 
-            with patch.object(scraper, 'wait_and_retry') as mock_retry:
+            with patch.object(scraper, "wait_and_retry") as mock_retry:
                 mock_retry.side_effect = Exception("Campaign not found")
 
                 with pytest.raises(Exception):
@@ -424,7 +392,7 @@ class TestCampaignScrapingEdgeCases:
         """Test handling of campaigns with no data"""
         scraper = CampaignsScraper(mock_page)
 
-        with patch.object(scraper, 'navigate_to_campaign') as mock_nav:
+        with patch.object(scraper, "navigate_to_campaign") as mock_nav:
             mock_nav.return_value = True
 
             # Should return empty lists/stats
@@ -440,18 +408,14 @@ class TestCampaignScrapingEdgeCases:
         """Test handling when only partial data can be extracted"""
         scraper = CampaignsScraper(mock_page)
 
-        with patch.object(scraper, 'get_non_openers') as mock_non_openers:
-            with patch.object(scraper, 'get_hard_bounces') as mock_hard_bounces:
-
+        with patch.object(scraper, "get_non_openers") as mock_non_openers:
+            with patch.object(scraper, "get_hard_bounces") as mock_hard_bounces:
                 # Simulate partial success
                 mock_non_openers.return_value = [ScrapedNonOpener(email="test@example.com", campaign_id=12345)]
                 mock_hard_bounces.side_effect = Exception("Hard bounces extraction failed")
 
                 result = scraper.get_complete_campaign_data(
-                    campaign_id=12345,
-                    include_non_openers=True,
-                    include_hard_bounces=True,
-                    include_extended_stats=False
+                    campaign_id=12345, include_non_openers=True, include_hard_bounces=True, include_extended_stats=False
                 )
 
                 # Should have non-openers but not hard bounces

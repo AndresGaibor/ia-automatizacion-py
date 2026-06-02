@@ -1,0 +1,94 @@
+# Task 10 - Evidence: Boundary Verification
+
+## Date: 2026-04-07
+
+## Objetivo
+Verificar que los boundaries entre capas POM y código legacy están correctamente definidos después de la migración.
+
+## Findings
+
+### ✅ Boundary VERDE: Playwright en infraestructura
+
+**Ubicación:** `src/infrastructure/scraping/`
+- Pages: `LoginPage`, `ReportsPage`, `SubscribersPage` (reciben Page en constructor)
+- Components: `CampaignRow`, `CookieBannerComponent`, etc.
+- Flows: `AuthFlow`, `ReportListingFlow`, `SubscribersFlow`
+- Endpoints: `CampaignsScraper`
+
+**Verificación:**
+- ✅ Page/Locator NO salen de `infrastructure/scraping/` hacia `core/` o `presentation/`
+- ✅ No hay imports de Playwright en `core/` o `presentation/` para el flujo migrado
+
+### ✅ Boundary VERDE: Excel en infraestructura
+
+**Ubicación:** `src/infrastructure/excel/`
+- `CampaignReportExporter` - exporta a Excel
+
+**Verificación:**
+- ✅ No hay imports de openpyxl directo en pages/components POM
+- ✅ `listar_campanias.py` usa `CampaignReportExporter` (no openpyxl directo)
+
+### ⚠️ Boundary AMARILLO: src/utils.py vs shared/utils/legacy_utils.py
+
+**Problema identificado:**
+- `src/utils.py` - contiene funciones legacy duplicadas
+- `src/shared/utils/legacy_utils.py` - contiene versiones migradas
+
+**Uso actual:**
+- `demo.py` → importa de `shared.utils.legacy_utils` ✅
+- `listar_campanias.py` → importaba de `.utils` (legacy), ahora migrado a `shared.utils.legacy_utils` ✅
+
+**Recomendación:**
+- Mantener `shared/utils/legacy_utils.py` como canonical
+- `src/utils.py` puede ser deprecado cuando todos los entrypoints migren
+
+### ⚠️ Boundary AMARILLO: src/autentificacion.py
+
+**Estado:**
+- `demo.py` → usa `AuthenticationService` (core) ✅
+- `listar_campanias.py` → usa `login()` directamente ⚠️
+
+**Functions aún activas en `autentificacion.py`:**
+- `login()` - usada por `listar_campanias.py`
+- `manejar_popup_cookies()` - usada por ambos
+
+**Recomendación:**
+- `listar_campanias.py` debería migrar a usar `AuthFlow` para login
+
+### ✅ Boundary VERDE: Functions legacy documentadas
+
+**Marcadas con comentario LEGACY en `listar_campanias.py`:**
+
+| Función Legacy | Reemplazada por | Estado |
+|----------------|-----------------|--------|
+| `extraer_datos_campania_de_listitem` | `CampaignRow.extract_data()` | Commented + marked |
+| `navegar_siguiente_pagina_con_recuperacion` | `ReportsPage.navigate_to_next_page()` | Commented + marked |
+| `extraer_campanias_de_pagina` | `ReportsPage.get_valid_campaign_rows()` | Commented + marked |
+| `procesar_todas_las_paginas` | `ReportListingFlow.execute()` | Marked |
+| `_guardar_progreso_listado` | `ReportListingFlow._save_progress()` | Marked |
+| `guardar_datos_en_excel` | `CampaignReportExporter` | Commented + marked |
+
+## Verificación de Imports
+
+```bash
+# Verificar que no hay imports de Playwright fuera de infraestructura
+grep -r "from playwright" src/core/ src/presentation/ --include="*.py" 2>/dev/null || echo "✅ No violations"
+grep -r "from playwright" src/demo.py src/listar_campanias.py --include="*.py" 2>/dev/null
+# Estos archivos SON entrypoints de scraping, así que SÍ pueden importar Playwright
+
+# Verificar imports de utils
+grep -r "from \.utils import" src/ --include="*.py" 2>/dev/null | grep -v __pycache__ || echo "✅ No legacy imports"
+```
+
+## Conclusión
+
+**Status: ✅ BOUNDARIES VERIFICADOS**
+
+Los boundaries principales están respetados:
+1. Playwright contenido en `infrastructure/scraping/`
+2. Excel contenido en `infrastructure/excel/`
+3. Código legacy marcado y documentado para rollback
+
+**Pendiente (Scope futuro, NO de esta tarea):**
+- `listar_campanias.py` aún usa `login()` directamente en lugar de `AuthFlow`
+- `src/utils.py` deprecado cuando migración complete

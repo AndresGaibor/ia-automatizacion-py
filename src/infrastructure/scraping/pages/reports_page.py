@@ -6,7 +6,7 @@ y acceso a filas de campañas válidas.
 """
 
 import re
-from playwright.sync_api import Page, Locator
+from playwright.sync_api import Page, Locator, TimeoutError as PWTimeoutError
 from src.infrastructure.scraping.pages.base_page import BasePage
 from src.infrastructure.scraping.components.campaign_row import CampaignRow
 from src.infrastructure.scraping.utils.selectors import ReportPageSelectors
@@ -140,3 +140,42 @@ class ReportsPage(BasePage):
             pass
 
         return 15  # Default de Acumbamail
+
+    def extract_email_url_quick(self, campaign_id: int) -> str:
+        """Extrae la URL del correo de una campaña de forma ultra-rápida.
+
+        Navega sin esperar networkidle, apenas cargue extrae la URL del regex.
+
+        Args:
+            campaign_id: ID de la campaña
+
+        Returns:
+            URL del correo clickacm.com o string vacío si no se encuentra.
+        """
+        import re
+
+        try:
+            url = f"https://acumbamail.com/report/campaign/{campaign_id}/subscribers/"
+
+            self._page.goto(url, wait_until="commit", timeout=30000)
+
+            try:
+                email_link = self._page.get_by_text("Ver email").get_attribute("href", timeout=3000)
+                if email_link and "clickacm.com" in email_link:
+                    return email_link
+            except PWTimeoutError:
+                pass
+
+            try:
+                page_content = self._page.content()
+                pattern = r"(https://clickacm\.com/show/[a-zA-Z0-9-]+/)"
+                matches = re.findall(pattern, page_content)
+                if matches:
+                    return matches[0]
+            except Exception:
+                pass
+
+            return ""
+
+        except Exception:
+            return ""

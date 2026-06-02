@@ -564,13 +564,10 @@ def main(progress_callback: Optional[Callable[[str], None]] = None):
 		if informe_detalle:
 			logger.info(f"Se obtuvieron {len(informe_detalle)} listas, guardando en archivo...")
 			guardar_datos_en_excel(informe_detalle, ARCHIVO_BUSQUEDA)
-			# notify("Proceso finalizado", f"Listas obtenidas via API: {len(informe_detalle)}")
 			logger.info(f"🎉 Proceso finalizado exitosamente: {len(informe_detalle)} listas obtenidas y guardadas")
 			print(f"🎉 Proceso finalizado: Listas obtenidas via API: {len(informe_detalle)}")
 		else:
 			logger.warning("No se obtuvieron datos de listas")
-			print("No se obtuvieron datos de listas")
-			# notify("Proceso finalizado", "No se obtuvieron listas")
 			print("⚠️ Proceso finalizado: No se obtuvieron listas")
 
 		logger.print_performance_report()

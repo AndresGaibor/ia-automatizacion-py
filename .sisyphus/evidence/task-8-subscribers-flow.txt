@@ -1,0 +1,79 @@
+Task 8: Subscribers POM Flow Verification
+=======================================
+Date: 2026-04-07
+
+ARCHITECTURE SUMMARY
+-------------------
+New POM structure for subscribers (following tasks 5-7 patterns):
+
+pages/subscribers_page.py:
+  - SubscribersPage(BasePage)
+  - navigate_to_detail(campaign_id)  → /report/campaign/{id}/ + click "Detalles suscriptores"
+  - navigate_to_subscribers(campaign_id) → /report/campaign/{id}/subscribers/
+  - wait_for_table() → waits for ul with "Correo electrónico"
+  - extract_all_rows() → returns list[SubscriberRowComponent]
+  - get_total_pages() → delegates to legacy_utils.obtener_total_paginas
+  - navigate_to_next_page() → delegates to legacy_utils.navegar_siguiente_pagina
+
+components/filter_selector.py:
+  - FilterSelectorComponent
+  - select_filter(label) → #query-filter select_option
+  - select_hard_bounces() / select_no_abiertos() / select_abiertos()
+
+components/subscriber_row.py:
+  - SubscriberRowComponent
+  - is_valid_row() → checks email presence with "@"
+  - extract_table_data() → returns SubscriberTableData(correo, lista, estado, calidad)
+  - Encapsulates all nth() access for subscriber rows
+
+flows/subscribers_flow.py:
+  - SubscribersFlow
+  - extract_filter(campaign, campaign_id, filter_type, config) → SubscriberFilterResult
+  - extract_hard_bounces_and_no_abiertos(campaign, campaign_id, config) → CampaignSubscriberReport
+  - Uses ScrapingSession for tracking
+
+utils/selectors.py:
+  - Added SubscriberSelectors (frozen dataclass)
+  - Centralized selectors: filter_select, subscriber_table_ul, subscriber_row_li, field indices
+  - Filter index mapping (abiertos=0, hard_bounces=1, no_abiertos=5)
+
+SELECTOR MAPPING
+----------------
+| Old (suscriptores.py)     | New (SubscriberSelectors)           |
+|--------------------------|-------------------------------------|
+| "#query-filter"          | filter_select                       |
+| ul + "Correo electrónico"| subscriber_table_ul + header_text  |
+| "> li"                   | subscriber_row_li                   |
+| nth(0..3)                | field_*_index (encapsulated)        |
+| "Hard bounces"           | filter_option_hard_bounces          |
+| "No abiertos"            | filter_option_no_abiertos           |
+
+COMPONENT REUSE VERIFICATION
+----------------------------
+✅ SessionGuardComponent: Reused for session validation (from task 5)
+✅ ScrapingSession: Reused for extraction tracking (from auth_flow)
+✅ SubscriberTableData DTO: Reused (from models/suscriptores.py)
+✅ SubscriberScrapingData DTO: Reused (from models/suscriptores.py)
+✅ CampaignSubscriberReport DTO: Reused (from models/suscriptores.py)
+✅ SubscriberExtractionConfig: Reused (from models/suscriptores.py)
+
+BREAKING CHANGE: None
+- SubscribersScraper maintains same public API
+- All existing callers (hybrid_service.py) continue to work
+- Tests using src.scraping.endpoints.suscriptores will fail due to pre-existing wrong import path
+
+FILES CREATED:
+- src/infrastructure/scraping/pages/subscribers_page.py
+- src/infrastructure/scraping/components/filter_selector.py
+- src/infrastructure/scraping/components/subscriber_row.py
+- src/infrastructure/scraping/flows/subscribers_flow.py
+
+FILES MODIFIED:
+- src/infrastructure/scraping/utils/selectors.py (added SubscriberSelectors)
+- src/infrastructure/scraping/endpoints/suscriptores.py (refactored to delegate to POM)
+- src/infrastructure/scraping/components/__init__.py
+- src/infrastructure/scraping/pages/__init__.py
+- src/infrastructure/scraping/flows/__init__.py
+
+VERIFICATION: uv run python -m py_compile → PASS (all new and modified files)
+VERIFICATION: uv run python -c "import ..." → PASS (all modules load)

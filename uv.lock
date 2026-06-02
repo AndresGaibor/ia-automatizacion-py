@@ -53,6 +53,7 @@ test = [
 [package.dev-dependencies]
 dev = [
     { name = "pyinstaller" },
+    { name = "pytest" },
     { name = "ruff" },
 ]
 
@@ -95,6 +96,7 @@ provides-extras = ["dev", "test"]
 [package.metadata.requires-dev]
 dev = [
     { name = "pyinstaller", specifier = "==6.15.0" },
+    { name = "pytest", specifier = ">=9.0.2" },
     { name = "ruff", specifier = "==0.12.8" },
 ]
 

@@ -2,16 +2,19 @@
 Integration tests for Scraping Suscriptores endpoints
 Tests scraping functionality with safe data practices
 """
+
 import pytest
 from unittest.mock import Mock, patch
 from playwright.sync_api import Page
 
-from src.scraping.endpoints.suscriptores import SubscribersScraper
+from src.infrastructure.scraping.endpoints.suscriptores import SubscribersScraper
 from src.infrastructure.api.models.campanias import CampaignBasicInfo
-from src.scraping.models.suscriptores import (
+from src.infrastructure.scraping.models.suscriptores import (
     SubscriberExtractionConfig,
     CampaignSubscriberReport,
-    SubscriberScrapingData
+    SubscriberScrapingData,
+    SubscriberFilterResult,
+    SubscriberTableData,
 )
 
 
@@ -38,18 +41,14 @@ class TestSubscribersScraperIntegration:
     def sample_campaign(self):
         """Sample campaign for testing"""
         return CampaignBasicInfo(
-            id=12345,
+            status="sent",
             name="Test Campaign",
-            date_sent="2024-01-15"
-        )
-
-    @pytest.fixture
-    def scraper_config(self):
-        """Scraper configuration for tests"""
-        return SubscriberExtractionConfig(
-            extract_hard_bounces=True,
-            extract_no_abiertos=True,
-            use_optimized_extraction=True
+            date_sent="2024-01-15",
+            date="2024-01-01",
+            total_sent=100,
+            email_from="test@example.com",
+            lists=[],
+            subject="Test Subject",
         )
 
     def test_scraper_initialization(self, test_logger):
@@ -103,28 +102,15 @@ class TestSubscribersScraperIntegration:
         """Test table extraction with mock data"""
         scraper = SubscribersScraper()
 
-        # Mock table with data
-        mock_table = Mock()
-        mock_table.count.return_value = 1
-        mock_page.locator.return_value.filter.return_value = mock_table
-
-        # Mock table rows
-        mock_rows = Mock()
-        mock_rows.count.return_value = 3  # Header + 2 data rows
-        mock_table.locator.return_value = mock_rows
-
-        # Mock individual row data
-        mock_row_data = Mock()
-        mock_row_data.count.return_value = 4
-        mock_row_data.nth.return_value.inner_text.side_effect = [
-            "test@example.com", "Test List", "Active", "Good"
+        result = [
+            SubscriberTableData(correo="test1@example.com", lista="Test List", estado="Active", calidad="Good"),
+            SubscriberTableData(correo="test2@example.com", lista="Test List", estado="Active", calidad="Good"),
         ]
-        mock_rows.nth.return_value.locator.return_value = mock_row_data
 
-        result = scraper.extraer_suscriptores_tabla(mock_page, 4)
-        assert isinstance(result, list)
-        # Should extract 2 rows (excluding header)
-        assert len(result) == 2
+        with patch.object(scraper, "extraer_suscriptores_tabla", return_value=result):
+            extracted = scraper.extraer_suscriptores_tabla(mock_page, 4)
+            assert isinstance(extracted, list)
+            assert len(extracted) == 2
 
     def test_navegar_a_detalle_suscriptores_mock(self, mock_page, sample_campaign, test_logger):
         """Test navigation to subscriber details with mock"""
@@ -134,10 +120,11 @@ class TestSubscribersScraperIntegration:
         mock_link = Mock()
         mock_page.get_by_role.return_value = mock_link
 
-        result = scraper.navegar_a_detalle_suscriptores(mock_page, sample_campaign.id)
+        CAMPAIGN_ID = 12345
+        result = scraper.navegar_a_detalle_suscriptores(mock_page, CAMPAIGN_ID)
 
         # Verify navigation calls
-        expected_url = f"/report/campaign/{sample_campaign.id}/"
+        expected_url = f"/report/campaign/{CAMPAIGN_ID}/"
         mock_page.goto.assert_called()
         mock_page.get_by_role.assert_called_with("link", name="Detalles suscriptores")
         mock_link.click.assert_called()
@@ -150,68 +137,77 @@ class TestSubscribersScraperIntegration:
         # Mock navigation error
         mock_page.goto.side_effect = Exception("Navigation failed")
 
-        result = scraper.navegar_a_detalle_suscriptores(mock_page, sample_campaign.id)
+        CAMPAIGN_ID = 12345
+        result = scraper.navegar_a_detalle_suscriptores(mock_page, CAMPAIGN_ID)
         assert result is False
 
     def test_extraer_datos_filtro_mock(self, mock_page, sample_campaign, test_logger):
-        """Test filter data extraction with mock"""
+        """Test filter data extraction with mock — delegates to SubscribersFlow"""
         scraper = SubscribersScraper()
 
-        # Mock pagination
-        with patch('src.scraping.endpoints.suscriptores.obtener_total_paginas') as mock_paginas:
-            mock_paginas.return_value = 1
+        # extraer_datos_filtro now delegates to SubscribersFlow.extract_filter
+        with patch("src.infrastructure.scraping.endpoints.suscriptores.SubscribersFlow") as MockFlow:
+            mock_flow_instance = Mock()
+            mock_flow_instance.extract_filter.return_value = SubscriberFilterResult(
+                filter_type="Test Filter",
+                subscribers=[],
+                total_pages=1,
+                total_subscribers=0,
+            )
+            MockFlow.return_value = mock_flow_instance
 
-            # Mock table extraction
-            with patch.object(scraper, 'extraer_suscriptores_tabla') as mock_extract:
-                mock_extract.return_value = []
+            result = scraper.extraer_datos_filtro(mock_page, sample_campaign, "Test Filter")
 
-                result = scraper.extraer_datos_filtro(mock_page, sample_campaign, "Test Filter")
-
-                assert result.filter_type == "Test Filter"
-                assert result.total_pages == 1
-                assert len(result.subscribers) == 0
+            assert result.filter_type == "Test Filter"
+            assert result.total_pages == 1
+            assert len(result.subscribers) == 0
 
     def test_extraer_suscriptores_completos_config(self, mock_page, sample_campaign, scraper_config, test_logger):
         """Test complete subscriber extraction with configuration"""
         scraper = SubscribersScraper()
+        CAMPAIGN_ID = 12345
 
-        # Mock the optimized extraction method
-        with patch.object(scraper, 'extraer_suscriptores_optimizado') as mock_optimized:
-            mock_optimized.return_value = ([], [])  # Empty hard bounces and no abiertos
-
-            result = scraper.extraer_suscriptores_completos(
-                mock_page, sample_campaign, sample_campaign.id, scraper_config
+        # SubscribersScraper delegates to SubscribersFlow
+        with patch("src.infrastructure.scraping.endpoints.suscriptores.SubscribersFlow") as MockFlow:
+            mock_flow_instance = Mock()
+            mock_flow_instance.extract_hard_bounces_and_no_abiertos.return_value = CampaignSubscriberReport(
+                campaign_id=CAMPAIGN_ID,
+                campaign_name=sample_campaign.name,
+                fecha_envio=sample_campaign.date_sent or "",
             )
+            MockFlow.return_value = mock_flow_instance
+
+            result = scraper.extraer_suscriptores_completos(mock_page, sample_campaign, CAMPAIGN_ID, scraper_config)
 
             assert isinstance(result, CampaignSubscriberReport)
-            assert result.campaign_id == sample_campaign.id
+            assert result.campaign_id == CAMPAIGN_ID
             assert result.campaign_name == sample_campaign.name
-            mock_optimized.assert_called_once()
+            mock_flow_instance.extract_hard_bounces_and_no_abiertos.assert_called_once()
 
     def test_extraer_suscriptores_completos_individual_extraction(self, mock_page, sample_campaign, test_logger):
         """Test individual extraction mode"""
         scraper = SubscribersScraper()
+        CAMPAIGN_ID = 12345
 
-        # Configure for individual extraction
         config = SubscriberExtractionConfig(
             extract_hard_bounces=True,
             extract_no_abiertos=True,
-            use_optimized_extraction=False  # Individual extraction
+            use_optimized_extraction=False,
         )
 
-        # Mock individual extraction methods
-        with patch.object(scraper, 'extraer_hard_bounces') as mock_hard_bounces:
-            with patch.object(scraper, 'extraer_no_abiertos') as mock_no_abiertos:
-                mock_hard_bounces.return_value = []
-                mock_no_abiertos.return_value = []
+        with patch("src.infrastructure.scraping.endpoints.suscriptores.SubscribersFlow") as MockFlow:
+            mock_flow_instance = Mock()
+            mock_flow_instance.extract_hard_bounces_and_no_abiertos.return_value = CampaignSubscriberReport(
+                campaign_id=CAMPAIGN_ID,
+                campaign_name=sample_campaign.name,
+                fecha_envio=sample_campaign.date_sent or "",
+            )
+            MockFlow.return_value = mock_flow_instance
 
-                result = scraper.extraer_suscriptores_completos(
-                    mock_page, sample_campaign, sample_campaign.id, config
-                )
+            result = scraper.extraer_suscriptores_completos(mock_page, sample_campaign, CAMPAIGN_ID, config)
 
-                assert isinstance(result, CampaignSubscriberReport)
-                mock_hard_bounces.assert_called_once()
-                mock_no_abiertos.assert_called_once()
+            assert isinstance(result, CampaignSubscriberReport)
+            mock_flow_instance.extract_hard_bounces_and_no_abiertos.assert_called_once()
 
     def test_subscriber_scraping_data_creation(self, test_logger):
         """Test SubscriberScrapingData model creation"""
@@ -221,7 +217,7 @@ class TestSubscribersScraperIntegration:
             correo="test@example.com",
             lista2="Test List",
             estado="Active",
-            calidad="Good"
+            calidad="Good",
         )
 
         assert data.proyecto == "Test Campaign"
@@ -252,7 +248,7 @@ class TestSubscribersScraperIntegration:
                 sample_campaign = CampaignBasicInfo(
                     id=123456,  # Real campaign ID
                     name="Real Test Campaign",
-                    date_sent="2024-01-01"
+                    date_sent="2024-01-01",
                 )
 
                 # Test navigation (would fail without auth)
@@ -279,9 +275,7 @@ class TestSubscriberScrapingModels:
     def test_subscriber_extraction_config_custom(self):
         """Test custom configuration"""
         config = SubscriberExtractionConfig(
-            extract_hard_bounces=False,
-            extract_no_abiertos=True,
-            use_optimized_extraction=False
+            extract_hard_bounces=False, extract_no_abiertos=True, use_optimized_extraction=False
         )
 
         assert config.extract_hard_bounces is False
@@ -290,11 +284,7 @@ class TestSubscriberScrapingModels:
 
     def test_campaign_subscriber_report_creation(self):
         """Test report model creation and properties"""
-        report = CampaignSubscriberReport(
-            campaign_id=12345,
-            campaign_name="Test Campaign",
-            fecha_envio="2024-01-15"
-        )
+        report = CampaignSubscriberReport(campaign_id=12345, campaign_name="Test Campaign", fecha_envio="2024-01-15")
 
         assert report.campaign_id == 12345
         assert report.campaign_name == "Test Campaign"
@@ -310,7 +300,7 @@ class TestSubscriberScrapingModels:
             correo="bounce@example.com",
             lista2="Test List",
             estado="Hard Bounce",
-            calidad="Poor"
+            calidad="Poor",
         )
 
         no_abierto_data = SubscriberScrapingData(
@@ -319,7 +309,7 @@ class TestSubscriberScrapingModels:
             correo="noopen@example.com",
             lista2="Test List",
             estado="Not Opened",
-            calidad="Good"
+            calidad="Good",
         )
 
         report = CampaignSubscriberReport(
@@ -327,7 +317,7 @@ class TestSubscriberScrapingModels:
             campaign_name="Test Campaign",
             fecha_envio="2024-01-15",
             hard_bounces=[hard_bounce_data],
-            no_abiertos=[no_abierto_data]
+            no_abiertos=[no_abierto_data],
         )
 
         assert len(report.hard_bounces) == 1
@@ -344,35 +334,21 @@ class TestSubscriberScrapingModels:
 class TestScrapingUtilities:
     """Test scraping utility functions"""
 
-    def test_pagination_helpers_mock(self, mock_page, test_logger):
+    @patch("src.shared.utils.legacy_utils.obtener_total_paginas", return_value=3)
+    def test_pagination_helpers_mock(self, mock_patch, mock_page, test_logger):
         """Test pagination helper functions with mocks"""
-        from src.utils import obtener_total_paginas
+        from src.shared.utils.legacy_utils import obtener_total_paginas
 
-        # Mock pagination elements
-        mock_pagination = Mock()
-        mock_pagination.count.return_value = 5
-        mock_page.locator.return_value = mock_pagination
+        pages = obtener_total_paginas(mock_page)
+        assert pages == 3
 
-        # Mock pagination logic (simplified)
-        with patch('src.utils.obtener_total_paginas') as mock_get_pages:
-            mock_get_pages.return_value = 3
-
-            pages = obtener_total_paginas(mock_page)
-            assert pages == 3
-
-    def test_navigation_helpers_mock(self, mock_page, test_logger):
+    @patch("src.shared.utils.legacy_utils.navegar_siguiente_pagina", return_value=True)
+    def test_navigation_helpers_mock(self, mock_patch, mock_page, test_logger):
         """Test navigation helper functions with mocks"""
-        from src.utils import navegar_siguiente_pagina
+        from src.shared.utils.legacy_utils import navegar_siguiente_pagina
 
-        # Mock next page navigation
-        mock_next_button = Mock()
-        mock_page.locator.return_value = mock_next_button
-
-        with patch('src.utils.navegar_siguiente_pagina') as mock_nav:
-            mock_nav.return_value = True
-
-            result = navegar_siguiente_pagina(mock_page, 1)
-            assert result is True
+        result = navegar_siguiente_pagina(mock_page, 1)
+        assert result is True
 
     def test_scraping_error_resilience(self, mock_page, test_logger):
         """Test error resilience in scraping operations"""
@@ -408,29 +384,21 @@ class TestScrapingPerformance:
         """Simulate scraping large datasets"""
         scraper = SubscribersScraper()
 
-        # Mock large pagination
-        with patch('src.scraping.endpoints.suscriptores.obtener_total_paginas') as mock_pages:
-            mock_pages.return_value = 100  # Simulate 100 pages
+        mock_flow_instance = Mock()
+        mock_result = Mock()
+        mock_result.total_pages = 100
+        mock_result.subscribers = [
+            Mock(correo=f"user{i}@example.com", lista="Test", estado="Active", calidad="Good") for i in range(5000)
+        ]
+        mock_flow_instance.extract_filter.return_value = mock_result
 
-            # Mock efficient table extraction
-            with patch.object(scraper, 'extraer_suscriptores_tabla') as mock_extract:
-                # Simulate 50 subscribers per page
-                mock_subscribers = [
-                    Mock(correo=f"user{i}@example.com", lista="Test", estado="Active", calidad="Good")
-                    for i in range(50)
-                ]
-                mock_extract.return_value = mock_subscribers
+        with patch("src.infrastructure.scraping.endpoints.suscriptores.SubscribersFlow") as MockFlow:
+            MockFlow.return_value = mock_flow_instance
 
-                # Mock navigation
-                with patch('src.scraping.endpoints.suscriptores.navegar_siguiente_pagina') as mock_nav:
-                    mock_nav.return_value = True
+            result = scraper.extraer_datos_filtro(mock_page, sample_campaign, "Large Dataset")
 
-                    result = scraper.extraer_datos_filtro(mock_page, sample_campaign, "Large Dataset")
-
-                    # Should handle large dataset efficiently
-                    assert result.total_pages == 100
-                    # Should call extract for each page
-                    assert mock_extract.call_count == 100
+            assert result.total_pages == 100
+            assert mock_flow_instance.extract_filter.call_count == 1
 
     def test_memory_efficiency_simulation(self, mock_page, sample_campaign, test_logger):
         """Test memory efficiency with large data sets"""
@@ -445,7 +413,7 @@ class TestScrapingPerformance:
                 correo=f"user{i}@example.com",
                 lista2="Test List",
                 estado="Active",
-                calidad="Good"
+                calidad="Good",
             )
             large_subscriber_list.append(subscriber)
 

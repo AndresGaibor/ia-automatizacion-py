@@ -1,0 +1,55 @@
+=== Task 6: Reports Listing POM Migration Evidence ===
+Date: 2026-04-07
+
+## Files Created
+1. src/infrastructure/scraping/components/campaign_row.py
+   - CampaignRow class: extracción single row con is_valid_row() + extract_data()
+   - Cálculo no_abierto = int(total_enviado) - int(abierto) sin clamping
+   - Regex validación: \d{2}/\d{2}/\d{2}, números finales, len>30, saltos<=3
+
+2. src/infrastructure/scraping/pages/reports_page.py
+   - ReportsPage(BasePage): paginación completa
+   - optimize_items_per_page(): máximo items (200)
+   - get_total_pages(): desde "de X elementos" con fallback a navegación
+   - get_valid_campaign_rows(): retorna list[CampaignRow] filtrados
+   - navigate_to_next_page(): navegación incremental con recovery
+
+3. src/infrastructure/scraping/flows/report_listing_flow.py
+   - ReportListingFlow: orquestación multi-página
+   - Deduplicación global con set de IDs
+   - Progreso incremental (batch_size default 10)
+   - Recovery desde Excel existente
+
+## Files Modified
+1. src/listar_campanias.py
+   - Import: usa ReportListingFlow en lugar de procesar_todas_las_paginas()
+   - main(): flow = ReportListingFlow(page, batch_size=BATCH_SIZE); informe = flow.execute()
+   - Funciones legacy mantenidas comentadas para rollback
+
+2. src/infrastructure/scraping/pages/__init__.py
+   - ReportsPage ahora importado desde reports_page.py (no login_page.py)
+
+3. src/infrastructure/scraping/pages/login_page.py
+   - Eliminada clase ReportsPage (movida a reports_page.py)
+
+4. src/infrastructure/scraping/components/__init__.py
+   - Agregado CampaignRow
+
+5. src/infrastructure/scraping/flows/__init__.py
+   - Agregado ReportListingFlow
+
+6. src/infrastructure/scraping/flows/auth_flow.py
+   - Fix import: ReportsPage importado desde reports_page.py
+
+## Verification
+- py_compile: TODOS los módulos compilan sin error
+- Smoke import: CampaignRow, ReportsPage, ReportListingFlow, listar_campanias OK
+- Formato output Excel: lista de listas con 8 elementos ["", nombre, id, fecha, total_enviado, abierto, no_abierto, url]
+
+## Behavior Preserved
+- Cálculo no_abierto sin clamping (puede ser negativo)
+- Regex filtrado idéntico al legacy
+- Deduplicación local + global con set de IDs
+- Optimización 200 items/página
+- Progreso cada batch_size campañas
+- Navegación con wait_for_load_state('domcontentloaded') + timeout

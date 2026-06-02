@@ -1,0 +1,110 @@
+# Task 10 - Evidence: Cleanup Scope
+
+## Date: 2026-04-07
+
+## Objetivo
+Documentar qué fue limpiado y qué NO fue tocado en esta tarea.
+
+## Scope de Limpieza (ESTA TAREA)
+
+### ✅ REALIZADO
+
+1. **Imports en `listar_campanias.py`:**
+   - Cambiado: `.utils` → `shared.utils.legacy_utils`
+   - Consolidado: imports duplicados en un solo bloque
+
+   ```python
+   # ANTES (antes de esta tarea)
+   from .shared.utils.legacy_utils import data_path
+   from .utils import (
+       crear_contexto_navegador,
+       configurar_navegador,
+       navegar_a_reportes,
+   )
+   from .shared.utils.legacy_utils import is_on_login_page
+   
+   # DESPUÉS
+   from .shared.utils.legacy_utils import (
+       data_path,
+       crear_contexto_navegador,
+       configurar_navegador,
+       navegar_a_reportes,
+       is_on_login_page,
+   )
+   ```
+
+2. **Marcado LEGACY de funciones duplicadas:**
+   - `extraer_datos_campania_de_listitem` → reemplazada por `CampaignRow`
+   - `navegar_siguiente_pagina_con_recuperacion` → reemplazada por `ReportsPage`
+   - `extraer_campanias_de_pagina` → reemplazada por `ReportsPage.get_valid_campaign_rows()`
+   - `procesar_todas_las_paginas` → reemplazada por `ReportListingFlow`
+   - `_guardar_progreso_listado` → reemplazada por `ReportListingFlow._save_progress()`
+   - `guardar_datos_en_excel` → reemplazada por `CampaignReportExporter`
+
+3. **Verificación de compilación:**
+   - `listar_campanias.py` ✅ Compila
+   - `demo.py` ✅ Compila
+
+## ❌ NO TOCADO (Scope futuro)
+
+### 1. `src/utils.py` (RAÍZ)
+- **NO eliminado** - aún contiene funciones que pueden ser usadas
+- **NO modificado** - mantener para backward compatibility temporal
+- **Futuro:** Deprecado cuando todos los entrypoints migren a `shared.utils.legacy_utils`
+
+### 2. `src/autentificacion.py`
+- **NO modificado** - `login()` y `manejar_popup_cookies()` aún activos
+- **Uso actual:** `listar_campanias.py` los importa directamente
+- **Futuro:** `listar_campanias.py` debería usar `AuthFlow` en lugar de `login()`
+
+### 3. `src/demo.py`
+- **NO modificado** - ya estaba migrado correctamente
+- **Imports:** Ya usa `shared.utils.legacy_utils`, `AuthenticationService`, `HybridDataService`
+- **Estado:** 85% migrado (excel_utils aún directo, pero funcional)
+
+### 4. GUI (`app.py`, `src/presentation/`)
+- **NO modificado** - fuera de scope de esta tarea
+- **Razón:** Tarea se enfoca en flujos de scraping (demo.py, listar_campanias.py)
+
+### 5. API Layer (`src/infrastructure/api/`)
+- **NO modificado** - funciona independientemente
+- **Razón:** Ya estaba bien estructurado
+
+### 6. Tests
+- **NO modificados** - 42 tests siguen pasando
+- **Razón:** Verificación independiente de esta tarea
+
+## Rollback-Friendly
+
+El cleanup fue **conservador** - solo se marcaron funciones legacy con comentarios `REEMPLAZADO POR:` y `LEGACY`:
+
+```python
+# REEMPLAZADO POR: CampaignRow.extract_data()
+def extraer_datos_campania_de_listitem(...):
+    # Código legacy intacto para rollback
+```
+
+**Para rollback completo:**
+1. Desmarcar funciones LEGACY
+2. Restaurar imports de `.utils`
+3. main() puede usar `procesar_todas_las_paginas()` en lugar de `ReportListingFlow`
+
+## Decisiones de Diseño
+
+| Decisión | Justificación |
+|----------|---------------|
+| NO eliminar código legacy | Mantener rollback-friendly |
+| Marcado con comentarios | Claridad para otros devs |
+| NO migrar listar_campanias.py completamente | main() ya usa POM para Fase 1, solo queda duplicación de helpers |
+| Consolidar imports no eliminar .utils.py | backward compatibility temporal |
+
+## Verificación Final
+
+```bash
+# Compilación exitosa
+uv run python -m py_compile src/listar_campanias.py  # ✅
+uv run python -m py_compile src/demo.py              # ✅
+
+# Tests intactos
+uv run pytest tests/ -v --tb=short 2>&1 | tail -20
+```

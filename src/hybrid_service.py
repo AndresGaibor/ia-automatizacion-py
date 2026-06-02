@@ -2,9 +2,8 @@
 Servicio híbrido que combina API y scraping para obtener datos completos
 """
 from playwright.sync_api import Page
-from typing import List, Dict, Any, Optional
+from typing import Dict, Any, Optional
 from datetime import datetime
-import uuid
 from pathlib import Path
 import sys
 
@@ -18,8 +17,7 @@ from .infrastructure.api.models.campanias import CampaignBasicInfo
 from .shared.utils.legacy_utils import is_on_login_page
 from .scrapping import (
     SubscriberDetailsService,
-    ScrapingResult,
-    ScrapingSession
+    ScrapingResult
 )
 from .shared.logging.logger import get_logger
 from .shared.utils.retry_utils import retry_with_backoff, is_connection_error
@@ -282,175 +280,6 @@ class HybridDataService:
         # Si llegamos aquí, se agotaron los reintentos
         self.logger.error(f"❌ No se pudo extraer datos de scraping para campaña {campaign_id} después de {max_retries} intentos")
         return None
-
-    def process_multiple_campaigns(self, campaign_ids: List[int]) -> ScrapingSession:
-        """
-        Procesa múltiples campañas y retorna una sesión completa
-        """
-        session = ScrapingSession(
-            session_id=f"hybrid_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
-        )
-
-        try:
-            self.logger.start_timer("process_multiple_campaigns")
-
-            for campaign_id in campaign_ids:
-                try:
-                    # Obtener datos completos para cada campaña
-                    complete_data = self.get_complete_campaign_data(campaign_id)
-
-                    # Agregar resultado a la sesión
-                    if complete_data and complete_data.get("scraping_result"):
-                        session.add_campaign_result(complete_data["scraping_result"])
-
-                except Exception as e:
-                    error_msg = f"Error procesando campaña {campaign_id}: {e}"
-                    self.logger.error(error_msg)
-                    # Continuar con la siguiente campaña
-
-            # Finalizar sesión
-            session.finish_session()
-
-            self.logger.end_timer("process_multiple_campaigns",
-                                f"Processed {len(campaign_ids)} campaigns, Success rate: {session.success_rate:.1f}%")
-
-            return session
-
-        except Exception as e:
-            self.logger.error(f"Error en procesamiento múltiple: {e}")
-            session.finish_session()
-            return session
-
-    def get_api_only_data(self, campaign_id: int) -> Dict[str, Any]:
-        """
-        Obtiene solo datos de API (más rápido, para cuando no se necesita scraping)
-        """
-        try:
-            self.logger.start_timer("get_api_only_data")
-
-            campaign_basic = self.api.campaigns.get_basic_info(campaign_id)
-            campaign_detailed = self.api.campaigns.get_total_info(campaign_id)
-            campaign_clicks = self.api.campaigns.get_clicks(campaign_id)
-            campaign_openers = self.api.campaigns.get_openers(campaign_id)
-            campaign_soft_bounces = self.api.campaigns.get_soft_bounces(campaign_id)
-            all_lists = self.api.suscriptores.get_lists()
-
-            data = {
-                "campaign_basic": campaign_basic,
-                "campaign_detailed": campaign_detailed,
-                "clicks": campaign_clicks,
-                "openers": campaign_openers,
-                "soft_bounces": campaign_soft_bounces,
-                "lists": all_lists,
-                "data_sources": {"api": True, "scraping": False},
-                "extraction_timestamp": datetime.now()
-            }
-
-            self.logger.end_timer("get_api_only_data", f"Campaign {campaign_id}")
-            return data
-
-        except Exception as e:
-            error_msg = f"Error obteniendo datos de API para campaña {campaign_id}: {e}"
-            self.logger.error(error_msg)
-            raise
-
-    def get_availability_status(self) -> Dict[str, bool]:
-        """
-        Retorna el estado de disponibilidad de los servicios
-        """
-        status = {
-            "api_available": False,
-            "scraping_available": False
-        }
-
-        try:
-            # Probar API
-            self.api.campaigns.get_campaigns()
-            status["api_available"] = True
-        except:
-            pass
-
-        try:
-            # Probar scraping
-            if self.scraping_service:
-                status["scraping_available"] = True
-        except:
-            pass
-
-        return status
-
-    def set_scraping_page(self, page: Page):
-        """
-        Configura la página de Playwright para scraping
-        """
-        self.scraping_service = SubscriberDetailsService(page)
-
-    def generate_data_summary(self, campaign_data: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Genera un resumen de los datos obtenidos
-        """
-        summary = {
-            "campaign_id": None,
-            "campaign_name": "",
-            "data_sources_used": [],
-            "totals": {
-                "emails_sent": 0,
-                "opens": 0,
-                "clicks": 0,
-                "soft_bounces": 0,
-                "hard_bounces": 0,
-                "no_opens": 0
-            },
-            "rates": {
-                "open_rate": 0.0,
-                "click_rate": 0.0,
-                "bounce_rate": 0.0
-            }
-        }
-
-        try:
-            # Información básica
-            if campaign_data.get("campaign_basic"):
-                basic = campaign_data["campaign_basic"]
-                summary["campaign_id"] = getattr(basic, 'id', None)
-                summary["campaign_name"] = getattr(basic, 'name', '')
-
-            # Información detallada
-            if campaign_data.get("campaign_detailed"):
-                detailed = campaign_data["campaign_detailed"]
-                summary["totals"]["emails_sent"] = getattr(detailed, 'total_delivered', 0)
-                summary["totals"]["opens"] = getattr(detailed, 'opened', 0)
-                summary["totals"]["soft_bounces"] = getattr(detailed, 'soft_bounces', 0)
-
-            # Clics
-            if campaign_data.get("clicks"):
-                summary["totals"]["clicks"] = len(campaign_data["clicks"])
-
-            # Datos de scraping
-            if campaign_data.get("scraping_result"):
-                scraping = campaign_data["scraping_result"]
-                summary["totals"]["hard_bounces"] = len(getattr(scraping, 'hard_bounces', []))
-                summary["totals"]["no_opens"] = len(getattr(scraping, 'no_opens', []))
-
-            # Calcular tasas
-            emails_sent = summary["totals"]["emails_sent"]
-            if emails_sent > 0:
-                summary["rates"]["open_rate"] = (summary["totals"]["opens"] / emails_sent) * 100
-                summary["rates"]["click_rate"] = (summary["totals"]["clicks"] / emails_sent) * 100
-                total_bounces = summary["totals"]["soft_bounces"] + summary["totals"]["hard_bounces"]
-                summary["rates"]["bounce_rate"] = (total_bounces / emails_sent) * 100
-
-            # Fuentes de datos utilizadas
-            data_sources = campaign_data.get("data_sources", {})
-            if data_sources.get("api"):
-                summary["data_sources_used"].append("API")
-            if data_sources.get("scraping"):
-                summary["data_sources_used"].append("Scraping")
-
-        except Exception as e:
-            self.logger.error(f"Error generando resumen: {e}")
-
-        return summary
 
     def validate_scraping_data(self, campaign_id: int) -> Dict[str, Any]:
         """

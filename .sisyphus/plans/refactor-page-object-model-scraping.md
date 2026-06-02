@@ -250,7 +250,7 @@ Wave 3: subscribers migration + legacy cleanup + regression stabilization
 
   **Commit**: YES | Message: `refactor(scraping): add pom base dto and export boundaries` | Files: `src/infrastructure/scraping/acumbamail/**`, `src/core/scraping/**`, `src/infrastructure/export/**`
 
-- [ ] 5. Migrate authentication and shared navigation to POM
+- [x] 5. Migrate authentication and shared navigation to POM
 
   **What to do**: Extraer `LoginPage` y shared navigation (`ReportsPage`/`NavigationComponent`) desde `autentificacion.py` y `utils.py`. La nueva capa debe manejar login, sesión persistente, cookies y entrada a reports sin que el script orquestador conozca selectores.
   **Must NOT do**: No cambiar reglas de autenticación ni heurísticas de verificación de sesión salvo encapsularlas.
@@ -289,7 +289,7 @@ Wave 3: subscribers migration + legacy cleanup + regression stabilization
 
   **Commit**: YES | Message: `refactor(auth): migrate login and shared navigation to pom` | Files: `src/infrastructure/scraping/acumbamail/pages/login_page.py`, `src/infrastructure/scraping/acumbamail/components/**`, `src/core/**`
 
-- [ ] 6. Migrate reports listing flow to ReportsPage plus CampaignRow component
+- [x] 6. Migrate reports listing flow to ReportsPage plus CampaignRow component
 
   **What to do**: Mover la lógica de listados de campañas, detección de filas válidas, extracción de métricas, paginación y deduplicación hacia `ReportsPage`, `CampaignRow` y una action/flow específica. `listar_campanias.py` debe quedar como bootstrap + call a service/action + export.
   **Must NOT do**: No alterar columnas de salida, no cambiar el cálculo `No abierto`, no introducir estadística nueva.
@@ -330,7 +330,7 @@ Wave 3: subscribers migration + legacy cleanup + regression stabilization
 
   **Commit**: YES | Message: `refactor(reports): migrate campaigns listing to pom` | Files: `src/listar_campanias.py`, `src/infrastructure/scraping/acumbamail/pages/reports_page.py`, `src/infrastructure/scraping/acumbamail/components/campaign_row.py`
 
-- [ ] 7. Move Excel output to dedicated writer and simplify entrypoint
+- [x] 7. Move Excel output to dedicated writer and simplify entrypoint
 
   **What to do**: Reemplazar `guardar_datos_en_excel()` como detalle local por un writer dedicado que reciba DTOs o filas serializadas desde core. Dejar `listar_campanias.py` limpio: setup → service/action → writer → notify.
   **Must NOT do**: No cambiar nombre/ubicación del archivo objetivo ni formato final esperado.
@@ -368,7 +368,7 @@ Wave 3: subscribers migration + legacy cleanup + regression stabilization
 
   **Commit**: YES | Message: `refactor(export): extract campaigns excel writer` | Files: `src/infrastructure/export/**`, `src/listar_campanias.py`
 
-- [ ] 8. Introduce subscribers POM and reusable filter/pagination components
+- [x] 8. Introduce subscribers POM and reusable filter/pagination components
 
   **What to do**: Aplicar el mismo patrón a subscribers: `SubscribersPage`, `FiltersComponent`, `PaginationComponent`, actions/flows para extracción de no abiertos/hard bounces y detalle de suscriptores. Reusar componentes comunes si ya existen de verdad.
   **Must NOT do**: No construir una abstracción genérica de tabla si solo tiene un caso; no tocar endpoints API.

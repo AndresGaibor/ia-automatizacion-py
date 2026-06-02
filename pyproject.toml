@@ -91,6 +91,7 @@ exclude = [
 dev = [
     "ruff==0.12.8",
     "pyinstaller==6.15.0",
+    "pytest>=9.0.2",
 ]
 
 [tool.ruff]

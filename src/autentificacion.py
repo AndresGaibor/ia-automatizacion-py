@@ -58,7 +58,7 @@ def login(page: Page, context: BrowserContext):
         logger.error(f"❌ Error conectando a Acumbamail: {e}", url=url, error=str(e))
         raise
 
-    if f"{url_base}/" != page.url:
+    if f"{url_base}/" != login_page.url:
         logger.info("🔍 Verificando que la sesión existente sea válida...")
         if login_page.is_logged_in():
             logger.success("✅ Sesión existente verificada correctamente")
@@ -94,7 +94,7 @@ def login(page: Page, context: BrowserContext):
     logger.success("✅ Sesión estabilizada")
 
     if not login_page.is_logged_in():
-        logger.error("❌ Login no pudo ser verificado exitosamente", url=page.url)
+        logger.error("❌ Login no pudo ser verificado exitosamente", url=login_page.url)
         raise AuthenticationFailedError("Login completado pero verificación falló")
 
     logger.info("💾 Guardando estado de sesión verificado...")

@@ -31,42 +31,7 @@ BATCH_SIZE = 10
 logger = get_logger()
 
 
-def extraer_url_correo_rapido(page: Page, campaign_id: int) -> str:
-    """
-    Extrae la URL del correo de una campaña de forma ultra-rápida.
-    Navega sin esperar networkidle, apenas cargue extrae la URL del regex.
-    """
-    import re
-    from playwright.sync_api import TimeoutError as PWTimeoutError
 
-    try:
-        url = f"https://acumbamail.com/report/campaign/{campaign_id}/subscribers/"
-
-        # Navegar sin esperar a que todo cargue (commit = apenas responde el servidor)
-        page.goto(url, wait_until="commit", timeout=30000)
-
-        # Esperar solo a que el botón "Ver email" aparezca (no esperar toda la página)
-        try:
-            email_link = page.get_by_text("Ver email").get_attribute("href", timeout=3000)
-            if email_link and "clickacm.com" in email_link:
-                return email_link
-        except PWTimeoutError:
-            pass
-
-        # Fallback: buscar URL de clickacm.com directamente en el HTML crudo
-        try:
-            page_content = page.content()
-            pattern = r"(https://clickacm\.com/show/[a-zA-Z0-9-]+/)"
-            matches = re.findall(pattern, page_content)
-            if matches:
-                return matches[0]
-        except Exception:
-            pass
-
-        return ""
-
-    except Exception:
-        return ""
 
 
 def leer_urls_faltantes_del_excel() -> tuple[list[list[str]], int]:
@@ -228,7 +193,8 @@ def extraer_urls_de_campanias(page: Page, campanias: list[list[str]], batch_size
         try:
             logger.info(f"📧 [{i + 1}/{total_campanias}] Extrayendo URL de '{campania[1]}' (ID: {id_campania})")
 
-            url_correo = extraer_url_correo_rapido(page, int(id_campania))
+            reports_page = ReportsPage(page)
+            url_correo = reports_page.extract_email_url_quick(int(id_campania))
 
             if url_correo:
                 logger.success(f"✅ URL encontrada: {url_correo}")

@@ -1,6 +1,7 @@
 """
 Pytest configuration and shared fixtures for integration tests
 """
+
 import pytest
 import os
 import tempfile
@@ -54,7 +55,7 @@ def test_data_manager():
 
         def create_test_email(self, base_email: str) -> str:
             """Create a unique test email"""
-            local, domain = base_email.split('@')
+            local, domain = base_email.split("@")
             return f"{local}+{self.test_prefix}@{domain}"
 
         def register_created_list(self, list_id: int, list_name: str):
@@ -100,23 +101,20 @@ def test_data_manager():
 @pytest.fixture
 def sample_subscriber_data():
     """Sample subscriber data for testing"""
-    return {
-        "email": "test@example.com",
-        "nombre": "Test User",
-        "apellido": "Lastname",
-        "telefono": "+34123456789"
-    }
+    return {"email": "test@example.com", "nombre": "Test User", "apellido": "Lastname", "telefono": "+34123456789"}
 
 
 @pytest.fixture
 def sample_excel_data():
     """Create sample Excel data for testing"""
-    with tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False) as tmp:
-        df = pd.DataFrame([
-            {"email": "test1@example.com", "nombre": "Test 1", "apellido": "User"},
-            {"email": "test2@example.com", "nombre": "Test 2", "apellido": "User"},
-            {"email": "test3@example.com", "nombre": "Test 3", "apellido": "User"}
-        ])
+    with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
+        df = pd.DataFrame(
+            [
+                {"email": "test1@example.com", "nombre": "Test 1", "apellido": "User"},
+                {"email": "test2@example.com", "nombre": "Test 2", "apellido": "User"},
+                {"email": "test3@example.com", "nombre": "Test 3", "apellido": "User"},
+            ]
+        )
         df.to_excel(tmp.name, index=False, sheet_name="Test_Sheet")
         yield tmp.name
         os.unlink(tmp.name)
@@ -131,13 +129,14 @@ def list_config():
         "country": "España",
         "city": "Madrid",
         "address": "Test Address 123",
-        "phone": "+34 900 000 000"
+        "phone": "+34 900 000 000",
     }
 
 
 @pytest.fixture
 def rate_limit_helper():
     """Helper to respect API rate limits during tests"""
+
     class RateLimitHelper:
         def __init__(self):
             self.last_call = {}
@@ -158,6 +157,59 @@ def rate_limit_helper():
 def integration_test_marker():
     """Mark test as integration test"""
     return pytest.mark.integration
+
+
+@pytest.fixture
+def mock_page():
+    """Minimal mock Playwright page for scraping tests."""
+    from unittest.mock import Mock
+    from playwright.sync_api import Page
+
+    page = Mock(spec=Page)
+    page.url = "https://example.com"
+    page.locator.return_value.count.return_value = 0
+    page.locator.return_value.wait_for = Mock()
+    page.locator.return_value.select_option = Mock()
+    page.locator.return_value.inner_text = Mock(return_value="")
+    page.wait_for_load_state = Mock()
+    page.wait_for_timeout = Mock()
+    page.goto = Mock()
+    page.click = Mock()
+    page.get_by_role.return_value.wait_for = Mock()
+    page.get_by_role.return_value.click = Mock()
+    page.get_by_role.return_value.inner_text = Mock(return_value="")
+    page.get_by_label.return_value.wait_for = Mock()
+    page.get_by_label.return_value.fill = Mock()
+    return page
+
+
+@pytest.fixture
+def sample_campaign():
+    """Sample CampaignBasicInfo for scraping tests."""
+    from src.infrastructure.api.models.campanias import CampaignBasicInfo
+
+    return CampaignBasicInfo(
+        status="sent",
+        name="Test Campaign",
+        date_sent="2024-01-15",
+        date="2024-01-01",
+        total_sent=100,
+        email_from="test@example.com",
+        lists=[],
+        subject="Test Subject",
+    )
+
+
+@pytest.fixture
+def scraper_config():
+    """Sample ScrapingConfig for campaign scraping tests."""
+    from src.infrastructure.scraping.base import ScrapingConfig
+
+    return ScrapingConfig(
+        timeout=30000,
+        max_retries=3,
+        screenshots_on_error=True,
+    )
 
 
 @pytest.fixture

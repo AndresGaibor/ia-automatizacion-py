@@ -1,0 +1,38 @@
+Task 8: Component Reuse Verification
+===================================
+Date: 2026-04-07
+
+REUSE ANALYSIS
+--------------
+Components created with 2+ real consumers:
+
+1. SubscribersPage (1 consumer: SubscribersFlow)
+   → Kept as Page (not generic) because subscriber detail has unique URL pattern
+   → NOT shared with campaigns (different table structure)
+
+2. FilterSelectorComponent (2 consumers: SubscribersFlow, SubscribersScraper)
+   → Selects #query-filter for Hard bounces, No abiertos, Abiertos
+   → 2+ consumers confirmed: both the flow AND the scraper use it
+   → RATIONALE: simple enough that duplicating selectors would be worse
+
+3. SubscriberRowComponent (2 consumers: SubscribersPage, SubscribersScraper)
+   → Encapsulates nth(0..3) for 4 field extraction
+   → 2+ consumers confirmed: both SubscribersPage.extract_all_rows() and inline code use it
+   → ARCHITECTURE RULE: only component where nth() is allowed in subscribers layer
+
+4. SubscriberSelectors (3+ consumers: all subscriber modules)
+   → Centralized selector dataclass
+   → Reused by SubscribersPage, FilterSelectorComponent, SubscriberRowComponent
+
+WHY NOT PaginationComponent?
+----------------------------
+- Pagination in subscribers uses the SAME algorithm as campaigns
+- But it's accessed via legacy_utils functions (obtener_total_paginas, navegar_siguiente_pagina)
+- Creating a new PaginationComponent would require duplicating the pagination logic
+- Instead: SubscribersPage delegates to legacy_utils, maintaining backward compatibility
+- The legacy pagination functions are shared infrastructure, not subscriber-specific
+
+MINIMUM VIABLE DECISION:
+- Created SubscribersPage that wraps existing pagination functions
+- If in future pagination diverges between campaigns/subscribers, extract PaginationComponent
+- If pagination becomes shared 3+ consumer concern, extract it then
