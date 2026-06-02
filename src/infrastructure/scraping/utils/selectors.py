@@ -222,6 +222,52 @@ class SubscriberSelectors:
     filter_index_no_abiertos: int = 5
 
 
+@dataclass(frozen=True)
+class SegmentSelectors:
+    """Verified selectors from the Acumbamail segments page.
+
+    Source: extracted from scrapping/endpoints/segments.py.
+    """
+
+    # === NAVEGACIÓN ===
+    segments_url_template: str = "https://acumbamail.com/app/list/{list_id}/segments/"
+
+    # === BOTÓN NUEVO SEGMENTO ===
+    empty_state_add_button: str = "#empty-state-add-segment-button"
+    new_segment_button: str = "#new-segment-button"
+    new_segment_button_text: str = "Nuevo segmento"
+
+    # === FORMULARIO DE SEGMENTO ===
+    segment_form_field_name: str = "#field-name-1"
+    segment_form_field_type: str = "#field-type-1"
+    segment_form_field_value: str = "#field-value-1"
+    segment_name_input: str = "#field-value-1"
+    segment_option_segmentos: str = "Segmentos"
+    segment_condition_contiene: str = "contiene"
+
+    # === BOTÓN GUARDAR ===
+    save_segment_button: str = "#segment-button-text"
+    save_button_text: str = "Guardar"
+    create_button_text: str = "Crear"
+    submit_button: str = "button[type='submit']"
+
+
+@dataclass(frozen=True)
+class FieldSelectors:
+    """Verified selectors from the Acumbamail fields page.
+
+    Source: extracted from field_scraper.py.
+    """
+
+    # === NAVEGACIÓN ===
+    fields_url_template: str = "https://acumbamail.com/app/list/{list_id}/edit/fields/"
+    subscribers_url_template: str = "https://acumbamail.com/app/list/{list_id}/subscriber/list/"
+
+    # === CAMPOS ===
+    fields_list_item: str = "li"
+    field_name_generic: str = "generic:first-child"
+
+
 # === INSTRUCCIONES PARA ACTUALIZAR SELECTORES ===
 """
 CÓMO ENCONTRAR LOS SELECTORES REALES:
