@@ -22,3 +22,7 @@ class BasePage:
         self._page.wait_for_load_state("domcontentloaded", timeout=timeout)
         if use_networkidle:
             self._page.wait_for_load_state("networkidle", timeout=timeout)
+
+    def wait_session_stable(self, networkidle_timeout: int = 30000, extra_delay: float = 2.0) -> None:
+        self._page.wait_for_load_state("networkidle", timeout=networkidle_timeout)
+        self._page.wait_for_timeout(int(extra_delay * 1000))

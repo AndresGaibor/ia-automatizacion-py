@@ -544,10 +544,12 @@ def main():
 			login(page, context=context)
 			log_success("Autenticación completada exitosamente")
 
+			from .infrastructure.scraping.pages.base_page import BasePage
+			base_page = BasePage(page, url="")
+
 			# Espera adicional post-login para asegurar estabilidad de sesión antes de operaciones de API
 			log_info("⏳ Esperando estabilización completa de sesión antes de operaciones...")
-			page.wait_for_load_state("networkidle", timeout=30000)
-			page.wait_for_timeout(3000)  # 3 segundos adicionales para máxima estabilidad
+			base_page.wait_session_stable()
 			log_success("✅ Sesión completamente estabilizada, iniciando operaciones")
 
 			# Inicializar servicio híbrido con la página autenticada
@@ -589,8 +591,7 @@ def main():
 						log_success("✅ Sesión refrescada exitosamente")
 
 						# Re-esperar estabilización
-						page.wait_for_load_state("networkidle", timeout=30000)
-						page.wait_for_timeout(3000)
+						base_page.wait_session_stable()
 						log_success("✅ Sesión estabilizada después de re-autenticación")
 				except ImportError:
 					log_warning("⚠️ No se pudo importar funciones de validación de sesión")
