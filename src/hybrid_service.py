@@ -406,41 +406,17 @@ class HybridDataService:
 
     def _extract_web_counts(self) -> Dict[str, int]:
         """
-        Extrae los conteos mostrados en la interfaz web
+        Extrae los conteos mostrados en la interfaz web usando POM.
         """
-        counts = {
-            "no_abiertos": 0,
-            "hard_bounces": 0
-        }
+        from src.infrastructure.scraping.pages.subscribers_page import SubscribersPage
+
+        counts = {"no_abiertos": 0, "hard_bounces": 0}
 
         try:
-            # Buscar los elementos que muestran los conteos
-            # Basado en la estructura observada con BrowserMCP
-            filter_elements = self.scraping_service.page.locator('ul').filter(
-                has=self.scraping_service.page.locator("li", has_text="No abiertos")
-            ).locator('> li')
-
-            # Buscar cada tipo de suscriptor y su conteo
-            for i in range(filter_elements.count()):
-                try:
-                    element = filter_elements.nth(i)
-                    text = element.inner_text()
-
-                    if "No abiertos" in text:
-                        # Buscar el número que acompaña a "No abiertos"
-                        import re
-                        numbers = re.findall(r'\d+', text)
-                        if numbers:
-                            counts["no_abiertos"] = int(numbers[-1])  # Tomar el último número encontrado
-
-                    elif "Hard bounces" in text:
-                        import re
-                        numbers = re.findall(r'\d+', text)
-                        if numbers:
-                            counts["hard_bounces"] = int(numbers[-1])
-                except Exception:
-                    continue
-
+            if self.scraping_service and hasattr(self.scraping_service, 'page'):
+                page_obj = self.scraping_service.page
+                subscribers_page = SubscribersPage(page_obj)
+                counts = subscribers_page.get_filter_counts()
         except Exception as e:
             self.logger.warning(f"Error extrayendo conteos web: {e}")
 

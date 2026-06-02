@@ -98,6 +98,36 @@ class SubscribersPage(BasePage):
 
         return obtener_total_paginas(self._page)
 
+    def get_filter_counts(self) -> dict[str, int]:
+        """
+        Extrae los conteos de filtros mostrados en la interfaz web.
+        Retorna dict con 'no_abiertos' y 'hard_bounces'.
+        """
+        import re
+        counts = {"no_abiertos": 0, "hard_bounces": 0}
+        try:
+            filter_elements = self._page.locator('ul').filter(
+                has=self._page.locator("li", has_text="No abiertos")
+            ).locator('> li')
+
+            for i in range(filter_elements.count()):
+                try:
+                    element = filter_elements.nth(i)
+                    text = element.inner_text()
+                    if "No abiertos" in text:
+                        numbers = re.findall(r'\d+', text)
+                        if numbers:
+                            counts["no_abiertos"] = int(numbers[-1])
+                    elif "Hard bounces" in text:
+                        numbers = re.findall(r'\d+', text)
+                        if numbers:
+                            counts["hard_bounces"] = int(numbers[-1])
+                except Exception:
+                    continue
+        except Exception as e:
+            logger.warning(f"Error extracting filter counts: {e}")
+        return counts
+
     def get_campaign_email_url(self, campaign_id: int) -> str:
         """
         Obtiene la URL del correo de una campaña (botón "Ver email").
