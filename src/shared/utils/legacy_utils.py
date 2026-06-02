@@ -399,27 +399,6 @@ def get_timeouts() -> dict:
 		"upload": timeouts.get("upload", 120000),         # 2 minutos
 	}
 
-def safe_goto(page: Page, url: str, timeout: int = 60000) -> bool:
-	"""
-	[DEPRECATED] Navega a una URL de forma segura con manejo de errores.
-	Usar: BasePage.navigate() o page.goto() directamente.
-	"""
-	import warnings
-	warnings.warn(
-		"safe_goto() está deprecated. Usar page.goto() directamente o BasePage.navigate()",
-		DeprecationWarning,
-		stacklevel=2
-	)
-	logger.debug("🌐 Navegando de forma segura", url=url, timeout=timeout)
-	try:
-		page.goto(url, timeout=timeout, wait_until="networkidle")
-		logger.success("✅ Navegación segura completada", url=url)
-		return True
-	except Exception as e:
-		print(f"Error navegando a {url}: {e}")
-		logger.error("❌ Error en navegación segura", url=url, error=str(e))
-		return False
-
 def click_element(element):
 	"""
 	[DEPRECATED] Hace clic en un elemento de forma segura con manejo de errores.
