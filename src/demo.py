@@ -29,9 +29,9 @@ from .infrastructure.scraping.endpoints.campanias import CampaignsScraper
 class FileSessionStorage:
     def __init__(self, session_path: str):
         self.session_path = session_path
-    def save_session(self, context):
-        context.storage_state(path=self.session_path)
-    def get_session_path(self) -> str:
+    def guardar_sesion(self, contexto):
+        contexto.storage_state(path=self.session_path)
+    def obtener_ruta_sesion(self) -> str:
         return self.session_path
 
 def login(page, context):
@@ -39,7 +39,7 @@ def login(page, context):
     config_manager = ConfigManager()
     session_storage = FileSessionStorage(storage_state_path())
     auth_service = AuthenticationService(config_manager, session_storage)
-    result = auth_service.authenticate(page, context)
+    result = auth_service.autenticar(page, context)
     logger.success("✅ Función de login completada")
     return result
 

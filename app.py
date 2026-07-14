@@ -13,6 +13,20 @@ from src.presentation.progress_window import ProgressWindow
 
 logger: PerformanceLogger = get_logger()
 
+
+def _error_message_for(contexto: str):
+    """Genera un handler on_error que muestra un mensaje limpio en el messagebox."""
+    def _handler(e: Exception) -> str:
+        msg = str(e)
+        # Limpiar el bloque ASCII de Playwright si está presente
+        if "╔══" in msg:
+            msg = msg.split("╔══")[0].strip()
+        if not msg:
+            msg = "Error desconocido"
+        return f"Error al {contexto}: {msg}"
+    return _handler
+
+
 DEFAULTS = {
     'url': 'https://acumbamail.com/app/newsletter/',
     'url_base': 'https://acumbamail.com',
@@ -171,7 +185,7 @@ def run_listar_campanias(btn):
         m.main()
 
     start_worker(btn, root, worker, on_success="Listado de campañas finalizado con éxito",
-                 on_error=lambda e: f"Error al listar campañas: {e}")
+                 on_error=_error_message_for("listar campañas"))
 
 
 def run_obtener_suscriptores(btn):
@@ -190,9 +204,11 @@ def run_obtener_suscriptores(btn):
 
     def on_error(e):
         msg = str(e)
+        if "╔══" in msg:
+            msg = msg.split("╔══")[0].strip()
         if "Error en campaña" in msg:
             return f"La campaña seleccionada no está disponible o fue eliminada: {msg}"
-        return f"Error al obtener suscriptores: {msg}"
+        return f"Error al obtener suscriptores: {msg or 'Error desconocido'}"
 
     start_worker(btn, root, worker, on_success="Extracción de suscriptores finalizada con éxito",
                  on_error=on_error)
@@ -229,7 +245,7 @@ def run_crear_lista(btn):
 
     msg = f"{len(hojas_seleccionadas)} listas procesadas" if len(hojas_seleccionadas) > 1 else "Lista de suscriptores subida con éxito"
     start_worker(btn, root, worker, on_success=msg,
-                 on_error=lambda e: f"Error al crear lista(s): {e}")
+                 on_error=_error_message_for("crear lista(s)"))
 
 
 def run_obtener_listas(btn):
@@ -273,7 +289,7 @@ def run_obtener_listas(btn):
         obtener_listas_running = False
 
     start_worker(btn, root, worker, on_success=None,
-                 on_error=lambda e: f"Error al obtener listas: {e}",
+                 on_error=_error_message_for("obtener listas"),
                  finally_hook=done)
 
 
@@ -292,7 +308,7 @@ def run_descargar_suscriptores(btn):
         m.main()
 
     start_worker(btn, root, worker, on_success="Descarga de suscriptores finalizada con éxito",
-                 on_error=lambda e: f"Error al descargar suscriptores: {e}")
+                 on_error=_error_message_for("descargar suscriptores"))
 
 
 def run_eliminar_listas(btn):
@@ -315,7 +331,7 @@ def run_eliminar_listas(btn):
         root.after(0, lambda: notify("Resultado Eliminación", mensaje, tipo_notif))
 
     start_worker(btn, root, worker, on_success=None,
-                 on_error=lambda e: f"Error al eliminar listas: {e}")
+                 on_error=_error_message_for("eliminar listas"))
 
 
 def run_mapear_segmentos(btn):
@@ -364,7 +380,7 @@ def run_mapear_segmentos(btn):
         root.after(0, lambda: notify("Procesamiento Completado" if exitosas > 0 else "Procesamiento Incompleto", mensaje, tipo))
 
     start_worker(btn, root, worker, on_success=None,
-                 on_error=lambda e: f"Error durante el procesamiento: {e}")
+                 on_error=_error_message_for("el procesamiento"))
 
 
 if __name__ == "__main__":

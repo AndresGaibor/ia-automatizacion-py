@@ -23,9 +23,11 @@ def _early_project_root() -> str:
 	# From src/shared/utils/legacy_utils.py, go up 3 levels to reach project root
 	return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 
-# Forzar ruta de navegadores de Playwright antes de importar la librería
-os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", os.path.join(_early_project_root(), "ms-playwright"))
-os.makedirs(os.environ["PLAYWRIGHT_BROWSERS_PATH"], exist_ok=True)
+# Solo forzar ruta local de navegadores en builds PyInstaller (frozen).
+# En desarrollo, Playwright usa su cache por defecto (~/.cache/ms-playwright/).
+if getattr(sys, "frozen", False):
+	os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", os.path.join(_early_project_root(), "ms-playwright"))
+	os.makedirs(os.environ["PLAYWRIGHT_BROWSERS_PATH"], exist_ok=True)
 
 from playwright.sync_api import Page
 from playwright._impl._errors import Error as PWError
@@ -173,11 +175,13 @@ def storage_state_path() -> str:
 
 def ensure_playwright_browsers_path() -> str:
 	"""
-	Garantiza la ruta (ya establecida arriba) y la devuelve.
+	Crea el directorio de navegadores si PLAYWRIGHT_BROWSERS_PATH está configurado.
+	En desarrollo (sin env var), es un no-op — Playwright usa su cache por defecto.
 	"""
-	path = os.environ["PLAYWRIGHT_BROWSERS_PATH"]
-	os.makedirs(path, exist_ok=True)
-	return path
+	path = os.environ.get("PLAYWRIGHT_BROWSERS_PATH")
+	if path:
+		os.makedirs(path, exist_ok=True)
+	return path or ""
 
 x_candidates = [2560, 1280]  # 2560 píxeles físicos; 1280 = 2560/2 (puntos lógicos)
 
@@ -207,35 +211,7 @@ def configurar_navegador(p, extraccion_oculta: bool = False):
 		logger.error("❌ Error lanzando navegador", error=msg)
 		if "Executable doesn't exist" in msg or "playwright install" in msg:
 			logger.warning("⚠️ Chromium no instalado, intentando instalación automática")
-			try:
-				notify("Playwright", "Descargando Chromium (solo la primera vez)...")
-			except Exception:
-				pass
-			# Ejecutar el CLI sin cerrar el proceso
-			logger.info("📥 Instalando Chromium automáticamente...")
-			from playwright.__main__ import main as playwright_main
-			old_argv = sys.argv[:]
-			try:
-				for args in (["playwright", "install", "chromium"],
-							["playwright", "install", "--force", "chromium"]):
-					try:
-						logger.debug(f"🔧 Intentando instalación con: {' '.join(args)}")
-						sys.argv = args
-						ensure_playwright_browsers_path()
-						playwright_main()
-						logger.success("✅ Chromium instalado exitosamente")
-						break  # instalación OK
-					except SystemExit as se:
-						# Evitar que cierre la app; solo propagar si es error real
-						if se.code not in (0, None):
-							logger.error(f"❌ Error en instalación: código {se.code}")
-							raise
-					except Exception as e:
-						logger.warning(f"⚠️ Intento de instalación falló: {e}")
-						# Intentará con --force en el siguiente ciclo
-						continue
-			finally:
-				sys.argv = old_argv
+			_instalar_playwright_chromium()
 
 			# Reintento de lanzamiento tras instalar
 			logger.info("🔄 Reintentando lanzamiento de Chromium tras instalación")
@@ -247,6 +223,33 @@ def configurar_navegador(p, extraccion_oculta: bool = False):
 				],
 			)
 		raise
+
+
+def _instalar_playwright_chromium() -> None:
+	"""Instala Chromium vía subprocess (más confiable que sys.argv)."""
+	import subprocess
+	import sys
+
+	logger.info("📥 Instalando Chromium automáticamente...")
+	try:
+		notify("Playwright", "Descargando Chromium (solo la primera vez)...")
+	except Exception:
+		pass
+
+	python = sys.executable
+	for args in ([python, "-m", "playwright", "install", "chromium"],
+				[python, "-m", "playwright", "install", "--force", "chromium"]):
+		logger.debug(f"🔧 Ejecutando: {' '.join(args)}")
+		result = subprocess.run(args, capture_output=True, text=True)
+		if result.returncode == 0:
+			logger.success("✅ Chromium instalado exitosamente")
+			return
+		logger.warning(f"⚠️ Intento falló (código {result.returncode}): {result.stderr.strip()}")
+
+	raise RuntimeError(
+		"No se pudo instalar Chromium. Ejecuta manualmente:\n"
+		"  uv run playwright install chromium"
+	)
 
 # =============================================================================
 # DEPRECATED - Funciones migradas a POM (Page Object Model)
@@ -417,27 +420,27 @@ def click_element(element):
 def is_on_login_page(page: Page) -> bool:
 	"""
 	[DEPRECATED] Verifica si la página actual es la página de login.
-	Usar: SessionGuardComponent(page).is_on_login_page()
+	Usar: ComponenteGuardiaSesion(page).is_on_login_page()
 	"""
 	import warnings
 	warnings.warn(
-		"is_on_login_page() está deprecated. Usar SessionGuardComponent(page).is_on_login_page()",
+		"is_on_login_page() está deprecated. Usar ComponenteGuardiaSesion(page).is_on_login_page()",
 		DeprecationWarning,
 		stacklevel=2
 	)
-	from src.infrastructure.scraping.components.session_guard import SessionGuardComponent
-	return SessionGuardComponent(page).is_on_login_page()
+	from src.infrastructure.scraping.components.session_guard import ComponenteGuardiaSesion
+	return ComponenteGuardiaSesion(page).is_on_login_page()
 
 def validate_session(page: Page) -> bool:
 	"""
 	[DEPRECATED] Valida si la sesión actual sigue activa.
-	Usar: SessionGuardComponent(page).is_authenticated()
+	Usar: ComponenteGuardiaSesion(page).is_authenticated()
 	"""
 	import warnings
 	warnings.warn(
-		"validate_session() está deprecated. Usar SessionGuardComponent(page).is_authenticated()",
+		"validate_session() está deprecated. Usar ComponenteGuardiaSesion(page).is_authenticated()",
 		DeprecationWarning,
 		stacklevel=2
 	)
-	from src.infrastructure.scraping.components.session_guard import SessionGuardComponent
-	return SessionGuardComponent(page).is_authenticated()
+	from src.infrastructure.scraping.components.session_guard import ComponenteGuardiaSesion
+	return ComponenteGuardiaSesion(page).is_authenticated()

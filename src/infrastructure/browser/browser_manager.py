@@ -35,7 +35,10 @@ class BrowserManager:
         self._setup_playwright_path()
 
     def _setup_playwright_path(self):
-        """Configure Playwright browsers path for portable execution."""
+        """Configure Playwright browsers path for portable execution.
+        Only set in frozen (PyInstaller) builds. In dev, Playwright uses default cache."""
+        if not getattr(sys, "frozen", False):
+            return
         project_root = self._get_project_root()
         playwright_path = os.path.join(project_root, "ms-playwright")
         os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", playwright_path)

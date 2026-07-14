@@ -24,8 +24,10 @@ def _early_project_root() -> str:
 	return os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
 # Forzar ruta de navegadores de Playwright antes de importar la librería
-os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", os.path.join(_early_project_root(), "ms-playwright"))
-os.makedirs(os.environ["PLAYWRIGHT_BROWSERS_PATH"], exist_ok=True)
+# Solo forzar ruta local de navegadores en builds PyInstaller (frozen).
+if getattr(sys, "frozen", False):
+	os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", os.path.join(_early_project_root(), "ms-playwright"))
+	os.makedirs(os.environ["PLAYWRIGHT_BROWSERS_PATH"], exist_ok=True)
 
 from playwright.sync_api import Page
 from playwright._impl._errors import Error as PWError
@@ -165,7 +167,9 @@ def ensure_playwright_browsers_path() -> str:
 	"""
 	Garantiza la ruta (ya establecida arriba) y la devuelve.
 	"""
-	path = os.environ["PLAYWRIGHT_BROWSERS_PATH"]
+	path = os.environ.get("PLAYWRIGHT_BROWSERS_PATH")
+	if path is None:
+		return ""
 	os.makedirs(path, exist_ok=True)
 	return path
 

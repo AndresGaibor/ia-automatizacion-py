@@ -5,7 +5,7 @@ from typing import Dict, List, Optional
 from ..logger import get_logger
 from ..infrastructure.api import API
 from ..infrastructure.api.models.suscriptores import SubscriberData
-from ..scrapping_deprecated.endpoints import SegmentsScrapingService
+from ..scraping_deprecated.endpoints import SegmentsScrapingService
 
 logger = get_logger()
 

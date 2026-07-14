@@ -15,7 +15,7 @@ if __package__ in (None, ""):
 from .infrastructure.api import API
 from .infrastructure.api.models.campanias import CampaignBasicInfo
 from .shared.utils.legacy_utils import is_on_login_page
-from .scrapping_deprecated import (
+from .scraping_deprecated import (
     SubscriberDetailsService,
     ScrapingResult
 )

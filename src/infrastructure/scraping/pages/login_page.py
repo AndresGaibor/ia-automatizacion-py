@@ -26,7 +26,6 @@ class PaginaLogin(PaginaBase):
         self.cookie_banner.accept(agresivo=agresivo)
 
     def do_login(self, username: str, password: str) -> None:
-        self.login_form.click_entrar_link()
         self.login_form.fill_credentials(username, password)
         self.login_form.submit()
 
