@@ -2,8 +2,8 @@
 Validador de configuración con manejo automático de errores y migración
 """
 from tkinter import messagebox
-from .config.settings import settings
-from .config_window import show_config_window
+from ...config.settings import settings
+from ...presentation.gui.config_window import show_config_window
 from .config_migrator import ensure_config_valid
 
 def check_config_or_show_dialog(parent=None) -> bool:

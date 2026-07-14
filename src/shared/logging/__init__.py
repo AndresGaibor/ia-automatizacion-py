@@ -8,7 +8,7 @@ from .logger import get_logger
 def load_config(defaults: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Shim mínimo para compatibilidad de tests"""
     try:
-        from src.core.config.settings import load_config as core_load_config
+        from src.config.settings import load_config as core_load_config
         return core_load_config(defaults or {})
     except Exception:
         return defaults or {}

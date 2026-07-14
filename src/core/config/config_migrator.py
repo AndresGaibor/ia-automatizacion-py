@@ -12,7 +12,7 @@ class ConfigMigrator:
 
     def __init__(self, config_path: Path = None):
         if config_path is None:
-            config_path = Path(__file__).parent.parent / "config.yaml"
+            config_path = Path(__file__).parent.parent.parent.parent / "config.yaml"
         self.config_path = config_path
         self.backup_dir = config_path.parent / "config_backups"
 

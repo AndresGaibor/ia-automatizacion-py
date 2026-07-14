@@ -4,7 +4,7 @@ from typing import Optional
 
 from ..utils import data_path
 from ..logger import get_logger
-from ..crear_lista_mejorado import extraer_id_desde_nombre_archivo
+from ..core.commands.crear_lista_mejorado import extraer_id_desde_nombre_archivo
 
 logger = get_logger()
 

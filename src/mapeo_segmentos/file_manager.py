@@ -6,7 +6,7 @@ from typing import List, Tuple, Any
 
 from ..utils import notify
 from ..logger import get_logger
-from ..excel_helper import ExcelHelper
+from ..infrastructure.excel import ExcelHelper
 from .id_manager import ARCHIVO_SEGMENTOS, obtener_o_buscar_id_lista
 
 logger = get_logger()

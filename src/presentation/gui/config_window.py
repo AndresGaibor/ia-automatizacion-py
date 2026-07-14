@@ -9,7 +9,7 @@ class ConfigWindow:
     def __init__(self, parent=None):
         self.parent = parent
         self.window = None
-        self.config_path = Path(__file__).parent.parent / "config.yaml"
+        self.config_path = Path(__file__).parent.parent.parent.parent / "config.yaml"
 
     def show(self):
         """Muestra la ventana de configuración"""

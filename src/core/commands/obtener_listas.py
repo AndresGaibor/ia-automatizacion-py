@@ -1,0 +1,583 @@
+from datetime import datetime
+import math
+import pandas as pd
+import os
+import sys
+from pathlib import Path
+
+# Configurar package para imports consistentes y PyInstaller compatibility
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    __package__ = "src"
+
+from .utils import data_path, notify
+from .infrastructure.api import API
+from .logger import get_logger
+from .excel_helper import ExcelHelper
+
+# Rutas
+ARCHIVO_BUSQUEDA = data_path("Busqueda_Listas.xlsx")
+
+def cargar_datos_existentes(archivo_busqueda: str) -> list[list[str]]:
+	"""
+	Carga los datos existentes del archivo Excel
+	"""
+	logger = get_logger()
+	logger.start_timer("cargar_datos_existentes")
+	
+	try:
+		logger.info(f"Cargando datos existentes desde: {archivo_busqueda}")
+		
+		if not os.path.exists(archivo_busqueda):
+			logger.info(f"Archivo no encontrado, creando nuevo: {archivo_busqueda}")
+			return []
+		
+		df = ExcelHelper.leer_excel(archivo_busqueda)
+		
+		if df.empty:
+			logger.info("Archivo Excel vacío")
+			return []
+		
+		# Convertir DataFrame a lista de listas
+		datos = []
+		for idx, fila in df.iterrows():
+			fila_datos = [str(val) if pd.notna(val) else '' for val in fila.values]
+			datos.append(fila_datos)
+		
+		logger.info(f"Cargados {len(datos)} filas de datos existentes")
+		logger.end_timer("cargar_datos_existentes", f"Procesadas {len(datos)} filas")
+		
+		return datos
+		
+	except Exception as e:
+		logger.error(f"Error cargando datos existentes: {e}")
+		logger.end_timer("cargar_datos_existentes", "Error en la carga")
+		return []
+
+def ordenar_por_fecha(fecha_str: str) -> tuple:
+	"""
+	Convierte fecha string a tupla para ordenamiento
+	Fechas vacías van al final (más antiguas)
+	"""
+	if not fecha_str or str(fecha_str).strip() == '' or str(fecha_str).lower() == 'nan':
+		# Sin fecha = más antigua (valor máximo para que vaya al final)
+		return (9999, 0, 0, 0, 0, 0)
+	
+	try:
+		# Intentar parsear diferentes formatos de fecha
+		fecha_str = str(fecha_str).strip()
+		
+		# Formato: 2024-09-16 10:30:00 o similar
+		if len(fecha_str) >= 10:
+			# Extraer año, mes, día, hora, minuto, segundo
+			parts = fecha_str.replace('/', '-').replace(' ', '-').replace(':', '-').split('-')
+			if len(parts) >= 3:
+				year = int(parts[0]) if parts[0].isdigit() else 2000
+				month = int(parts[1]) if parts[1].isdigit() else 1
+				day = int(parts[2]) if parts[2].isdigit() else 1
+				hour = int(parts[3]) if len(parts) > 3 and parts[3].isdigit() else 0
+				minute = int(parts[4]) if len(parts) > 4 and parts[4].isdigit() else 0
+				second = int(parts[5]) if len(parts) > 5 and parts[5].isdigit() else 0
+				
+				return (year, month, day, hour, minute, second)
+	
+	except (ValueError, IndexError):
+		pass
+	
+	# Si no se puede parsear, tratarla como muy antigua (al final)
+	return (9999, 0, 0, 0, 0, 0)
+
+
+
+from typing import Callable, Optional
+
+
+def obtener_listas_via_api(progress_callback: Optional[Callable[[str], None]] = None) -> list[list[str]]:
+	"""
+	Obtiene todas las listas usando la API de suscriptores de forma incremental
+	"""
+	informe_detalle = []
+	logger = get_logger()
+	logger.start_timer("obtener_listas_via_api")
+	
+	try:
+		logger.info("Iniciando proceso de obtención de listas via API")
+		
+		# Cargar datos existentes del Excel
+		datos_existentes = cargar_datos_existentes(ARCHIVO_BUSQUEDA)
+		listas_existentes = {int(fila[1]): fila for fila in datos_existentes if fila[1] and str(fila[1]).isdigit()}
+		
+		logger.info("Conectando a la API para obtener listas...")
+		api = API()
+		logger.info("Conexión a API establecida, obteniendo listas...")
+		
+		listas = api.suscriptores.get_lists()
+		
+		logger.info(f"Se encontraron {len(listas)} listas en la API")
+		logger.info(f"Ya existen {len(listas_existentes)} listas en el archivo Excel")
+		
+		listas_nuevas = []
+		listas_sin_fecha = []
+		
+		for lista in listas:
+			if lista.id in listas_existentes:
+				# Lista ya existe, verificar si tiene fecha
+				fila_existente = listas_existentes[lista.id]
+				if not fila_existente[4] or str(fila_existente[4]).strip() == '':  # Sin fecha de creación
+					listas_sin_fecha.append(lista)
+					logger.debug(f"Lista existente sin fecha: {lista.name} (ID: {lista.id})")
+				# Mantener la fila existente
+				informe_detalle.append(fila_existente)
+			else:
+				# Lista nueva, necesita ser procesada
+				listas_nuevas.append(lista)
+				logger.debug(f"Lista nueva encontrada: {lista.name} (ID: {lista.id})")
+		
+		logger.info(f"Listas nuevas encontradas: {len(listas_nuevas)}")
+		logger.info(f"Listas existentes sin fecha: {len(listas_sin_fecha)}")
+
+		# Construir DataFrame inicial con ID y nombre para todas las listas remotas
+		logger.debug("Construyendo DataFrame inicial con ID y nombre de listas")
+		columnas = ["Buscar", "ID_LISTA", "NOMBRE LISTA", "SUSCRIPTORES", "CREACION"]
+
+		# Cargar excel existente completo si existe para preservar datos y detectar locales obsoletos
+		df_existing = pd.DataFrame()
+		logger.debug(f"Verificando existencia de archivo existente: {ARCHIVO_BUSQUEDA}")
+		if os.path.exists(ARCHIVO_BUSQUEDA):
+			try:
+				logger.debug("Cargando archivo Excel existente")
+				df_existing = pd.read_excel(ARCHIVO_BUSQUEDA)
+				logger.info(f"Archivo existente cargado con {len(df_existing)} filas")
+			except Exception as e:
+				logger.warning(f"Error cargando archivo existente, se creará nuevo: {e}")
+				df_existing = pd.DataFrame()
+
+		# Mapear existing por ID
+		existing_map = {}
+		if not df_existing.empty and 'ID_LISTA' in df_existing.columns:
+			logger.debug("Mapeando datos existentes por ID")
+			for _, r in df_existing.iterrows():
+				try:
+					existing_map[str(int(r['ID_LISTA']))] = r
+				except Exception:
+					# intentar con str
+					existing_map[str(r.get('ID_LISTA'))] = r
+			logger.info(f"Mapeadas {len(existing_map)} listas existentes")
+
+		rows = []
+		remote_ids = set()
+		logger.debug(f"Procesando {len(listas)} listas remotas para crear filas")
+		for lista in listas:
+			lid = str(lista.id)
+			remote_ids.add(lid)
+			sus = ''
+			cre = ''
+			if lid in existing_map:
+				row = existing_map[lid]
+				sus = row.get('SUSCRIPTORES', '') if 'SUSCRIPTORES' in row else ''
+				cre = row.get('CREACION', '') if 'CREACION' in row else ''
+			rows.append(['', lid, lista.name, sus, cre])
+
+		logger.info(f"Construyendo DataFrame con {len(rows)} filas")
+		df_main = pd.DataFrame(rows, columns=columnas)
+		# Normalizar NaN a cadenas vacías para evitar escribir NaN en el Excel
+		df_main = df_main.fillna('')
+
+		# Ordenar ascendente por fecha de creación. Filas sin fecha van al final.
+		def _fecha_sort_key(val):
+			try:
+				s = str(val).strip()
+				if not s or s.lower() == 'nan':
+					# Valores sin fecha deben ir al final
+					return (9999, 0, 0, 0, 0, 0)
+				return ordenar_por_fecha(s)
+			except Exception:
+				return (9999, 0, 0, 0, 0, 0)
+
+		# Crear columna auxiliar de orden y ordenar
+		logger.debug("Ordenando DataFrame por fecha de creación")
+		try:
+			df_main['_sort'] = df_main['CREACION'].apply(_fecha_sort_key)
+			df_main = df_main.sort_values(by=['_sort']).drop(columns=['_sort']).reset_index(drop=True)
+			logger.debug("DataFrame ordenado exitosamente")
+		except Exception as e:
+			logger.warning(f"Error al ordenar DataFrame: {e}")
+			# En caso de fallo con el sort, seguir con el orden original
+			pass
+		# Detectar filas locales que ya no están en remoto
+		local_only_df = pd.DataFrame()
+		if not df_existing.empty and 'ID_LISTA' in df_existing.columns:
+			logger.debug("Detectando filas locales obsoletas")
+			try:
+				mask_local_only = ~df_existing['ID_LISTA'].astype(str).isin(remote_ids)
+				local_only_df = df_existing[mask_local_only]
+				logger.info(f"Encontradas {len(local_only_df)} filas locales obsoletas")
+			except Exception as e:
+				logger.warning(f"Error detectando filas locales obsoletas: {e}")
+				local_only_df = pd.DataFrame()
+
+		# No se crea backup: se editará el archivo `Busqueda_Listas.xlsx` directamente según petición
+
+		# Guardar el listado inicial (ID + nombre) y, si hay locales obsoletos, moverlos a hoja ELIMINADAS
+		logger.info(f"Guardando listado inicial en {ARCHIVO_BUSQUEDA}")
+		try:
+			with pd.ExcelWriter(ARCHIVO_BUSQUEDA, engine='openpyxl') as writer:
+				df_main.to_excel(writer, sheet_name='Sheet1', index=False)
+				if not local_only_df.empty:
+					sheet_name = f"ELIMINADAS_{int(datetime.now().timestamp())}"
+					local_only_df.to_excel(writer, sheet_name=sheet_name, index=False)
+					logger.info(f"Guardadas {len(local_only_df)} filas obsoletas en hoja {sheet_name}")
+			logger.info(f"Listado inicial guardado exitosamente en {ARCHIVO_BUSQUEDA}")
+		except Exception as e:
+			logger.error(f"Error guardando listado inicial: {e}")
+			if progress_callback:
+				progress_callback(f"Error guardando listado inicial: {e}")
+			else:
+				print(f"Error guardando listado inicial: {e}")
+
+		# Preparar lista de trabajo: sólo las que no tienen CREACION o SUSCRIPTORES
+		logger.info("Preparando lista de trabajo para procesamiento de estadísticas")
+		listas_a_procesar = []
+		for lista in listas:
+			lid = str(lista.id)
+			# buscar en df_main
+			row = df_main[df_main['ID_LISTA'] == lid]
+			needs = True
+			if not row.empty:
+				sus_val = str(row.iloc[0]['SUSCRIPTORES']).strip()
+				cre_val = str(row.iloc[0]['CREACION']).strip()
+				# Una lista necesita procesamiento si SUSCRIPTORES o CREACION están vacíos o son 'nan'
+				if (sus_val and sus_val.lower() not in ['', 'nan', 'none']) and \
+				   (cre_val and cre_val.lower() not in ['', 'nan', 'none']):
+					needs = False
+			if needs:
+				listas_a_procesar.append(lista)
+
+		logger.info(f"Listas que necesitan procesamiento de stats: {len(listas_a_procesar)}")
+		if listas_a_procesar:
+			logger.debug("Primeras 3 listas que necesitan procesamiento:")
+			for lista in listas_a_procesar[:3]:  # Mostrar las primeras 3
+				logger.debug(f"  - {lista.name} (ID: {lista.id})")
+
+		total_to_process = len(listas_a_procesar)
+		# Asumimos el rate limit documentado para get_list_stats: 10 peticiones/minuto
+		RATE_LIMIT_PER_MIN = 10
+
+		# Calcular ventanas necesarias y tiempos estimados
+		windows = math.ceil(total_to_process / RATE_LIMIT_PER_MIN)
+		total_estimated_seconds = windows * 60
+		extra_wait_seconds = max(0, (windows - 1) * 60)
+
+		msg = f"Obteniendo detalles para {total_to_process} listas..."
+		if progress_callback:
+			progress_callback(msg)
+		else:
+			print(msg)
+
+		if total_to_process > 0:
+			msg = f"Rate limit estimado: {RATE_LIMIT_PER_MIN} llamadas/min. Ventanas necesarias: {windows}."
+			if progress_callback:
+				progress_callback(msg)
+			else:
+				print(msg)
+
+			msg = f"Tiempo estimado total (incluyendo esperas por rate-limit): {total_estimated_seconds//60}m {total_estimated_seconds%60}s"
+			if progress_callback:
+				# enviar además la estimación numérica en un formato especial para UI
+				progress_callback(f"__ESTIMATED_TIME__:{total_estimated_seconds}")
+				progress_callback(msg)
+			else:
+				print(msg)
+
+			if extra_wait_seconds > 0:
+				msg = f"Tiempo adicional aproximado por rate-limit: {extra_wait_seconds//60}m {extra_wait_seconds%60}s"
+				if progress_callback:
+					progress_callback(msg)
+				else:
+					print(msg)
+
+		# Intervalo aproximado entre llamadas para distribuir llamadas dentro del minuto
+		inter_call_interval = max(1, 60 / RATE_LIMIT_PER_MIN)
+		logger.debug(f"Intervalo entre llamadas: {inter_call_interval:.2f} segundos")
+
+		logger.start_timer("procesamiento_listas")
+		for i, lista in enumerate(listas_a_procesar):
+			try:
+				# Pausar entre llamadas para respetar el rate limit
+				if i > 0:
+					# Mostrar avance y tiempo restante estimado
+					processed = i
+					remaining = total_to_process - processed
+					remaining_windows = math.ceil(remaining / RATE_LIMIT_PER_MIN)
+					remaining_seconds = remaining_windows * 60
+					percent = int(processed / total_to_process * 100)
+					prog_msg = f"Progreso: {processed}/{total_to_process} ({percent}%). Tiempo estimado restante: {remaining_seconds//60}m {remaining_seconds%60}s"
+					logger.debug(f"Progreso: {processed}/{total_to_process} ({percent}%)")
+					if progress_callback:
+						progress_callback(prog_msg)
+					else:
+						print(prog_msg)
+
+					# Sleep para espaciar llamadas
+					logger.debug(f"Esperando {inter_call_interval:.2f}s para respetar rate limit")
+					import time
+					time.sleep(inter_call_interval)
+
+				msg = f"Procesando lista {i+1}/{len(listas_a_procesar)}: {lista.name} (ID: {lista.id})"
+				logger.info(f"Procesando lista {i+1}/{len(listas_a_procesar)}: {lista.name} (ID: {lista.id})")
+				if progress_callback:
+					progress_callback(msg)
+				else:
+					print(msg)
+				
+				logger.start_timer(f"get_list_stats_{lista.id}")
+				stats = api.suscriptores.get_list_stats(lista.id)
+				logger.end_timer(f"get_list_stats_{lista.id}", f"Obtenidas stats para lista {lista.id}")
+				
+				# Extraer valores
+				sus_val = str(stats.total_subscribers) if hasattr(stats, 'total_subscribers') else '0'
+				cre_val = stats.create_date if hasattr(stats, 'create_date') else ''
+				logger.debug(f"Stats para lista {lista.id}: {sus_val} suscriptores, fecha creación: {cre_val}")
+
+				# Actualizar en df_main (que contiene el listado inicial)
+				try:
+					mask = df_main['ID_LISTA'] == str(lista.id)
+					if mask.any():
+						df_main.loc[mask, 'SUSCRIPTORES'] = sus_val
+						df_main.loc[mask, 'CREACION'] = cre_val
+						logger.debug(f"Actualizados datos en DataFrame para lista {lista.id}")
+					else:
+						# Si no existe (caso raro), append
+						df_main = pd.concat([df_main, pd.DataFrame([['', str(lista.id), lista.name, sus_val, cre_val]], columns=df_main.columns)], ignore_index=True)
+						logger.warning(f"Lista {lista.id} no encontrada en DataFrame, añadida como nueva fila")
+
+					# Guardar inmediatamente para persistir el progreso
+					try:
+						# Evitar NaN en el archivo al guardar
+						df_main_to_save = df_main.fillna("")
+						df_main_to_save.to_excel(ARCHIVO_BUSQUEDA, index=False)
+						logger.debug(f"Progreso guardado para lista {lista.id}")
+					except Exception as e:
+						logger.warning(f"No se pudo guardar fila para lista {lista.id}: {e}")
+
+				except Exception as e:
+					logger.warning(f"Error actualizando excel para lista {lista.id}: {e}")
+
+				# También mantener informe_detalle para compatibilidad
+				fila = ['', str(lista.id), lista.name, sus_val, cre_val]
+				if lista.id in listas_existentes:
+					for j, fila_det in enumerate(informe_detalle):
+						if fila_det[1] == str(lista.id):
+							informe_detalle[j] = fila
+							logger.debug(f"Actualizada fila existente para lista {lista.id}")
+							break
+				else:
+					informe_detalle.append(fila)
+					logger.debug(f"Añadida nueva fila para lista {lista.id}")
+
+			except Exception as e:
+				error_str = str(e).lower()
+				if "429" in error_str or "rate limit" in error_str or "too many requests" in error_str:
+					# Error de rate limit: esperar más tiempo y reintentar una vez
+					logger.warning(f"Rate limit detectado para lista {lista.id}. Esperando 60 segundos...")
+					print(f"⚠️ Rate limit detectado para lista {lista.id}. Esperando 60 segundos...")
+					import time
+					time.sleep(60)
+					try:
+						logger.info(f"Reintentando lista {lista.id}: {lista.name}")
+						print(f"Reintentando lista {lista.id}: {lista.name}")
+						logger.start_timer(f"reintento_get_list_stats_{lista.id}")
+						stats = api.suscriptores.get_list_stats(lista.id)
+						logger.end_timer(f"reintento_get_list_stats_{lista.id}", f"Reintento exitoso para lista {lista.id}")
+						
+						# Procesar stats exitosas después del reintento
+						fila = [
+							'',  # Buscar (columna vacía)
+							str(lista.id),  # ID_LISTA
+							lista.name,  # NOMBRE LISTA
+							str(stats.total_subscribers) if hasattr(stats, 'total_subscribers') else '0',  # SUSCRIPTORES
+							stats.create_date if hasattr(stats, 'create_date') else ''  # CREACION
+						]
+
+						if lista.id in listas_existentes:
+							# Encontrar y reemplazar en informe_detalle
+							for j, fila_det in enumerate(informe_detalle):
+								if fila_det[1] == str(lista.id):
+									informe_detalle[j] = fila
+									logger.info(f"Fila actualizada después del reintento para lista {lista.id}")
+									break
+						else:
+							informe_detalle.append(fila)
+							logger.info(f"Añadida fila después del reintento para lista {lista.id}")
+
+						logger.info(f"✅ Lista {lista.id} procesada exitosamente después del reintento")
+						print(f"✅ Lista {lista.id} procesada exitosamente después del reintento")
+						continue
+					except Exception as e2:
+						logger.error(f"Error obteniendo stats para lista {lista.id} después del reintento: {e2}")
+						logger.end_timer(f"reintento_get_list_stats_{lista.id}", f"Reintento fallido para lista {lista.id}")
+				else:
+					logger.error(f"Error obteniendo stats para lista {lista.id}: {e}")
+
+				# Fallback sin estadísticas detalladas
+				logger.warning(f"Usando valores por defecto para lista {lista.id} debido a error")
+				fila = ['', str(lista.id), lista.name, '0', '']
+
+				if lista.id in listas_existentes:
+					# Actualizar existente
+					for j, fila_det in enumerate(informe_detalle):
+						if fila_det[1] == str(lista.id):
+							informe_detalle[j] = fila
+							logger.debug(f"Actualizada fila existente con valores por defecto para lista {lista.id}")
+							break
+				else:
+					informe_detalle.append(fila)
+					logger.debug(f"Añadida nueva fila con valores por defecto para lista {lista.id}")
+		logger.end_timer("procesamiento_listas", f"Procesadas {len(listas_a_procesar)} listas")
+		
+		# Reconstruir el informe final a partir de df_main para asegurar que
+		# el conjunto final incluya todas las listas remotas (ID + nombre)
+		# con las estadísticas actualizadas que se fueron persistiendo en df_main.
+		# Antes de reconstruir, reordenar df_main para que las filas con CREACION vacía
+		# queden al final y las que tengan fecha queden en orden ascendente.
+		logger.debug("Reconstruyendo informe final a partir de df_main")
+		try:
+			# Asegurar sin NaN
+			df_main = df_main.fillna('')
+			# Reusar la clave usada anteriormente: filas sin fecha -> al final
+			df_main['_sort'] = df_main['CREACION'].apply(_fecha_sort_key)
+			df_main = df_main.sort_values(by=['_sort']).drop(columns=['_sort']).reset_index(drop=True)
+		except Exception as e:
+			logger.warning(f"Error al reordenar el DataFrame final: {e}")
+		
+		informe_detalle = []
+		try:
+			# df_main fue construido más arriba como DataFrame con todas las listas remotas
+			logger.debug("Convirtiendo DataFrame final a lista de detalles")
+			for _, r in df_main.fillna('').iterrows():
+				buscar = '' if r.get('Buscar', '') is None else str(r.get('Buscar', '')).strip()
+				id_lista = '' if r.get('ID_LISTA', '') is None else str(r.get('ID_LISTA', '')).strip()
+				nombre = '' if r.get('NOMBRE LISTA', '') is None else str(r.get('NOMBRE LISTA', '')).strip()
+				sus = '' if r.get('SUSCRIPTORES', '') is None else str(r.get('SUSCRIPTORES', '')).strip()
+				cre = '' if r.get('CREACION', '') is None else str(r.get('CREACION', '')).strip()
+				# Evitar literales 'nan'
+				if nombre.lower() == 'nan':
+					nombre = ''
+				if sus.lower() == 'nan':
+					sus = ''
+				if cre.lower() == 'nan':
+					cre = ''
+				informe_detalle.append([buscar, id_lista, nombre, sus, cre])
+		except Exception as e:
+			logger.error(f"Error al convertir DataFrame a lista de detalles: {e}")
+			# Fallback: mantener el informe_detalle anterior si algo falla
+			pass
+
+		
+        
+		logger.info(f"Obtenidas {len(informe_detalle)} listas via API ({len(listas_nuevas)} nuevas)")
+		api.close()
+		
+	except Exception as e:
+		logger.error(f"Error obteniendo listas via API: {e}")
+		print(f"Error obteniendo listas via API: {e}")
+		
+	return informe_detalle
+
+def guardar_datos_en_excel(informe_detalle: list[list[str]], archivo_busqueda: str):
+	"""
+	Guarda los datos en el archivo Excel usando ExcelHelper con las nuevas columnas
+	y ajusta automáticamente el ancho de las columnas
+	"""
+	logger = get_logger()
+	logger.start_timer("guardar_datos_en_excel")
+	
+	if not informe_detalle:
+		logger.info("No hay datos para guardar.")
+		print("No hay datos para guardar.")
+		return
+
+	try:
+		# Crear DataFrame con los datos incluyendo ID_LISTA
+		columnas = ["Buscar", "ID_LISTA", "NOMBRE LISTA", "SUSCRIPTORES", "CREACION"]
+		logger.info(f"Creando DataFrame con {len(informe_detalle)} registros para guardar")
+		df = pd.DataFrame(informe_detalle, columns=columnas)
+		
+		# Guardar con ajuste automático de columnas usando ExcelWriter
+		logger.info(f"Guardando datos en archivo Excel: {archivo_busqueda}")
+		with pd.ExcelWriter(archivo_busqueda, engine='openpyxl') as writer:
+			df.to_excel(writer, sheet_name='Sheet1', index=False)
+			
+			# Ajustar automáticamente el ancho de las columnas
+			worksheet = writer.sheets['Sheet1']
+			
+			for column in worksheet.columns:
+				max_length = 0
+				column_letter = column[0].column_letter
+				
+				for cell in column:
+					try:
+						# Calcular la longitud máxima del contenido
+						if len(str(cell.value)) > max_length:
+							max_length = len(str(cell.value))
+					except:
+						pass
+				
+				# Ajustar el ancho (agregar un poco de padding)
+				adjusted_width = min(max_length + 2, 50)  # Máximo 50 caracteres
+				worksheet.column_dimensions[column_letter].width = adjusted_width
+		
+		logger.info(f"Se guardaron {len(informe_detalle)} registros en {archivo_busqueda}")
+		print(f"Se guardaron {len(informe_detalle)} registros en {archivo_busqueda}")
+		print("✅ Columnas ajustadas automáticamente")
+
+	except Exception as e:
+		logger.error(f"Error guardando archivo Excel: {e}")
+		print(f"Error guardando archivo Excel: {e}")
+		
+		# Fallback: usar ExcelHelper tradicional
+		try:
+			logger.info("Usando modo fallback para guardar datos...")
+			df = pd.DataFrame(informe_detalle, columns=["Buscar", "ID_LISTA", "NOMBRE LISTA", "SUSCRIPTORES", "CREACION"])
+			ExcelHelper.escribir_excel(df, archivo_busqueda, "Sheet1", reemplazar=True)
+			logger.info(f"Se guardaron {len(informe_detalle)} registros en {archivo_busqueda} (modo fallback)")
+			print(f"Se guardaron {len(informe_detalle)} registros en {archivo_busqueda} (modo fallback)")
+		except Exception as e2:
+			logger.error(f"Error en modo fallback: {e2}")
+			print(f"Error en fallback: {e2}")
+			
+	logger.end_timer("guardar_datos_en_excel", f"Guardados {len(informe_detalle)} registros")
+
+def main(progress_callback: Optional[Callable[[str], None]] = None):
+	"""
+	Función principal del programa de listado de listas usando API
+	"""
+	logger = get_logger()
+	logger.start_timer("main_proceso_obtener_listas")
+	
+	try:
+		logger.info("Iniciando proceso principal de obtención de listas")
+		
+		# Obtener listas via API
+		informe_detalle = obtener_listas_via_api(progress_callback=progress_callback)
+		
+		if informe_detalle:
+			logger.info(f"Se obtuvieron {len(informe_detalle)} listas, guardando en archivo...")
+			guardar_datos_en_excel(informe_detalle, ARCHIVO_BUSQUEDA)
+			logger.info(f"🎉 Proceso finalizado exitosamente: {len(informe_detalle)} listas obtenidas y guardadas")
+			print(f"🎉 Proceso finalizado: Listas obtenidas via API: {len(informe_detalle)}")
+		else:
+			logger.warning("No se obtuvieron datos de listas")
+			print("⚠️ Proceso finalizado: No se obtuvieron listas")
+
+		logger.print_performance_report()
+		logger.end_timer("main_proceso_obtener_listas", f"Proceso completado: {len(informe_detalle) if informe_detalle else 0} listas")
+		
+	except Exception as e:
+		logger.error(f"Error crítico en el programa: {e}")
+		print(f"Error crítico en el programa: {e}")
+		logger.end_timer("main_proceso_obtener_listas", "Error crítico en el programa")
+		raise
+
+if __name__ == "__main__":
+	main()

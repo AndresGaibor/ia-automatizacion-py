@@ -1,9 +1,9 @@
 import logging
 from playwright.sync_api import BrowserContext, Page
-from .utils import load_config, storage_state_path
-from .shared.logging.logger import get_logger
-from .core.authentication.exceptions import CookiePopupError, AuthenticationFailedError, SessionSaveError
-from .infrastructure.scraping.pages.login_page import LoginPage
+from ...utils import load_config, storage_state_path
+from ...shared.logging.logger import get_logger
+from .exceptions import CookiePopupError, AuthenticationFailedError, SessionSaveError
+from ...infrastructure.scraping.pages.login_page import LoginPage
 
 logger = get_logger()
 

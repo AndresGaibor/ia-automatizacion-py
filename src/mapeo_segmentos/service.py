@@ -5,7 +5,7 @@ from typing import Dict, List, Any
 
 from ..utils import load_config, notify
 from ..logger import get_logger
-from ..excel_helper import ExcelHelper
+from ..infrastructure.excel import ExcelHelper
 from ..infrastructure.api import API
 from .id_manager import (
     ARCHIVO_SEGMENTOS, CARPETA_LISTAS,
