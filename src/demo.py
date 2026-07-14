@@ -16,7 +16,7 @@ from .infrastructure.scraping.pages.subscribers_page import SubscribersPage
 from .infrastructure.excel import agregar_datos, crear_hoja_con_datos, obtener_o_crear_hoja
 from .shared.utils.legacy_utils import cargar_campanias_a_buscar, crear_contexto_navegador, configurar_navegador, load_config, data_path, notify, storage_state_path
 from .shared.logging.logger import get_logger
-from .structured_logger import log_success, log_error, log_warning, log_info, log_performance, log_data_extraction
+from .shared.logging.compat import log_success, log_error, log_warning, log_info, log_performance, log_data_extraction
 from .hybrid_service import HybridDataService
 
 # Initialize logger
