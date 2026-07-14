@@ -9,19 +9,19 @@ import sys
 
 # Configurar package para imports consistentes y PyInstaller compatibility
 if __package__ in (None, ""):
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
     __package__ = "src"
 
-from .infrastructure.api import API
-from .infrastructure.api.models.campanias import CampaignBasicInfo
-from .shared.utils.legacy_utils import is_on_login_page
-from .scraping_deprecated import (
+from ...infrastructure.api import API
+from ...infrastructure.api.models.campanias import CampaignBasicInfo
+from ...shared.utils.legacy_utils import is_on_login_page
+from ...scraping_deprecated import (
     SubscriberDetailsService,
     ScrapingResult
 )
-from .shared.logging.logger import get_logger
-from .shared.utils.retry_utils import retry_with_backoff, is_connection_error
-from .autentificacion import manejar_popup_cookies
+from ...shared.logging.logger import get_logger
+from ...shared.utils.retry_utils import retry_with_backoff, is_connection_error
+from ...autentificacion import manejar_popup_cookies
 
 
 class HybridDataService:
@@ -286,10 +286,10 @@ class HybridDataService:
         Valida los datos de scraping comparando con lo que muestra la interfaz web
         Retorna un reporte detallado de validación
         """
-        from .shared.utils.legacy_utils import cargar_campanias_a_buscar
-        from .infrastructure.api.models.campanias import CampaignBasicInfo
-        from .scrapping.endpoints.subscriber_details import SubscriberDetailsService
-        from .shared.logging.logger import get_logger
+        from ...shared.utils.legacy_utils import cargar_campanias_a_buscar
+        from ...infrastructure.api.models.campanias import CampaignBasicInfo
+        from ...scraping_deprecated.endpoints.subscriber_details import SubscriberDetailsService
+        from ...shared.logging.logger import get_logger
 
         logger = get_logger()
         validation_report = {

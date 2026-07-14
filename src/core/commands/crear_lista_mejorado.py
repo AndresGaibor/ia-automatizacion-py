@@ -8,11 +8,11 @@ Funcionalidades:
 5. Validación de diferencias entre hojas "Datos" y "Cambios"
 """
 
-from .utils import data_path, notify, load_config
-from .infrastructure.api import API
-from .infrastructure.api.models.suscriptores import SubscriberData, FieldType
-from .logger import get_logger
-from .excel_helper import ExcelHelper
+from ...utils import data_path, notify, load_config
+from ...infrastructure.api import API
+from ...infrastructure.api.models.suscriptores import SubscriberData, FieldType
+from ...shared.logging.logger import get_logger
+from ...infrastructure.excel import ExcelHelper
 import pandas as pd
 import os
 import tkinter as tk
@@ -688,7 +688,7 @@ def crear_campos_personalizados(list_id: int, df_suscriptores: pd.DataFrame, api
         campos_acumba = []
         if page:
             try:
-                from .field_scraper import obtener_campos_disponibles_acumba, filtrar_campos_necesarios
+                from ...infrastructure.scraping.utils.field_scraper import obtener_campos_disponibles_acumba, filtrar_campos_necesarios
 
                 print("📊 Obteniendo campos disponibles en Acumbamail...")
                 info_campos = obtener_campos_disponibles_acumba(page, list_id)

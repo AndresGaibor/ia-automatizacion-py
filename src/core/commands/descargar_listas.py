@@ -23,14 +23,14 @@ import re
 
 # Configurar package para imports consistentes y PyInstaller compatibility
 if __package__ in (None, ""):
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
     __package__ = "src"
 
-from .logger import get_logger
-from .utils import load_config, data_path, notify
-from .infrastructure.api.client import APIClient
-from .infrastructure.api.endpoints.suscriptores import SuscriptoresAPI
-from .infrastructure.excel import crear_o_cargar_libro_excel, obtener_o_crear_hoja, agregar_datos
+from ...shared.logging.logger import get_logger
+from ...utils import load_config, data_path, notify
+from ...infrastructure.api.client import APIClient
+from ...infrastructure.api.endpoints.suscriptores import SuscriptoresAPI
+from ...infrastructure.excel import crear_o_cargar_libro_excel, obtener_o_crear_hoja, agregar_datos
 
 logger = get_logger()
 

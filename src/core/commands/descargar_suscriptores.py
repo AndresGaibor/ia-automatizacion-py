@@ -10,13 +10,13 @@ from pathlib import Path
 import sys
 
 if __package__ in (None, ""):
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
     __package__ = "src"
 
-from .utils import data_path, load_config, crear_contexto_navegador, configurar_navegador
-from .autentificacion import login
-from .logger import get_logger
-from .infrastructure.scraping.pages.subscribers_list_page import SubscribersListPage
+from ...utils import data_path, load_config, crear_contexto_navegador, configurar_navegador
+from ...autentificacion import login
+from ...shared.logging.logger import get_logger
+from ...infrastructure.scraping.pages.subscribers_list_page import SubscribersListPage
 from playwright.sync_api import sync_playwright, Page
 
 logger = get_logger()

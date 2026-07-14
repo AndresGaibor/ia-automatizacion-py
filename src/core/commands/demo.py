@@ -8,23 +8,23 @@ from typing import List
 # Configurar package para imports consistentes y PyInstaller compatibility
 if __package__ in (None, ""):
     import sys
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
     __package__ = "src"
 
-from .infrastructure.api.models.campanias import CampaignBasicInfo
-from .infrastructure.scraping.pages.subscribers_page import SubscribersPage
-from .infrastructure.excel import agregar_datos, crear_hoja_con_datos, obtener_o_crear_hoja
-from .shared.utils.legacy_utils import cargar_campanias_a_buscar, crear_contexto_navegador, configurar_navegador, load_config, data_path, notify, storage_state_path
-from .shared.logging.logger import get_logger
-from .shared.logging.compat import log_success, log_error, log_warning, log_info, log_performance, log_data_extraction
-from .hybrid_service import HybridDataService
+from ...infrastructure.api.models.campanias import CampaignBasicInfo
+from ...infrastructure.scraping.pages.subscribers_page import SubscribersPage
+from ...infrastructure.excel import agregar_datos, crear_hoja_con_datos, obtener_o_crear_hoja
+from ...shared.utils.legacy_utils import cargar_campanias_a_buscar, crear_contexto_navegador, configurar_navegador, load_config, data_path, notify, storage_state_path
+from ...shared.logging.logger import get_logger
+from ...shared.logging.compat import log_success, log_error, log_warning, log_info, log_performance, log_data_extraction
+from ...core.services.hybrid_service import HybridDataService
 
 # Initialize logger
 logger = get_logger()
-from .core.authentication.authentication_service import AuthenticationService
-from .core.config.config_manager import ConfigManager
-from .shared.utils.retry_utils import retry_with_backoff, is_connection_error
-from .infrastructure.scraping.endpoints.campanias import CampaignsScraper
+from ...core.authentication.authentication_service import AuthenticationService
+from ...core.config.config_manager import ConfigManager
+from ...shared.utils.retry_utils import retry_with_backoff, is_connection_error
+from ...infrastructure.scraping.endpoints.campanias import CampaignsScraper
 
 class FileSessionStorage:
     def __init__(self, session_path: str):
@@ -292,7 +292,7 @@ def obtener_lista_suscriptor(email: str, mapa_email_lista: dict[str, str]) -> st
 	return lista
 
 def generar_general(campania: CampaignBasicInfo, campania_complete, campaign_clics, todas_listas, page, campaign_id=None) -> list[str]:
-	from .shared.logging.logger import get_logger
+	from ...shared.logging.logger import get_logger
 	logger = get_logger()
 	
 	logger.debug("🚀 Iniciando generación de datos generales para campaña")
@@ -544,7 +544,7 @@ def main():
 			login(page, context=context)
 			log_success("Autenticación completada exitosamente")
 
-			from .infrastructure.scraping.pages.base_page import PaginaBase as BasePage
+			from ...infrastructure.scraping.pages.base_page import PaginaBase as BasePage
 			base_page = BasePage(page, url="")
 
 			# Espera adicional post-login para asegurar estabilidad de sesión antes de operaciones de API
@@ -570,8 +570,8 @@ def main():
 
 				# Validar sesión antes de procesar CADA campaña (incluyendo la primera)
 				try:
-					from .shared.utils.legacy_utils import validate_session, is_on_login_page
-					from .autentificacion import manejar_popup_cookies
+					from ...shared.utils.legacy_utils import validate_session, is_on_login_page
+					from ...autentificacion import manejar_popup_cookies
 
 					# Verificar si la sesión sigue válida
 					if is_on_login_page(page):

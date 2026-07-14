@@ -10,12 +10,12 @@ from typing import List, Tuple
 
 # Configurar package para imports consistentes y PyInstaller compatibility
 if __package__ in (None, ""):
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
     __package__ = "src"
 
-from .utils import data_path
-from .infrastructure.api import API
-from .logger import get_logger
+from ...utils import data_path
+from ...infrastructure.api import API
+from ...shared.logging.logger import get_logger
 
 
 def validar_archivo_busqueda_listas() -> Tuple[bool, str, int]:

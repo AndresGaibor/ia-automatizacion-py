@@ -3,24 +3,24 @@ from pathlib import Path
 
 # Configurar package para imports consistentes y PyInstaller compatibility
 if __package__ in (None, ""):
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
     __package__ = "src"
 
-from .shared.utils.legacy_utils import (
+from ...shared.utils.legacy_utils import (
     data_path,
     crear_contexto_navegador,
     configurar_navegador,
     is_on_login_page,
     navegar_a_reportes,
 )
-from .autentificacion import login
-from .shared.logging.logger import get_logger
-from .infrastructure.api import API
-from .core.authentication.exceptions import SessionExpiredError, AuthenticationFailedError
-from .infrastructure.scraping.flows.report_listing_flow import ReportListingFlow
-from .infrastructure.scraping.flows.auth_flow import AuthFlow
-from .infrastructure.scraping.pages.reports_page import ReportsPage
-from .infrastructure.excel.campaign_report_exporter import CampaignReportExporter
+from ...autentificacion import login
+from ...shared.logging.logger import get_logger
+from ...infrastructure.api import API
+from ...core.authentication.exceptions import SessionExpiredError, AuthenticationFailedError
+from ...infrastructure.scraping.flows.report_listing_flow import ReportListingFlow
+from ...infrastructure.scraping.flows.auth_flow import AuthFlow
+from ...infrastructure.scraping.pages.reports_page import ReportsPage
+from ...infrastructure.excel.campaign_report_exporter import CampaignReportExporter
 
 from playwright.sync_api import sync_playwright, Page
 

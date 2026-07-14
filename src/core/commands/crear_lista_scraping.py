@@ -15,10 +15,10 @@ from pathlib import Path
 if __package__ in (None, ""):
     import sys
 
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
     __package__ = "src"
 
-from .utils import (
+from ...utils import (
     load_config,
     data_path,
     storage_state_path,
@@ -27,15 +27,15 @@ from .utils import (
     crear_contexto_navegador,
     get_timeouts,
 )
-from .infrastructure.scraping.endpoints.lista_upload import ListUploader
-from .infrastructure.scraping.pages.lists_page import ListsPage
-from .infrastructure.scraping.models.listas import (
+from ...infrastructure.scraping.endpoints.lista_upload import ListUploader
+from ...infrastructure.scraping.pages.lists_page import ListsPage
+from ...infrastructure.scraping.models.listas import (
     ListUploadConfig,
     ListUploadColumn,
     ListUploadProgress,
 )
-from .shared.logging.logger import get_logger
-from .excel_helper import ExcelHelper
+from ...shared.logging.logger import get_logger
+from ...infrastructure.excel import ExcelHelper
 
 
 def listar_hojas(archivo: str) -> list[str]:

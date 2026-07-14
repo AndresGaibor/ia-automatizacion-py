@@ -7,13 +7,13 @@ from pathlib import Path
 
 # Configurar package para imports consistentes y PyInstaller compatibility
 if __package__ in (None, ""):
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
     __package__ = "src"
 
-from .utils import data_path, notify
-from .infrastructure.api import API
-from .logger import get_logger
-from .excel_helper import ExcelHelper
+from ...utils import data_path, notify
+from ...infrastructure.api import API
+from ...shared.logging.logger import get_logger
+from ...infrastructure.excel.excel_utils import crear_o_cargar_libro_excel, obtener_o_crear_hoja, agregar_datos, _agregar_encabezados
 
 # Rutas
 ARCHIVO_BUSQUEDA = data_path("Busqueda_Listas.xlsx")
@@ -32,7 +32,7 @@ def cargar_datos_existentes(archivo_busqueda: str) -> list[list[str]]:
 			logger.info(f"Archivo no encontrado, creando nuevo: {archivo_busqueda}")
 			return []
 		
-		df = ExcelHelper.leer_excel(archivo_busqueda)
+		df = pd.read_excel(archivo_busqueda)
 		
 		if df.empty:
 			logger.info("Archivo Excel vacío")
@@ -535,11 +535,11 @@ def guardar_datos_en_excel(informe_detalle: list[list[str]], archivo_busqueda: s
 		logger.error(f"Error guardando archivo Excel: {e}")
 		print(f"Error guardando archivo Excel: {e}")
 		
-		# Fallback: usar ExcelHelper tradicional
+		# Fallback: usar pandas directamente
 		try:
 			logger.info("Usando modo fallback para guardar datos...")
 			df = pd.DataFrame(informe_detalle, columns=["Buscar", "ID_LISTA", "NOMBRE LISTA", "SUSCRIPTORES", "CREACION"])
-			ExcelHelper.escribir_excel(df, archivo_busqueda, "Sheet1", reemplazar=True)
+			df.to_excel(archivo_busqueda, index=False, sheet_name="Sheet1")
 			logger.info(f"Se guardaron {len(informe_detalle)} registros en {archivo_busqueda} (modo fallback)")
 			print(f"Se guardaron {len(informe_detalle)} registros en {archivo_busqueda} (modo fallback)")
 		except Exception as e2:

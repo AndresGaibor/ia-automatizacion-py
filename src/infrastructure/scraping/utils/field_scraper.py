@@ -4,8 +4,8 @@ Utiliza la misma técnica que descargar_suscriptores.py para detectar campos din
 """
 from typing import List, Dict
 from playwright.sync_api import Page
-from src.infrastructure.scraping.pages.fields_page import FieldsPage
-from .logger import get_logger
+from ..pages.fields_page import PaginaCampos as FieldsPage
+from ....shared.logging.logger import get_logger
 
 
 def obtener_campos_disponibles_acumba(page: Page, list_id: int) -> Dict[str, List[str]]:
